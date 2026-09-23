@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amr"
+version = "0.1.0"
+description = "Raspberry Pi side of the AMR smart-warehouse robot platform."
+readme = "README.md"
+requires-python = ">=3.9"
+# Core is deliberately minimal. pyserial is optional at import time (mock mode
+# runs without it). OpenCV / ROS are NOT dependencies of the core stack.
+dependencies = [
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+# Install the real serial driver:  pip install -e .[serial]
+serial = ["pyserial>=3.5"]
+dev = ["pytest>=7.0", "pyserial>=3.5"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["amr*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

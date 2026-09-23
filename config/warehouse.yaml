@@ -1,0 +1,32 @@
+# Warehouse task manager (Phase 16).
+#
+# `locations` is the warehouse map: name -> {x, y, theta}. Coordinates are in
+# metres in the world frame. `theta` is the heading the robot should have when
+# it arrives (radians). The robot starts at the `dock`.
+#
+# wheel_base_m is the distance between the wheel centres. It defaults to a
+# nominal 0.30 m and SHOULD be replaced by the measured robot.wheel_track_m
+# once available (the code prefers robot.wheel_track_m when it is set).
+warehouse:
+  enabled: true
+  dock: "dock"
+
+  # Nominal motion tuning for autonomous task execution (m/s, rad/s).
+  task_speed: 0.5
+  turn_speed: 1.0
+  wheel_base_m: 0.30
+
+  # Max tasks that may be queued at once.
+  queue_max: 16
+
+  # End-effector backend: "mock" (records picks/places) or "null" (no-op).
+  # Real gripper/ARM hardware plugs into amr.warehouse.tasks.Manipulator.
+  manipulator: "mock"
+
+  # The map. Every name used by a task must appear here.
+  locations:
+    dock:    {x: 0.0,  y: 0.0, theta: 0.0}
+    shelf_a: {x: 2.0,  y: 0.0, theta: 0.0}
+    shelf_b: {x: 2.0,  y: 1.5, theta: 0.0}
+    shelf_c: {x: 4.0,  y: 1.5, theta: 0.0}
+    station: {x: 0.0,  y: 3.0, theta: 0.0}

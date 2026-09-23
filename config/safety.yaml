@@ -1,0 +1,25 @@
+# Safety thresholds — layered safety system (see docs/safety.md).
+#
+# IMPORTANT: `status: NOT_VERIFIED`. Every distance below is a *configurable
+# test value*, not a physically validated one. Before trusting the robot at
+# real speed, measure and confirm each threshold against the actual robot,
+# then set status: VERIFIED and record who/when/where.
+safety:
+  # Arduino-side communication watchdog. If no valid command arrives within
+  # this window, the firmware drives all motors to STOP. (Phase 2)
+  watchdog_timeout_ms: 1000
+
+  # Stop-if-closer distances (cm). Layer 1 (Arduino) uses these for immediate
+  # hardware stop; Layers 2/3 (Pi) use them for higher-level decisions.
+  front_stop_distance_cm: 20
+  rear_stop_distance_cm: 20
+  left_stop_distance_cm: 15
+  right_stop_distance_cm: 15
+
+  # Validity window for a single ultrasonic reading (cm). Readings outside
+  # this window (or a timeout) are treated as invalid -> unsafe.
+  sensor_min_valid_cm: 2
+  sensor_max_valid_cm: 400
+
+  # NOT_VERIFIED | VERIFIED
+  status: NOT_VERIFIED

@@ -1,0 +1,46 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+envs/
+
+# --- IDE / project tooling ---
+.codebuddy/
+.idea/
+.vscode/
+*.swp
+
+# --- macOS ---
+.DS_Store
+
+# --- Logs / databases / artifacts ---
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.h5
+*.npy
+*.npz
+
+# --- Build / packaging ---
+build/
+dist/
+*.egg-info/
+*.egg
+
+# --- Runtime / data ---
+*.tmp
+tmp/

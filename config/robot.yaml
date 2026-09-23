@@ -1,0 +1,43 @@
+# Robot identity, geometry, motors, sensors, camera.
+#
+# Geometry (wheel_track_m / wheel_diameter_m) is used by odometry and Nav2.
+# It MUST be measured physically — do NOT guess. Left as null until measured.
+robot:
+  name: "amr-robot"
+
+  # TODO: VERIFY by measuring the physical robot (metres). Required before
+  # odometry/Nav2 can be trusted. See docs/hardware.md.
+  wheel_track_m: null      # distance between left and right wheel centres
+  wheel_diameter_m: null   # rolling diameter of the wheel
+
+motors:
+  # Maximum |speed| value mapped to PWM duty (0..255).
+  # NOTE: actual PWM output is gated until the L298N ENA/ENB wiring is
+  # verified (see docs/hardware.md and firmware/arduino/amr_controller).
+  max_speed: 255
+
+sensors:
+  ultrasonic:
+    # Poll interval on the Arduino (ms) for the periodic SENSOR telemetry.
+    poll_interval_ms: 100
+    # Pin assignments. DO NOT INVENT — set after wiring is documented.
+    # Format: "D8" for a digital pin.
+    front:
+      trig: "TODO_VERIFY"
+      echo: "TODO_VERIFY"
+    left:
+      trig: "TODO_VERIFY"
+      echo: "TODO_VERIFY"
+    right:
+      trig: "TODO_VERIFY"
+      echo: "TODO_VERIFY"
+    rear:
+      trig: "TODO_VERIFY"
+      echo: "TODO_VERIFY"
+
+camera:
+  # Camera cable compatibility is NOT yet confirmed. The software must work
+  # with the camera unavailable; `enabled` only gates attempts to use it.
+  enabled: true
+  device: "pi"             # "pi" (libcamera/raspichill) or "v4l2"
+  resolution: "1280x720"

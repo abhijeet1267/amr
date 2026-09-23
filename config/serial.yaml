@@ -1,0 +1,14 @@
+# Serial link: Raspberry Pi 5 <-> Arduino UNO (USB CDC, /dev/ttyACM0 today).
+#
+# NOTE: the device node can change between boots / machines (e.g. /dev/ttyUSB0).
+# Prefer discovery (see tools/health_check.sh and docs/setup_raspberry_pi.md)
+# over relying on this literal path. `port` is the fallback.
+serial:
+  port: "/dev/ttyACM0"
+  baudrate: 9600
+  # Per-command response timeout (seconds). Tune if the link is slow.
+  timeout: 1.0
+  read_timeout_s: 1.0
+  write_timeout_s: 0.5
+  # Must match firmware/arduino/amr_controller (PROTOCOL_VERSION).
+  protocol_version: "1.0"
