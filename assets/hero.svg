@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1420"/>
+      <stop offset="1" stop-color="#141c2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="360" rx="18" fill="url(#bg)" stroke="#2a3550" stroke-width="1.5"/>
+
+  <!-- top-down robot schematic, body front = up -->
+  <g>
+    <path d="M196,86 L210,40 L224,86 Z" fill="none" stroke="#4da3ff" stroke-width="1.5" opacity="0.7"/>
+    <path d="M132,166 L86,180 L132,194 Z" fill="none" stroke="#4da3ff" stroke-width="1.5" opacity="0.7"/>
+    <path d="M288,166 L334,180 L288,194 Z" fill="none" stroke="#4da3ff" stroke-width="1.5" opacity="0.7"/>
+    <path d="M196,274 L210,318 L224,274 Z" fill="none" stroke="#4da3ff" stroke-width="1.5" opacity="0.7"/>
+    <rect x="130" y="104" width="20" height="152" rx="9" fill="#2a3550" stroke="#3a4a6b"/>
+    <rect x="290" y="104" width="20" height="152" rx="9" fill="#2a3550" stroke="#3a4a6b"/>
+    <rect x="152" y="92" width="116" height="176" rx="16" fill="#1a2233" stroke="#4da3ff" stroke-width="2"/>
+    <rect x="192" y="96" width="36" height="18" rx="4" fill="#12331f" stroke="#2ecc71" stroke-width="1.5"/>
+    <circle cx="210" cy="86" r="6" fill="#4da3ff"/>
+    <circle cx="210" cy="274" r="6" fill="#4da3ff"/>
+    <circle cx="150" cy="180" r="6" fill="#4da3ff"/>
+    <circle cx="270" cy="180" r="6" fill="#4da3ff"/>
+    <circle cx="210" cy="286" r="9" fill="#2a3550" stroke="#3a4a6b"/>
+    <g fill="#8b98b8" font-size="12">
+      <text x="210" y="30" text-anchor="middle">front</text>
+      <text x="210" y="345" text-anchor="middle">rear</text>
+      <text x="58" y="184">left</text>
+      <text x="338" y="184">right</text>
+    </g>
+  </g>
+
+  <text x="470" y="150" fill="#e6ecf7" font-size="76" font-weight="800" letter-spacing="1">AMR</text>
+  <text x="472" y="192" fill="#4da3ff" font-size="22" font-weight="600">Autonomous Mobile Robot</text>
+  <text x="472" y="222" fill="#8b98b8" font-size="17">A safe, layered control stack for a differential-drive smart-warehouse robot.</text>
+
+  <g font-size="14">
+    <rect x="472" y="248" width="150" height="32" rx="16" fill="#1a2233" stroke="#2a3550"/>
+    <text x="547" y="269" fill="#e6ecf7" text-anchor="middle">Raspberry Pi</text>
+    <rect x="634" y="248" width="150" height="32" rx="16" fill="#1a2233" stroke="#2a3550"/>
+    <text x="709" y="269" fill="#e6ecf7" text-anchor="middle">Arduino UNO</text>
+    <rect x="796" y="248" width="172" height="32" rx="16" fill="#12331f" stroke="#2ecc71"/>
+    <text x="882" y="269" fill="#2ecc71" text-anchor="middle">Two-layer safety</text>
+    <rect x="980" y="248" width="176" height="32" rx="16" fill="#10203a" stroke="#4da3ff"/>
+    <text x="1068" y="269" fill="#4da3ff" text-anchor="middle">Web + Warehouse</text>
+  </g>
+</svg>

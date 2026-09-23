@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="700" viewBox="0 0 1240 700" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#4da3ff"/>
+    </marker>
+    <marker id="ahd" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#8b98b8"/>
+    </marker>
+  </defs>
+  <rect width="1240" height="700" fill="#0f1420"/>
+  <text x="40" y="52" fill="#e6ecf7" font-size="26" font-weight="700">AMR System Architecture</text>
+  <text x="40" y="78" fill="#8b98b8" font-size="15">Raspberry Pi (brain) &#8596; USB serial &#8596; Arduino UNO (real-time reflexes)</text>
+
+  <!-- Pi box -->
+  <rect x="40" y="110" width="520" height="440" rx="14" fill="#151d2e" stroke="#2a3550" stroke-width="1.5"/>
+  <text x="64" y="142" fill="#4da3ff" font-size="17" font-weight="700">Raspberry Pi &#8212; high-level stack</text>
+
+  <!-- Pi pills -->
+  <g font-size="14" fill="#e6ecf7">
+    <rect x="64" y="158" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="80" y="182">Web Control UI + JSON API (Phase 10)</text>
+    <rect x="64" y="204" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="80" y="228">Warehouse Task Manager &#8212; queue + orchestration (Phase 16)</text>
+    <rect x="64" y="250" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="80" y="274">Navigator &#8212; goals, odometry, waypoint planning</text>
+    <rect x="64" y="296" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="80" y="320">RobotManager &#8212; gated command API + Mode Controller</text>
+    <rect x="64" y="342" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="80" y="366">Safety Manager &#8212; Layer-2 veto (speed-scaled standoff)</text>
+    <rect x="64" y="388" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="80" y="412">Ultrasonic (sensor validation) + Camera / Vision</text>
+    <rect x="64" y="434" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="80" y="458">Communication &#8212; serial protocol + transport</text>
+  </g>
+
+  <!-- Arduino box -->
+  <rect x="680" y="110" width="520" height="440" rx="14" fill="#151d2e" stroke="#2a3550" stroke-width="1.5"/>
+  <text x="704" y="142" fill="#2ecc71" font-size="17" font-weight="700">Arduino UNO &#8212; real-time control</text>
+
+  <!-- Arduino pills -->
+  <g font-size="14" fill="#e6ecf7">
+    <rect x="704" y="158" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="720" y="182">Serial protocol parser (C++)</text>
+    <rect x="704" y="204" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="720" y="228">Motor Control HAL &#8594; L298N (PWM + direction)</text>
+    <rect x="704" y="250" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="720" y="274">Comm Watchdog &#8212; STOP if the Pi goes silent</text>
+    <rect x="704" y="296" width="472" height="38" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="720" y="320">Ultrasonic Layer-1 &#8212; hardware stop @ 15 cm</text>
+  </g>
+  <rect x="704" y="356" width="472" height="112" rx="8" fill="#111827" stroke="#2a3550" stroke-dasharray="5 4"/>
+  <text x="720" y="380" fill="#8b98b8" font-size="13">Boots STOPPED. Never auto-drives.</text>
+  <text x="720" y="402" fill="#8b98b8" font-size="13">Moves only on explicit MOVE / F&#183;B&#183;L&#183;R&#183;S.</text>
+  <text x="720" y="424" fill="#8b98b8" font-size="13">Stops on watchdog timeout or close obstacle.</text>
+  <text x="720" y="446" fill="#8b98b8" font-size="13">Safest layer runs closest to the metal.</text>
+
+  <!-- Serial link -->
+  <text x="620" y="300" fill="#8b98b8" font-size="13" text-anchor="middle">USB Serial</text>
+  <text x="620" y="317" fill="#8b98b8" font-size="12" text-anchor="middle">9600 baud &#183; text</text>
+  <line x1="560" y1="332" x2="680" y2="332" stroke="#4da3ff" stroke-width="2" marker-end="url(#ah)"/>
+  <text x="620" y="327" fill="#4da3ff" font-size="11" text-anchor="middle">cmd</text>
+  <line x1="680" y1="356" x2="560" y2="356" stroke="#8b98b8" stroke-width="2" marker-end="url(#ahd)"/>
+  <text x="620" y="373" fill="#8b98b8" font-size="11" text-anchor="middle">resp</text>
+
+  <!-- Hardware under Pi -->
+  <line x1="300" y1="550" x2="300" y2="580" stroke="#2a3550" stroke-width="1.5"/>
+  <rect x="150" y="580" width="300" height="64" rx="10" fill="#1a2233" stroke="#2a3550"/>
+  <text x="300" y="608" fill="#e6ecf7" font-size="14" text-anchor="middle">Camera</text>
+  <text x="300" y="628" fill="#8b98b8" font-size="12" text-anchor="middle">Pi Camera / USB (optional)</text>
+
+  <!-- Hardware under Arduino -->
+  <line x1="815" y1="550" x2="815" y2="580" stroke="#2a3550" stroke-width="1.5"/>
+  <line x1="1075" y1="550" x2="1075" y2="580" stroke="#2a3550" stroke-width="1.5"/>
+  <rect x="690" y="580" width="250" height="64" rx="10" fill="#1a2233" stroke="#2a3550"/>
+  <text x="815" y="608" fill="#e6ecf7" font-size="14" text-anchor="middle">L298N + 2x DC motors</text>
+  <text x="815" y="628" fill="#8b98b8" font-size="12" text-anchor="middle">differential drive</text>
+  <rect x="950" y="580" width="250" height="64" rx="10" fill="#1a2233" stroke="#2a3550"/>
+  <text x="1075" y="608" fill="#e6ecf7" font-size="14" text-anchor="middle">4x HC-SR04</text>
+  <text x="1075" y="628" fill="#8b98b8" font-size="12" text-anchor="middle">front / left / right / rear</text>
+</svg>

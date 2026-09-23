@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="540" viewBox="0 0 940 540" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="m1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,3 L0,6 Z" fill="#4da3ff"/></marker>
+    <marker id="m2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,3 L0,6 Z" fill="#e74c3c"/></marker>
+    <marker id="m3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,3 L0,6 Z" fill="#8b98b8"/></marker>
+  </defs>
+  <rect width="940" height="540" fill="#0f1420"/>
+  <text x="40" y="50" fill="#e6ecf7" font-size="24" font-weight="700">Operating-Mode State Machine</text>
+  <text x="40" y="74" fill="#8b98b8" font-size="14">Motion is gated: the web / warehouse layers may only command in the modes that allow it.</text>
+
+  <!-- nodes -->
+  <!-- IDLE -->
+  <rect x="70" y="200" width="170" height="80" rx="12" fill="#151d2e" stroke="#8b98b8" stroke-width="2"/>
+  <text x="155" y="235" fill="#e6ecf7" font-size="18" font-weight="700" text-anchor="middle">IDLE</text>
+  <text x="155" y="257" fill="#8b98b8" font-size="12" text-anchor="middle">no motion allowed</text>
+
+  <!-- MANUAL -->
+  <rect x="380" y="200" width="180" height="80" rx="12" fill="#10203a" stroke="#4da3ff" stroke-width="2"/>
+  <text x="470" y="235" fill="#4da3ff" font-size="18" font-weight="700" text-anchor="middle">MANUAL</text>
+  <text x="470" y="257" fill="#8b98b8" font-size="12" text-anchor="middle">operator drives</text>
+
+  <!-- AUTONOMOUS -->
+  <rect x="700" y="200" width="190" height="80" rx="12" fill="#12331f" stroke="#2ecc71" stroke-width="2"/>
+  <text x="795" y="235" fill="#2ecc71" font-size="18" font-weight="700" text-anchor="middle">AUTONOMOUS</text>
+  <text x="795" y="257" fill="#8b98b8" font-size="12" text-anchor="middle">warehouse / nav drives</text>
+
+  <!-- SAFETY_STOP -->
+  <rect x="380" y="400" width="180" height="80" rx="12" fill="#2a1518" stroke="#e74c3c" stroke-width="2"/>
+  <text x="470" y="435" fill="#e74c3c" font-size="17" font-weight="700" text-anchor="middle">SAFETY_STOP</text>
+  <text x="470" y="457" fill="#8b98b8" font-size="12" text-anchor="middle">motor held to 0</text>
+
+  <!-- ERROR -->
+  <rect x="700" y="400" width="190" height="80" rx="12" fill="#2a2410" stroke="#f1c40f" stroke-width="2"/>
+  <text x="795" y="435" fill="#f1c40f" font-size="18" font-weight="700" text-anchor="middle">ERROR</text>
+  <text x="795" y="457" fill="#8b98b8" font-size="12" text-anchor="middle">fault latched</text>
+
+  <!-- transitions -->
+  <!-- IDLE -> MANUAL -->
+  <line x1="240" y1="225" x2="378" y2="225" stroke="#4da3ff" stroke-width="2" marker-end="url(#m1)"/>
+  <text x="309" y="217" fill="#8b98b8" font-size="12" text-anchor="middle">request MANUAL</text>
+  <!-- MANUAL -> IDLE -->
+  <line x1="378" y1="258" x2="240" y2="258" stroke="#8b98b8" stroke-width="2" marker-end="url(#m3)"/>
+  <text x="309" y="278" fill="#8b98b8" font-size="12" text-anchor="middle">request IDLE</text>
+  <!-- MANUAL -> AUTONOMOUS -->
+  <line x1="560" y1="225" x2="698" y2="225" stroke="#4da3ff" stroke-width="2" marker-end="url(#m1)"/>
+  <text x="629" y="217" fill="#8b98b8" font-size="12" text-anchor="middle">request AUTONOMOUS</text>
+  <!-- AUTONOMOUS -> SAFETY_STOP -->
+  <path d="M795,280 C795,340 560,350 505,398" fill="none" stroke="#e74c3c" stroke-width="2" marker-end="url(#m2)"/>
+  <!-- MANUAL -> SAFETY_STOP -->
+  <line x1="470" y1="280" x2="470" y2="398" stroke="#e74c3c" stroke-width="2" marker-end="url(#m2)"/>
+  <text x="485" y="345" fill="#e74c3c" font-size="12">safety veto / E-STOP</text>
+  <!-- SAFETY_STOP -> IDLE -->
+  <path d="M380,455 C260,470 150,420 155,282" fill="none" stroke="#8b98b8" stroke-width="2" marker-end="url(#m3)"/>
+  <text x="215" y="470" fill="#8b98b8" font-size="12">ack + clear fault</text>
+  <!-- any -> ERROR -->
+  <line x1="560" y1="455" x2="698" y2="455" stroke="#f1c40f" stroke-width="2" marker-end="url(#m3)"/>
+  <text x="629" y="447" fill="#f1c40f" font-size="12">fault</text>
+  <!-- ERROR -> IDLE (reset) -->
+  <path d="M700,470 C420,520 200,500 158,284" fill="none" stroke="#8b98b8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#m3)"/>
+  <text x="430" y="512" fill="#8b98b8" font-size="12">reset</text>
+</svg>

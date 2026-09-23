@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="580" viewBox="0 0 780 580" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="wp" markerWidth="11" markerHeight="11" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,3 L0,6 Z" fill="#4da3ff"/></marker>
+  </defs>
+  <rect width="780" height="580" fill="#0f1420"/>
+  <text x="40" y="50" fill="#e6ecf7" font-size="24" font-weight="700">Default Warehouse Map</text>
+  <text x="40" y="74" fill="#8b98b8" font-size="14">World-frame waypoints in metres. Demo route: dock &#8594; shelf_a (pick) &#8594; station (place) &#8594; dock.</text>
+
+  <!-- origin (120,470); 1 m = 95 px; +x right, +y up -->
+  <g stroke="#22304a" stroke-width="1">
+    <line x1="120" y1="470" x2="600" y2="470"/>
+    <line x1="120" y1="470" x2="120" y2="110"/>
+    <line x1="215" y1="470" x2="215" y2="110"/>
+    <line x1="310" y1="470" x2="310" y2="110"/>
+    <line x1="405" y1="470" x2="405" y2="110"/>
+    <line x1="500" y1="470" x2="500" y2="110"/>
+    <line x1="600" y1="470" x2="600" y2="110"/>
+    <line x1="120" y1="375" x2="600" y2="375"/>
+    <line x1="120" y1="280" x2="600" y2="280"/>
+    <line x1="120" y1="185" x2="600" y2="185"/>
+  </g>
+  <g fill="#8b98b8" font-size="12">
+    <text x="112" y="492">0</text>
+    <text x="207" y="492">1</text>
+    <text x="302" y="492">2</text>
+    <text x="397" y="492">3</text>
+    <text x="492" y="492">4</text>
+    <text x="588" y="492">5</text>
+    <text x="98" y="474">0</text>
+    <text x="98" y="379">1</text>
+    <text x="98" y="284">2</text>
+    <text x="98" y="189">3</text>
+    <text x="330" y="512" font-size="13">x (m)</text>
+    <text x="40" y="300" font-size="13">y (m)</text>
+  </g>
+
+  <!-- shelves (L run): shelf_a(2,0) shelf_b(2,1.5) shelf_c(4,1.5) -->
+  <rect x="290" y="450" width="40" height="40" rx="4" fill="#1f2b45" stroke="#4da3ff"/>
+  <rect x="290" y="307" width="40" height="40" rx="4" fill="#1f2b45" stroke="#4da3ff"/>
+  <rect x="480" y="307" width="40" height="40" rx="4" fill="#1f2b45" stroke="#4da3ff"/>
+  <g fill="#e6ecf7" font-size="12.5">
+    <text x="340" y="474">shelf_a</text>
+    <text x="340" y="331">shelf_b</text>
+    <text x="530" y="331">shelf_c</text>
+  </g>
+
+  <!-- demo route: dock(120,470) -> shelf_a(310,470) -> station(120,185) -> dock -->
+  <path d="M120,470 L300,470" fill="none" stroke="#4da3ff" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#wp)"/>
+  <path d="M310,470 L120,185" fill="none" stroke="#4da3ff" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#wp)"/>
+  <path d="M120,185 L120,458" fill="none" stroke="#4da3ff" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#wp)"/>
+
+  <!-- dock (0,0) -->
+  <circle cx="120" cy="470" r="15" fill="#12331f" stroke="#2ecc71" stroke-width="2.5"/>
+  <text x="120" y="500" fill="#2ecc71" font-size="13" text-anchor="middle" font-weight="700">dock</text>
+
+  <!-- station (0,3) -->
+  <circle cx="120" cy="185" r="15" fill="#10203a" stroke="#4da3ff" stroke-width="2.5"/>
+  <text x="140" y="189" fill="#4da3ff" font-size="13" font-weight="700">station</text>
+
+  <!-- legend -->
+  <g font-size="12">
+    <line x1="400" y1="440" x2="430" y2="440" stroke="#4da3ff" stroke-width="2.5" stroke-dasharray="7 5"/>
+    <text x="438" y="444" fill="#8b98b8">pick / place / return route</text>
+    <rect x="400" y="456" width="16" height="16" rx="3" fill="#1f2b45" stroke="#4da3ff"/>
+    <text x="424" y="468" fill="#8b98b8">shelf / waypoint</text>
+  </g>
+</svg>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AMR — Autonomous Mobile Robot</title>
+<style>
+  :root { --bg:#0b0f18; --panel:#111827; --line:#2a3550; --text:#e6ecf7; --dim:#8b98b8; --acc:#4da3ff; --ok:#2ecc71; --err:#e74c3c; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.55; }
+  .wrap { max-width:1120px; margin:0 auto; padding:32px 20px 80px; }
+  header.hero { text-align:center; }
+  .hero-img { width:100%; border-radius:16px; }
+  h1 { font-size:2.2rem; margin:.4rem 0 .1rem; letter-spacing:.5px; }
+  .sub { color:var(--acc); font-weight:600; margin:0 0 .3rem; }
+  .lead { color:var(--dim); max-width:820px; margin:0 auto 1.2rem; }
+  .badges { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-bottom:2rem; }
+  .badges img { height:22px; }
+  section { margin-top:2.4rem; }
+  h2 { font-size:1.35rem; border-bottom:1px solid var(--line); padding-bottom:.4rem; margin:0 0 .6rem; }
+  h2 .n { color:var(--acc); margin-right:.5rem; }
+  p.desc { color:var(--dim); margin:0 0 1rem; max-width:900px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px; }
+  .card img { width:100%; height:auto; display:block; border-radius:8px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:820px){ .two { grid-template-columns:1fr; } }
+  code { background:#1a2233; border:1px solid var(--line); border-radius:5px; padding:.1rem .4rem; font-size:.9em; }
+  pre { background:#0e1522; border:1px solid var(--line); border-radius:10px; padding:12px 14px; overflow:auto; }
+  pre code { background:none; border:0; padding:0; color:#cdd8ee; }
+  table { width:100%; border-collapse:collapse; margin-top:.6rem; font-size:.95rem; }
+  th,td { border:1px solid var(--line); padding:.5rem .6rem; text-align:left; vertical-align:top; }
+  th { background:#151d2e; }
+  .pill { display:inline-block; background:#1a2233; border:1px solid var(--line); border-radius:999px;
+          padding:.15rem .7rem; margin:.15rem .3rem .15rem 0; font-size:.85rem; color:var(--text); }
+  a { color:var(--acc); text-decoration:none; }
+  footer { margin-top:3rem; color:var(--dim); font-size:.9rem; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <img class="hero-img" src="assets/hero.svg" alt="AMR hero"/>
+    <h1>AMR &mdash; Autonomous Mobile Robot</h1>
+    <p class="sub">A safe, layered control stack for a differential-drive smart-warehouse robot</p>
+    <p class="lead">A Raspberry Pi is the brain (web control, navigation, warehouse tasks); an Arduino UNO is
+    the reflex system (real-time drive, watchdog, hardware proximity stop). Every command flows through one
+    <b>gated</b> API, so the robot cannot move when safety says no.</p>
+    <div class="badges">
+      <img src="https://img.shields.io/badge/tests-276%20passed%20%C2%B7%202%20skipped-2ecc71" alt="tests"/>
+      <img src="https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue" alt="python"/>
+      <img src="https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c" alt="safety"/>
+      <img src="https://img.shields.io/badge/license-MIT-0e6efc" alt="license"/>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="n">1</span>Architecture</h2>
+    <p class="desc">The Pi runs everything that can be slow or buggy; the Arduino runs the small safety-critical loop.
+    The Arduino boots stopped, moves only on explicit commands, and can force a stop itself &mdash; a Pi crash or
+    pulled cable can never leave it driving.</p>
+    <div class="card"><img src="assets/architecture.svg" alt="System architecture"/></div>
+  </section>
+
+  <section>
+    <div class="two">
+      <div>
+        <h2><span class="n">2</span>Software stack</h2>
+        <div class="card"><img src="assets/stack.svg" alt="Software stack"/></div>
+      </div>
+      <div>
+        <h2><span class="n">3</span>Operating modes</h2>
+        <div class="card"><img src="assets/modes.svg" alt="Mode state machine"/></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">4</span>Serial protocol</h2>
+    <p class="desc">Newline-delimited text at 9600 baud. <code>STOP</code> intentionally returns nothing; the
+    watchdog and Layer-1 proximity stop can fire from either side.</p>
+    <div class="card"><img src="assets/protocol.svg" alt="Serial protocol"/></div>
+  </section>
+
+  <section>
+    <div class="two">
+      <div>
+        <h2><span class="n">5</span>Warehouse map</h2>
+        <div class="card"><img src="assets/warehouse-map.svg" alt="Warehouse map"/></div>
+      </div>
+      <div>
+        <h2><span class="n">6</span>Verified status</h2>
+        <p class="desc">Every claim is tied to a hardware-free run. Safety thresholds are
+        <code>NOT_VERIFIED</code> test values; geometry is <code>null</code> until measured.</p>
+        <table>
+          <tr><th>Claim</th><th>Value</th><th>Reproduce</th></tr>
+          <tr><td>Test suite</td><td><b>276 passed &middot; 2 skipped</b></td><td><code>pytest -q</code></td></tr>
+          <tr><td>Python matrix</td><td>3.10 / 3.11 / 3.12</td><td><code>ci.yml</code></td></tr>
+          <tr><td>Safety thresholds</td><td>test values</td><td><code>safety.yaml</code></td></tr>
+          <tr><td>Geometry</td><td>not measured</td><td><code>robot.yaml</code></td></tr>
+        </table>
+        <p style="margin-top:1rem">
+          <span class="pill">Raspberry Pi</span><span class="pill">Arduino UNO</span>
+          <span class="pill">L298N diff-drive</span><span class="pill">4x HC-SR04</span>
+          <span class="pill">Web + JSON API</span><span class="pill">Warehouse tasks</span>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Full detail, API references, config and roadmap: see <a href="README.md">README.md</a>.
+  </footer>
+</div>
+</body>
+</html>

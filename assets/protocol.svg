@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="640" viewBox="0 0 1120 640" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,3 L0,6 Z" fill="#8b98b8"/></marker>
+  </defs>
+  <rect width="1120" height="640" fill="#0f1420"/>
+  <text x="40" y="50" fill="#e6ecf7" font-size="24" font-weight="700">Serial Protocol</text>
+  <text x="40" y="74" fill="#8b98b8" font-size="14">Newline-delimited text, 9600 baud. Command on the left, matching response on the right.</text>
+
+  <rect x="40" y="92" width="470" height="42" rx="9" fill="#10203a" stroke="#4da3ff"/>
+  <text x="58" y="119" fill="#4da3ff" font-size="16" font-weight="700">Pi &#8594; Arduino (commands)</text>
+  <rect x="610" y="92" width="470" height="42" rx="9" fill="#12331f" stroke="#2ecc71"/>
+  <text x="628" y="119" fill="#2ecc71" font-size="16" font-weight="700">Arduino &#8594; Pi (responses)</text>
+
+  <g font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+    <rect x="40" y="146" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="60" y="177" fill="#e6ecf7">PING</text>
+    <line x1="510" y1="172" x2="600" y2="172" stroke="#8b98b8" stroke-width="1.5" marker-end="url(#ar)"/>
+    <rect x="610" y="146" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="630" y="177" fill="#2ecc71">PONG</text>
+
+    <rect x="40" y="210" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="60" y="241" fill="#e6ecf7">MOVE L=&lt;-255..255&gt; R=&lt;-255..255&gt;</text>
+    <line x1="510" y1="236" x2="600" y2="236" stroke="#8b98b8" stroke-width="1.5" marker-end="url(#ar)"/>
+    <rect x="610" y="210" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="630" y="232" fill="#2ecc71">ACK MOVE L= R=</text>
+    <text x="630" y="250" fill="#f1c40f">ERR &lt;code&gt; [msg]</text>
+
+    <rect x="40" y="274" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="60" y="305" fill="#e6ecf7">STOP</text>
+    <line x1="510" y1="300" x2="600" y2="300" stroke="#8b98b8" stroke-width="1.5" marker-end="url(#ar)"/>
+    <rect x="610" y="274" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="630" y="305" fill="#8b98b8">(no reply &#8212; by design)</text>
+
+    <rect x="40" y="338" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="60" y="369" fill="#e6ecf7">STATUS</text>
+    <line x1="510" y1="364" x2="600" y2="364" stroke="#8b98b8" stroke-width="1.5" marker-end="url(#ar)"/>
+    <rect x="610" y="338" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="630" y="369" fill="#2ecc71">STATUS L= R= MODE=</text>
+
+    <rect x="40" y="402" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="60" y="433" fill="#e6ecf7">SENSOR</text>
+    <line x1="510" y1="428" x2="600" y2="428" stroke="#8b98b8" stroke-width="1.5" marker-end="url(#ar)"/>
+    <rect x="610" y="402" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="630" y="433" fill="#2ecc71">SENSOR F= L= R= B=</text>
+
+    <rect x="40" y="466" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="60" y="497" fill="#e6ecf7">VERSION</text>
+    <line x1="510" y1="492" x2="600" y2="492" stroke="#8b98b8" stroke-width="1.5" marker-end="url(#ar)"/>
+    <rect x="610" y="466" width="470" height="52" rx="8" fill="#1a2233" stroke="#2a3550"/>
+    <text x="630" y="488" fill="#2ecc71">VERSION &lt;ver&gt;</text>
+    <text x="630" y="506" fill="#f1c40f">WATCHDOG TRIGGERED</text>
+  </g>
+
+  <line x1="40" y1="538" x2="1080" y2="538" stroke="#2a3550"/>
+  <text x="40" y="566" fill="#8b98b8" font-size="13">Legacy one-letter drive: F / B / L / R / S &#8212; kept for the original web panel.</text>
+  <text x="40" y="588" fill="#8b98b8" font-size="13">The Arduino watchdog and ultrasonic Layer-1 can force a STOP at any time, from either direction.</text>
+</svg>

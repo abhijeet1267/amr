@@ -22,6 +22,8 @@ envs/
 .idea/
 .vscode/
 *.swp
+# Agent tooling; may contain nested git worktrees (never commit these).
+.kilo/
 
 # --- macOS ---
 .DS_Store
