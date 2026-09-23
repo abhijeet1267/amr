@@ -152,11 +152,15 @@ high-risk Layer-3 behaviour change; C7–C9 unstarted.
 ### 10. Commit
 
 Baseline history (previous session): `dfa70c6` → `eadf6a5` → `4eeb571` →
-`5a09791`. This session adds **one feature commit**,
-`feat(web): integrate hazard status and acknowledgement` — *this commit*; for
-the live hash run `git rev-parse HEAD` (a file cannot contain its own hash —
-the exact-hash row is completed by the follow-up `docs(ai-context): …`
-commit, mirroring the previous session's pattern).
+`5a09791`. This session's commits:
+
+| # | Hash | Commit |
+|---|---|---|
+| 5 | *this commit* | `feat(web): integrate hazard status and acknowledgement` — the C2 feature: both routes, panel UI, `main.py` wiring, 10 tests, docs |
+| 6 | filled in by the follow-up docs commit | `docs(ai-context): record C2 commit hash` — this row's hash (a file cannot contain its own hash) |
+
+**Exact hash of commit 5: `a9bc358`** (filled in by follow-up commit 6).
+For the live value run `git rev-parse HEAD`.
 
 Working tree: only the 10 files listed in §2; no `.kilo/`, no secrets, no
 temporary files. Nothing was pushed (`origin/main` still at `dfa70c6`).
