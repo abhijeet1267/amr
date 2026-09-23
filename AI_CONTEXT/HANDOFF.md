@@ -186,19 +186,19 @@ release and leaves the `SAFETY_STOP` mode reset to the existing
 
 ## 7. Commit / branch
 
-**Branch:** `main` (working tree was on `main` at `dfa70c6`; not pushed)
+**Branch:** `main` (not pushed). Three commits, in this order:
 
-Two commits were made, in this order:
+| # | Hash | Commit |
+|---|---|---|
+| — | `dfa70c6` | (pre-existing baseline, = `origin/main`) `Initial commit: AMR autonomous mobile robot project` |
+| 1 | `eadf6a5` | `chore(repo): track project artifacts that were previously untracked` — `CONTRIBUTING.md`, `LICENSE`, `assets/`, `.github/`, `showcase.html`, plus `.gitignore` now ignoring `.kilo/` |
+| 2 | `4eeb571` | `feat(hazard): add context-aware multi-hazard safety layer` — the `amr/hazard/` package, config, tests, `docs/hazard.md`, the AI_CONTEXT bootstrap, and the README/`docs/safety.md`/`logger.py` documentation updates |
+| 3 | *this commit* | `docs(ai-context): record handoff commit hashes` — this §7 hash table plus the `TASK_BOARD.md` C10 housekeeping status |
 
-| # | Commit |
-|---|---|
-| 1 | `chore(repo): track project artifacts that were previously untracked` — `CONTRIBUTING.md`, `LICENSE`, `assets/`, `.github/`, `showcase.html`, plus `.gitignore` now ignoring `.kilo/` |
-| 2 | `feat(hazard): add context-aware multi-hazard safety layer` — the `amr/hazard/` package, config, tests, `docs/hazard.md`, the AI_CONTEXT bootstrap, and the README/`docs/safety.md`/`logger.py` documentation updates |
+**Exact hashes:** this table was filled in by a small follow-up commit (row 3),
+because a file cannot contain its own commit hash. For the live value run
+`git rev-parse HEAD`.
 
-**Exact hashes:** run `git log --oneline -3` — commit 2 is the feature commit and
-the one that introduced this file
-(`git log -1 --format=%H -- AI_CONTEXT/HANDOFF.md`).
-
-Nothing was pushed. **The next agent should `git pull` before starting**, and
-must re-read `TASK_BOARD.md` since it is shared.
+Nothing was pushed — `origin/main` is still at `dfa70c6`. **The next agent should
+`git pull` before starting** and must re-read `TASK_BOARD.md` (it is shared).
 

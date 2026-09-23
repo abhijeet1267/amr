@@ -100,12 +100,13 @@ warehouse task manager for shelf/payload identification.
 **Not present today.** Must be optional: the core stack must keep importing with
 no ROS installed. Publish `RobotState` / `HazardStatus`, subscribe to goals.
 
-### C10 — Housekeeping (small, safe, good first task) `[ ]`
-* Fix the stale `docs/architecture.md` link in `docs/safety.md` (the file does
-  not exist; point at `AI_CONTEXT/ARCHITECTURE.md` / `README.md`).
-* `README.md` still needs a row/mention for `amr/hazard` and `config/hazard.yaml`
-  in its repository-layout and roadmap sections.
-* `README.md` badge counts tests as `276 passed` — update after your own run.
+### C10 — Housekeeping `[x]` (done by the hazard session)
+* Fix the stale `docs/architecture.md` link in `docs/safety.md` — **done**, now
+  points at `AI_CONTEXT/ARCHITECTURE.md`. The same stale reference in
+  `raspberry_pi/amr/logging/logger.py` was fixed too.
+* `README.md` row/mention for `amr/hazard`, `config/hazard.yaml`,
+  `docs/hazard.md`, `AI_CONTEXT/`, and a new roadmap item (6) — **done**.
+* README badge / test counts — **done**: `333 passed, 2 skipped`.
 
 ---
 
