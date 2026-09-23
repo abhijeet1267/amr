@@ -29,6 +29,7 @@ from . import __version__
 from .camera import CameraManager
 from .communication.arduino_serial import ArduinoSerial, ArduinoSerialTransport
 from .control import ArduinoMotorDriver
+from .hazard import HazardManager
 from .logging import get_logger, setup_logging
 from .mocks import MockCamera
 from .robot import RobotCommandError, RobotManager, RobotMode
@@ -79,6 +80,34 @@ def build_camera(config: AppConfig, mock: bool) -> CameraManager:
     if mock:
         return CameraManager(MockCamera(available=True), cam_cfg)
     return CameraManager.create_real(cam_cfg)
+
+
+def attach_hazard_layer(mgr: RobotManager, config: AppConfig) -> bool:
+    """Wire the opt-in hazard layer (Layer 3.5) onto the manager.
+
+    Honours the deployment switch ``config.hazard.enabled``: when it is
+    ``False`` (the default) nothing is attached and the stack behaves exactly
+    as it did before the hazard feature existed.
+
+    Deliberately attached **without sensor sources**: no gas, smoke or vision
+    hardware exists yet (tasks C4/C5), and ``RobotStateSource`` is not wired
+    automatically because ``RobotState.last_error`` is sticky — it would pin
+    the layer at ``WARNING`` forever after the first E-STOP. The zone source
+    (added by :meth:`HazardManager.from_config`) stays silent while no pose
+    provider exists, which is the fail-safe design: a missing location never
+    invents a hazard. Sources are added later via ``hazard.add_source(...)``.
+
+    Returns ``True`` when a layer was attached.
+    """
+    if not config.hazard.enabled or mgr.hazard is not None:
+        return False
+    hazard = HazardManager.from_config(config.hazard)
+    mgr.attach_hazard(hazard)
+    get_logger("main").info(
+        "hazard layer attached (%d source(s); no sensor hardware wired yet)",
+        len(hazard.sources),
+    )
+    return True
 
 
 # --------------------------------------------------------------------------- #
@@ -273,6 +302,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     except ConnectionError as exc:
         print(f"could not reach controller: {exc}", file=sys.stderr)
         return 3
+
+    # Opt-in hazard layer (honours config.hazard.enabled; default off).
+    attach_hazard_layer(mgr, config)
 
     if args.web:
         return run_web(mgr, config, args)

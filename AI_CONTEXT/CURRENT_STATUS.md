@@ -1,7 +1,8 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** commit `dfa70c6` (baseline) + the working tree described in
-`HANDOFF.md`. Re-verify with the commands below before trusting these numbers.
+**Last verified:** commit `5a09791` (handoff hashes) + the C2 working tree
+described in `HANDOFF.md` — full suite **343 passed, 2 skipped, 0 failed**.
+Re-verify with the commands below before trusting these numbers.
 
 ---
 
@@ -9,10 +10,11 @@
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **333 passed, 2 skipped, 0 failed** |
+| `cd raspberry_pi && python -m pytest` | **343 passed, 2 skipped, 0 failed** |
 | Test files | 16 (`tests/test_*.py`) |
 | CI | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff` |
 | Hardware required | **None.** Everything runs on `amr/mocks/` |
+| Live web smoke (C2, `--mock --web` + `hazard.enabled=true`) | `GET /hazard` → `attached:true, state:NORMAL, sources:["zones"]`; `POST /hazard/acknowledge` → `ok:true`; `/status` carries the `hazard` key |
 
 The 2 skips are the camera tests that need `opencv-python`/`numpy`; they run when
 those are installed and skip gracefully otherwise. They are the only conditional
@@ -28,7 +30,7 @@ test_hazard.py          48     test_robot_state.py     5
 test_logging.py         12     test_safety_manager.py 14
 test_mode_controller.py 13     test_ultrasonic.py      9
 test_motor_controller.py 21    test_warehouse.py      39
-                               test_web_server.py     15
+                               test_web_server.py     25
 ```
 
 ---
@@ -46,7 +48,7 @@ test_motor_controller.py 21    test_warehouse.py      39
 | `camera` | **Implemented, partially tested** (2 tests need OpenCV) | `test_camera_manager.py` |
 | `navigation` | **Implemented, unit-tested** | `test_navigation.py` (50) |
 | `warehouse` (tasks, map, manipulator) | **Implemented, unit-tested** | `test_warehouse.py` (39) |
-| `web` (panel + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (15) |
+| `web` (panel + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (25), incl. `GET /hazard` + acknowledge (C2) |
 | `logging` | **Implemented, unit-tested** | `test_logging.py` |
 | `utils/config` | **Implemented, unit-tested** | `test_config.py` (18) |
 | `mocks` | **Implemented**, indirectly covered by every suite | — |
@@ -92,8 +94,13 @@ python -m amr.hazard                 # hazard scenario; "RESULT: steps=4 failure
 * `docs/safety.md` links to `docs/architecture.md`, which **does not exist**. The
   architecture content lives in `README.md`, `assets/architecture.svg` and now
   `AI_CONTEXT/ARCHITECTURE.md`. *Stale link, cosmetic.*
-* `amr.hazard` is **not yet wired into `amr/web` or `amr/warehouse`**. The
-  manager exposes a JSON `snapshot()`; the consumers are unwritten.
+* `amr.hazard` is **wired into `amr/web`** (C2: `GET /hazard` +
+  `POST /hazard/acknowledge`, opt-in via `config.hazard.enabled`) but **still
+  not wired into `amr/warehouse`** — task scheduling ignores the hazard verdict.
+* **No hazard sensor sources are wired.** `amr/main.py` attaches the layer
+  without sources (no hardware); `RobotStateSource` is deliberately not
+  auto-wired because `RobotState.last_error` is sticky and would pin `WARNING`
+  forever after the first E-STOP.
 * No spatial hazard visualisation exists. Events are exported as JSONL and
   carry locations, but nothing renders them.
 * `VisionHazardSource` is a *seam* only — no detector model is implemented.

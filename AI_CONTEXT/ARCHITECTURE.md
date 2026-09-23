@@ -170,7 +170,9 @@ Status flags: `safety.yaml` and `hazard.yaml` are `NOT_VERIFIED`, and
 Stdlib-only (`ThreadingHTTPServer`), no build step, no external assets, and **no
 authentication** (single-operator LAN tool — never expose the port).
 
-`GET /` panel · `GET /status` · `GET /sensor` · `GET /camera` · `GET /image` ·
-`POST /command` (`estop`, `stop`, `mode`, drive commands). `estop`/`stop` are
-never gated. Details: `docs/web_control.md`.
+`GET /` panel · `GET /status` · `GET /sensor` · `GET /camera` ·
+`GET /image` · `GET /hazard` · `POST /command` (`estop`, `stop`, `mode`,
+drive commands) · `POST /hazard/acknowledge` (step 1 of the two-step
+emergency release — never resets the robot mode). `estop`/`stop` are never
+gated. Details: `docs/web_control.md`.
 

@@ -47,7 +47,8 @@ the four stop distances; fill the `TODO_VERIFY` ultrasonic pins; flip `status` t
 **Blocked by:** physical robot access. Nothing else may claim autonomous
 operation as trustworthy until this is done.
 
-### C2 — Wire the hazard layer into the web panel and telemetry `[ ]`
+### C2 — Wire the hazard layer into the web panel and telemetry `[x]`
+**Owner: Laptop 1 (Cline) · Started and completed: 2026-09-23**
 **Touches:** `raspberry_pi/amr/web/server.py`, `raspberry_pi/amr/web/__init__.py`,
 `raspberry_pi/tests/test_web_server.py`, `docs/web_control.md`,
 `raspberry_pi/amr/main.py` (only to attach the layer when `hazard.enabled`)
@@ -56,6 +57,11 @@ in the panel's status area, and add an acknowledge endpoint that performs **only
 step 1** of the two-step release (the mode reset stays separate). Do not bypass
 `RobotManager`.
 **Depends on:** B (done). **Risk:** low — additive endpoints.
+**Done:** `GET /hazard` (snapshot + derived `attached`/`severity`/`active`/
+`hazard`/`latest_event`), `POST /hazard/acknowledge` (latch release only, 400
+when no layer), panel badge + hazard card + conditional Acknowledge button,
+`attach_hazard_layer()` in `main.py` gated on `config.hazard.enabled`,
+10 new tests (25 in `test_web_server.py`), suite **343 passed, 2 skipped**.
 
 ### C3 — Spatial hazard visualisation `[ ]`
 **Touches:** new `raspberry_pi/amr/hazard/` module or a small viewer script,
@@ -106,7 +112,8 @@ no ROS installed. Publish `RobotState` / `HazardStatus`, subscribe to goals.
   `raspberry_pi/amr/logging/logger.py` was fixed too.
 * `README.md` row/mention for `amr/hazard`, `config/hazard.yaml`,
   `docs/hazard.md`, `AI_CONTEXT/`, and a new roadmap item (6) — **done**.
-* README badge / test counts — **done**: `333 passed, 2 skipped`.
+* README badge / test counts — **done**: `333 passed, 2 skipped` (superseded by
+  C2: now `343 passed, 2 skipped`).
 
 ---
 

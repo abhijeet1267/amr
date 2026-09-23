@@ -5,10 +5,170 @@
 
 ---
 
-## Session: bootstrap AI_CONTEXT + context-aware multi-hazard safety layer
+## Session: C2 — web panel hazard integration (Laptop 1)
+
+**Agent:** cline (Laptop 1 / Core Robot Agent) · **Branch:** `main` ·
+**Commit:** see §10 · **Baseline when started:** `5a09791` (clean tree)
+
+### 1. What was completed
+
+**C2 — wire `amr/hazard` into the web panel.** The latched `EMERGENCY` is now
+reachable by an operator through the browser instead of only a Python REPL.
+
+* **`GET /hazard`** — pure read of `HazardManager.snapshot()` plus derived
+  operator keys (`attached`, `severity`, `active`, `hazard` descriptor with
+  `confidence` when the reading carries one, `latest_event`). When no layer is
+  wired it returns an honest stable shape with `attached: false` and
+  `state: null` (the `/camera` `available: false` convention — no layer means
+  *no assessment*, not `NORMAL`).
+* **`POST /hazard/acknowledge`** — **step 1 of the two-step release only.**
+  Calls exactly `HazardManager.acknowledge()` under the same lock as the
+  control loop. Optional `{}`/empty body; `400` when no layer is attached or
+  the payload is not a JSON object.
+* **Panel** — header badge `HAZARD <state>` (blinking red for
+  `STOP`/`EMERGENCY`, respects `prefers-reduced-motion`), a hazard card
+  (state, severity, active, kind, confidence, source, location, reason,
+  timestamp) and an **Acknowledge** button that appears only while `latched`.
+* **`amr/main.py`** — `attach_hazard_layer(mgr, config)` runs after
+  `mgr.start()` and attaches `HazardManager.from_config(config.hazard)`
+  **only when `config.hazard.enabled`** (default `false`, so default
+  behaviour is byte-identical to before).
+
+Explicitly **not** done: no `amr/warehouse` wiring, no sensor sources attached
+(no hardware exists), and `HazardManager.reset()` is deliberately **not**
+exposed over HTTP (it would drop the audit trail).
+
+### 2. Files changed (10, +769/−21)
+
+| Path | Change |
+|---|---|
+| `raspberry_pi/amr/web/server.py` | `hazard_status()`, `acknowledge_hazard()`, `_hazard_payload()` (snapshot + derived keys, `_STATE_SEVERITY` floor); `GET /hazard` + `POST /hazard/acknowledge` routes; header badge, hazard card, `refreshHazard()` (1 s poll), ack button JS/CSS; endpoint + safety docstrings |
+| `raspberry_pi/amr/web/__init__.py` | Package docstring documents the hazard surface |
+| `raspberry_pi/amr/main.py` | `attach_hazard_layer()` gated on `config.hazard.enabled`, called after `mgr.start()`; imports `HazardManager` |
+| `raspberry_pi/tests/test_web_server.py` | `MutableHazardSource` + `web_hazard` fixture + `_tick`/`_hazard` helpers; **10 new tests** (25 total in file) |
+| `docs/web_control.md` | Endpoint rows, new "Hazard layer (C2)" section (payload keys, ack semantics, two-step diagram), test note |
+| `docs/hazard.md` | Two-step section documents the HTTP paths; limitations updated (wired into web, not warehouse; no sources auto-wired) |
+| `README.md` | API table rows, poll note, badge + counts `333 → 343` |
+| `AI_CONTEXT/ARCHITECTURE.md` | §9 web API surface lists both new routes |
+| `AI_CONTEXT/CURRENT_STATUS.md` | Counts `343`, `test_web_server.py 25`, live-smoke row, known-issues rewritten |
+| `AI_CONTEXT/TASK_BOARD.md` | C2 `[~]` → `[x]` with outcome; C10 badge note superseded |
+
+### 3. Tests
+
+| Command | Result | Status |
+|---|---|---|
+| `python -m pytest` (full suite) | **343 passed, 2 skipped, 0 failed** in ~17 s (baseline 333/2 → +10 legitimate new tests) | **software-tested** |
+| `python -m pytest tests/test_web_server.py` | **25 passed** | **software-tested** |
+| `python -m pytest tests/test_hazard.py` | **48 passed** (no regression) | **software-tested** |
+| `python -m amr.hazard` | exit 0 — `steps=4 failures=0 events_recorded=3 final_hazard=NORMAL` | **software-tested** |
+| `python -m amr.warehouse` | exit 0 — `completed=3 failed=0` | **software-tested** |
+| Live smoke `--mock --web` + `hazard.enabled=true` + `curl` | `/hazard` → `attached:true, state:NORMAL, sources:["zones"]`; ack → `ok:true`; `/status` carries `hazard` | **software-tested** |
+
+The 2 skips remain the conditional OpenCV camera tests. New tests cover:
+normal-without-layer shape, normal-with-layer, active hazard reported
+(kind/confidence/source/events), latched `EMERGENCY` (→ `SAFETY_STOP`,
+motion `400`), **ack cannot clear an active hazard** (re-latches), the full
+**two-step release**, ack idempotence, `400` without a layer, `400` on
+non-object payload, and `/status` + panel regression.
+
+### 4. API
+
+```
+GET  /hazard
+  → 200 {attached, enabled, status, state, severity, active, latched,
+         blocks_motion, speed_scale, reasons, location,
+         hazard{kind, severity, source, message, location, raised_at,
+                value, unit, confidence},
+         latest_event, active_events, recent_events, events_recorded,
+         counts_by_kind, sources, updated_at}
+  → no layer attached: same keys, honest nulls/false, state: null
+  Pure read — never evaluates or clears anything.
+
+POST /hazard/acknowledge     body: {} or empty (JSON object enforced)
+  → 200 {ok:true, acknowledged:true, was_latched, latched, state, hazard{…}}
+  → 400 {ok:false, error:"hazard layer not attached"}   (no layer)
+  → 400 {ok:false, error:"bad JSON: …"}                 (non-object payload)
+```
+
+### 5. Safety behaviour — what acknowledge does and does not do
+
+* **Does:** clear the hazard `EMERGENCY` *latch* and re-evaluate the layer.
+* **Does NOT** bypass an active hazard: if evidence is still present the very
+  same call re-latches (`latched:true` in the response) — proven by
+  `test_hazard_ack_cannot_clear_an_active_hazard`.
+* **Does NOT** touch the robot mode: `SAFETY_STOP` survives acknowledgement;
+  motion stays `400` until the operator performs step 2 via the **existing**
+  `POST /command {"cmd":"mode", …}` path — proven by
+  `test_hazard_ack_is_step_one_of_a_two_step_release`.
+* **Does NOT** delete audit events: `HazardManager.reset()` remains
+  REPL/maintenance-only and is not routed in the web layer.
+* The web layer still reaches the motors **only** through `RobotManager`;
+  both new endpoints run under the same lock as `tick()`/`dispatch()`.
+
+### 6. Hardware status
+
+**No physical hardware was tested.** No robot, Arduino, sensor, camera, or
+firmware was exercised — all results above are software/mock/HTTP tests on
+this laptop. Firmware not rebuilt or flashed. `config/hazard.yaml` remains
+`NOT_VERIFIED`, and `hazard.enabled` remains `false` in the shipped config.
+
+### 7. Known issues
+
+* **No hazard sensor sources are wired** — `attach_hazard_layer` attaches the
+  layer with only the (silent-without-pose) zone source; `GET /hazard` on a
+  real deployment reports `sources:["zones"]` until C4/C5 deliver drivers.
+* **`RobotStateSource` intentionally not auto-wired:** `RobotState.last_error`
+  is sticky (never cleared after E-STOP/`_enforce_stop`), so wiring it would
+  pin the hazard layer at `WARNING` forever after the first safety stop.
+  Wiring it needs a `last_error` lifecycle decision first.
+* `amr/warehouse` still ignores the hazard verdict (unchanged from before).
+* Hazard thresholds still `NOT_VERIFIED`; no authentication on the panel
+  (pre-existing).
+* `HazardManager.reset()` has no web route by design — if an operator ever
+  needs it, that is a deliberate safety review, not an oversight.
+
+### 8. Remaining work
+
+See `TASK_BOARD.md` §C. Next recommended: **C3** (spatial hazard
+visualisation — reads the JSONL/event data, hardware-free) or **C5**
+(fire/human detector feeding `VisionHazardSource`, which would give `/hazard`
+its first real non-zone source). C1/C4 remain blocked on hardware; C6 is
+high-risk Layer-3 behaviour change; C7–C9 unstarted.
+
+### 9. Laptop 2 integration
+
+* **No interface of `amr/hazard` was changed** — C2 only *consumed*
+  `snapshot()`, `status`, `acknowledge()` and the `RobotManager.hazard` /
+  `hazard_snapshot()` seam. No `INTEGRATION_REQUESTS.md` was needed.
+* If Laptop 2 wires camera/gas/vision sources: attach the hazard manager
+  **before** `attach_hazard_layer` runs, or attach after it —
+  `attach_hazard_layer` no-ops when `mgr.hazard is not None`, so it will not
+  fight an earlier attachment. Sources can also be added later via
+  `hazard.add_source(...)` on the already-attached manager.
+* `GET /hazard` is the read contract for any dashboard work; treat the
+  snapshot keys as stable — only additive changes are safe.
+* Re-read `TASK_BOARD.md` before starting — C3/C5 are the likely next picks.
+
+### 10. Commit
+
+Baseline history (previous session): `dfa70c6` → `eadf6a5` → `4eeb571` →
+`5a09791`. This session adds **one feature commit**,
+`feat(web): integrate hazard status and acknowledgement` — *this commit*; for
+the live hash run `git rev-parse HEAD` (a file cannot contain its own hash —
+the exact-hash row is completed by the follow-up `docs(ai-context): …`
+commit, mirroring the previous session's pattern).
+
+Working tree: only the 10 files listed in §2; no `.kilo/`, no secrets, no
+temporary files. Nothing was pushed (`origin/main` still at `dfa70c6`).
+
+---
+
+## Previous session: bootstrap AI_CONTEXT + multi-hazard layer (baseline)
 
 **Agent:** cline · **Branch:** `main` · **Feature commit:** see §7
 **Baseline when started:** `dfa70c6` (`Initial commit: AMR autonomous mobile robot project`)
+
+> *Superseded by the C2 session above; kept for baseline history.*
 
 ---
 

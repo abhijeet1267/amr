@@ -234,6 +234,20 @@ Clearing the latch does **not** return the robot to a moving mode, and resetting
 the mode does not clear the latch. The safety model never auto-releases: if the
 hazard is still present, the very next evaluation latches `EMERGENCY` again.
 
+Both steps are now reachable by an operator **without a Python REPL** (see
+[web_control.md](web_control.md)):
+
+```
+POST /hazard/acknowledge            → step 1 (hazard latch)
+POST /command {"cmd":"mode", ...}   → step 2 (robot mode, unchanged path)
+```
+
+The web endpoint calls exactly `HazardManager.acknowledge()` under the same
+lock as the control loop — no separate reset logic exists, and the maintenance
+`reset()` (which drops the event audit trail) is deliberately not exposed over
+HTTP. The layer is attached in `amr/main.py` only when
+`config.hazard.enabled` is `true` (default `false`).
+
 ---
 
 ## Limitations / not done yet
@@ -250,9 +264,13 @@ hazard is still present, the very next evaluation latches `EMERGENCY` again.
   nothing renders them.
 * `VisionHazardSource` provides only the *seam* for fire/human detection; no
   detector model is implemented.
-* The layer is **not wired into `amr/web` or `amr/warehouse` yet**.
-  `HazardManager.snapshot()` is JSON-ready, which is all a dashboard or the task
-  manager needs to consume it, but that wiring is unwritten.
+* The layer is **wired into `amr/web`** (`GET /hazard` + `POST
+  /hazard/acknowledge`, opt-in via `config.hazard.enabled`) but **not into
+  `amr/warehouse`** — task scheduling does not consult the hazard verdict yet.
+* `amr/main.py` attaches the layer **without sensor sources**: no gas/vision
+  hardware exists, and `RobotStateSource` is intentionally not auto-wired
+  because `RobotState.last_error` is sticky (it would pin `WARNING` forever
+  after the first E-STOP). Sources are added later via `hazard.add_source(...)`.
 
 ### What this is **not**
 

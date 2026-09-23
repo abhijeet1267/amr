@@ -7,7 +7,11 @@ GET  /status    — full robot snapshot (JSON)
 GET  /sensor    — one sensor poll + safety decision (JSON)
 GET  /camera    — camera status (JSON; ``{"available": false}`` when none)
 GET  /image     — one JPEG frame (200 image/jpeg, or 503 when unavailable)
+GET  /hazard    — hazard layer status (JSON; ``{"attached": false, ...}`` when
+                  no hazard layer is wired into the RobotManager)
 POST /command   — ``{"cmd": "...", ...}`` (JSON in, JSON out)
+POST /hazard/acknowledge — release a *latched* hazard EMERGENCY (step 1 of the
+                  two-step release; optional empty/``{}`` JSON body)
 
 Commands accepted by ``/command``:
 
@@ -19,6 +23,12 @@ Commands accepted by ``/command``:
     turn_left/turn_right  {"cmd": "turn_left", "speed": 80}
 
 HTTP status: 200 ok · 400 rejected (safety/mode/bad payload) · 500 internal.
+
+``GET /hazard`` is a *pure read*: it never evaluates or clears anything. The
+response is ``HazardManager.snapshot()`` (the established JSON contract) plus a
+few derived operator keys: ``attached``, ``severity`` (NONE/WARNING/CRITICAL),
+``active`` (evidence present right now), ``hazard`` (worst active hazard, with
+``confidence`` when the reading carries one) and ``latest_event``.
 
 Threading model
 ---------------
@@ -34,6 +44,18 @@ The web layer adds **no** new capabilities: it only invokes the gated
 RobotManager methods. A safety veto, an illegal mode transition, or a
 disconnected link all surface as HTTP 400 with a reason — the robot never
 moves when the gate says no.
+
+The hazard endpoints are read/acknowledge only:
+
+* ``GET /hazard`` evaluates nothing and clears nothing.
+* ``POST /hazard/acknowledge`` performs **step 1** of the two-step release: it
+  clears the hazard ``EMERGENCY`` *latch* only (``HazardManager.acknowledge``),
+  which immediately re-evaluates the layer — evidence that is still present
+  re-latches on the spot, so acknowledging can never bypass an active hazard.
+  It deliberately does **not** reset the robot's ``SAFETY_STOP`` mode; that
+  stays on the existing ``POST /command {"cmd": "mode", ...}`` path. The
+  maintenance-grade ``HazardManager.reset()`` (which would drop the event audit
+  trail) is intentionally **not** exposed over HTTP.
 """
 
 from __future__ import annotations
@@ -45,6 +67,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Tuple
 
 from ..camera import CameraManager
+from ..hazard import HazardSeverity, HazardState
 from ..logging import get_logger
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
@@ -57,6 +80,22 @@ _MOTION = {
     "rotate_right": 100,
     "turn_left": 80,
     "turn_right": 80,
+}
+
+#: Ranking for the derived top-level ``severity`` of GET /hazard. The web layer
+#: only ever reports NONE/WARNING/CRITICAL — a superset-free projection of the
+#: real ``HazardSeverity`` vocabulary onto "is there an active hazard?".
+_SEVERITY_RANK = {"NONE": 0, "WARNING": 1, "CRITICAL": 2}
+
+#: Floor: the worst severity the current hazard *state* implies. Active events
+#: can only raise it further (they cannot lower it), which keeps a latched
+#: EMERGENCY reporting CRITICAL even after its evidence has cleared.
+_STATE_SEVERITY = {
+    HazardState.NORMAL: "NONE",
+    HazardState.WARNING: "WARNING",
+    HazardState.SLOW: "WARNING",
+    HazardState.STOP: "CRITICAL",
+    HazardState.EMERGENCY: "CRITICAL",
 }
 
 
@@ -158,6 +197,145 @@ class AMRWebApp:
                 return None
             return self._camera.capture_jpeg()
 
+    # ------------------------------------------------------------------ #
+    # Hazard layer (Layer 3.5) — read + acknowledge only
+    # ------------------------------------------------------------------ #
+    def hazard_status(self) -> dict:
+        """Current hazard view for ``GET /hazard`` (pure read, no evaluate)."""
+        with self._lock:
+            return self._hazard_payload()
+
+    def acknowledge_hazard(self) -> Tuple[dict, int]:
+        """Operator acknowledgement of a latched hazard EMERGENCY.
+
+        Performs **step 1** of the two-step release only: it clears the hazard
+        latch via :meth:`HazardManager.acknowledge`, which immediately
+        re-evaluates the layer, so evidence that is still present re-latches on
+        the spot. The robot's ``SAFETY_STOP`` mode is deliberately untouched —
+        releasing it remains an explicit ``POST /command {"cmd": "mode"}``.
+        """
+        with self._lock:
+            hazard = self._mgr.hazard
+            if hazard is None:
+                return {"ok": False, "error": "hazard layer not attached"}, 400
+            was_latched = hazard.latched
+            status = hazard.acknowledge()
+            if was_latched:
+                self.log.info(
+                    "hazard latch acknowledged via panel (latched now: %s)",
+                    status.latched,
+                )
+            return {
+                "ok": True,
+                "acknowledged": True,
+                "was_latched": was_latched,
+                "latched": status.latched,
+                "state": status.state.value,
+                "hazard": self._hazard_payload(),
+            }, 200
+
+    def _hazard_payload(self) -> dict:
+        """Build the ``GET /hazard`` body (caller must hold the lock).
+
+        The base is always :meth:`HazardManager.snapshot()` — the established
+        JSON contract — extended with derived, operator-facing keys:
+
+        ``attached``     whether a hazard layer is wired into the manager
+        ``severity``     NONE/WARNING/CRITICAL: the worst of the state floor
+                         and the active events (so a latched EMERGENCY reports
+                         CRITICAL even after its evidence has cleared)
+        ``active``       ``True`` while unresolved hazard evidence exists
+        ``hazard``       the worst active hazard (kind/source/message/location
+                         plus ``value``/``unit``/``confidence`` from the
+                         matching current reading), or ``None``
+        ``latest_event`` most recently recorded event, or ``None``
+
+        The unattached case returns the same stable key set with honest
+        null/false defaults (mirrors the ``/camera`` ``available: false``
+        convention): no hazard layer means *no assessment*, not ``NORMAL``.
+        """
+        snapshot = self._mgr.hazard_snapshot()
+        if snapshot is None:
+            return {
+                "attached": False,
+                "enabled": False,
+                "status": None,
+                "state": None,
+                "severity": "NONE",
+                "active": False,
+                "latched": False,
+                "blocks_motion": False,
+                "speed_scale": 1.0,
+                "reasons": [],
+                "location": None,
+                "hazard": None,
+                "latest_event": None,
+                "active_events": [],
+                "recent_events": [],
+                "events_recorded": 0,
+                "counts_by_kind": {},
+                "sources": [],
+                "updated_at": None,
+            }
+
+        state = HazardState.parse(snapshot.get("state"))
+        severity = _STATE_SEVERITY[state]
+        active_events = list(snapshot.get("active_events") or [])
+
+        worst = None
+        for event in active_events:
+            event_severity = HazardSeverity.parse(event.get("severity"))
+            if event_severity is HazardSeverity.INFO:
+                continue  # INFO never raises state, so it cannot raise severity
+            if worst is None or (
+                HazardSeverity.parse(worst.get("severity")).rank
+                < event_severity.rank
+            ):
+                worst = event
+            if _SEVERITY_RANK[severity] < _SEVERITY_RANK.get(
+                event_severity.value, 0
+            ):
+                severity = event_severity.value
+
+        descriptor = None
+        if worst is not None:
+            match = None
+            worst_key = f"{worst.get('kind')}:{worst.get('source')}"
+            hazard = self._mgr.hazard
+            readings = hazard.status.readings if hazard is not None else ()
+            for reading in readings:
+                if reading.key == worst_key:
+                    match = reading
+                    break
+            descriptor = {
+                "kind": worst.get("kind"),
+                "severity": worst.get("severity"),
+                "source": worst.get("source"),
+                "message": worst.get("message"),
+                "location": worst.get("location"),
+                "raised_at": worst.get("raised_at"),
+                "value": match.value if match is not None else None,
+                "unit": match.unit if match is not None else "",
+                "confidence": (
+                    match.value
+                    if match is not None and match.unit == "confidence"
+                    else None
+                ),
+            }
+
+        recent = list(snapshot.get("recent_events") or [])
+        payload = dict(snapshot)
+        payload.update(
+            {
+                "attached": True,
+                "severity": severity,
+                "active": bool(active_events),
+                "hazard": descriptor,
+                "latest_event": recent[-1] if recent else None,
+            }
+        )
+        return payload
+
     def dispatch(self, payload: dict) -> Tuple[dict, int]:
         """Execute one command through the gated manager API."""
         cmd = str(payload.get("cmd", "")).lower()
@@ -251,6 +429,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(self.app.poll_sensor())
         elif path == "/camera":
             self._send_json(self.app.camera_status())
+        elif path == "/hazard":
+            self._send_json(self.app.hazard_status())
         elif path == "/image":
             jpeg = self.app.image()
             if jpeg is None:
@@ -261,6 +441,23 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:  # noqa: N802
+        path = self.path.split("?", 1)[0]
+        if path == "/hazard/acknowledge":
+            # Body is optional (an empty POST must be allowed for a button);
+            # when present it must still be a JSON object, like /command.
+            try:
+                length = int(self.headers.get("Content-Length", 0) or 0)
+                if length:
+                    raw = self.rfile.read(length)
+                    parsed = json.loads(raw.decode("utf-8"))
+                    if parsed is not None and not isinstance(parsed, dict):
+                        raise ValueError("payload must be a JSON object")
+            except (ValueError, UnicodeDecodeError) as exc:
+                self._send_json({"ok": False, "error": f"bad JSON: {exc}"}, 400)
+                return
+            result, code = self.app.acknowledge_hazard()
+            self._send_json(result, code)
+            return
         if self.path != "/command":
             self._send_json({"error": "not found"}, 404)
             return
@@ -333,6 +530,12 @@ INDEX_HTML = """<!doctype html>
            padding:8px 16px; opacity:0; transition:opacity .2s; pointer-events:none; }
   #toast.show { opacity:1; }
   #toast.err { background:rgba(231,76,60,.25); border-color:var(--err); }
+  .badge.crit { background:var(--err); color:#fff; animation:critblink 1s step-end infinite; }
+  @keyframes critblink { 50% { background:#7a1e16; } }
+  @media (prefers-reduced-motion:reduce){ .badge.crit { animation:none; } }
+  button.ack { background:#5a3a12; border-color:var(--warn); color:var(--warn);
+               font-weight:700; }
+  button.ack:hover { background:#7a4e18; }
 </style>
 </head>
 <body>
@@ -342,6 +545,7 @@ INDEX_HTML = """<!doctype html>
     <span id="mode" class="badge">--</span>
     <span id="safety" class="badge">--</span>
     <span id="link" class="badge">--</span>
+    <span id="hazBadge" class="badge">HAZARD --</span>
   </header>
 
   <div class="grid">
@@ -387,6 +591,24 @@ INDEX_HTML = """<!doctype html>
         <div><div class="v" id="s-right">--</div><div class="k">right</div></div>
         <div><div class="v" id="s-rear">--</div><div class="k">rear</div></div>
       </div>
+    </div>
+
+    <div class="card" style="grid-column:1/-1">
+      <h2>Hazard (Layer 3.5)</h2>
+      <div class="row" style="margin-bottom:8px">
+        <span id="hazState" class="badge">--</span>
+        <span id="hazSeverity" class="badge">--</span>
+        <span id="hazActive" class="badge">--</span>
+        <button id="hazAck" class="ack" style="display:none;margin-left:auto">
+          Acknowledge hazard
+        </button>
+      </div>
+      <div class="kv"><span>Current hazard</span><span id="hazKind">--</span></div>
+      <div class="kv"><span>Confidence</span><span id="hazConf">--</span></div>
+      <div class="kv"><span>Source</span><span id="hazSrc">--</span></div>
+      <div class="kv"><span>Location</span><span id="hazLoc">--</span></div>
+      <div class="kv"><span>Reason</span><span id="hazReason" style="max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="">--</span></div>
+      <div class="kv"><span>Updated</span><span id="hazTs">--</span></div>
     </div>
 
     <div class="card" style="grid-column:1/-1">
@@ -495,6 +717,81 @@ async function refreshCam() {
 }
 setInterval(refreshCam, 2000);
 refreshCam();
+
+async function refreshHazard() {
+  try {
+    const h = await (await fetch("/hazard")).json();
+    const hb = $("hazBadge");
+    if (!h.attached) {
+      hb.textContent = "HAZARD OFF";
+      hb.className = "badge";
+      $("hazState").textContent = "not attached";
+      $("hazState").className = "badge";
+      $("hazSeverity").textContent = "--";
+      $("hazSeverity").className = "badge";
+      $("hazActive").textContent = "--";
+      $("hazActive").className = "badge";
+      $("hazKind").textContent = "--";
+      $("hazConf").textContent = "--";
+      $("hazSrc").textContent = "--";
+      $("hazLoc").textContent = "--";
+      $("hazReason").textContent = "--";
+      $("hazReason").title = "";
+      $("hazTs").textContent = "--";
+      $("hazAck").style.display = "none";
+      return;
+    }
+    const st = (h.state || "").toUpperCase();
+    const sev = (h.severity || "").toUpperCase();
+    const stateCls = st === "NORMAL" ? "ok"
+                   : (st === "WARNING" || st === "SLOW") ? "warn" : "crit";
+    const sevCls = sev === "CRITICAL" ? "crit"
+                 : sev === "WARNING" ? "warn" : "ok";
+    hb.textContent = "HAZARD " + st + (h.latched ? " (LATCHED)" : "");
+    hb.className = "badge " + stateCls;
+    $("hazState").textContent = st + (h.latched ? " (LATCHED)" : "");
+    $("hazState").className = "badge " + stateCls;
+    $("hazSeverity").textContent = sev;
+    $("hazSeverity").className = "badge " + sevCls;
+    const act = !!h.active;
+    $("hazActive").textContent = act ? "ACTIVE" : "clear";
+    $("hazActive").className = "badge " + (act ? "warn" : "ok");
+    const d = h.hazard;
+    $("hazKind").textContent = d ? (d.kind || "--") : (h.reasons.length ? "latched" : "none");
+    $("hazConf").textContent = (d && d.confidence !== null && d.confidence !== undefined)
+      ? d.confidence.toFixed(2) : "--";
+    $("hazSrc").textContent = d && d.source ? d.source : "--";
+    const loc = d && d.location ? d.location : h.location;
+    $("hazLoc").textContent = loc
+      ? (loc.x.toFixed(2) + ", " + loc.y.toFixed(2) + (loc.zone ? " [" + loc.zone + "]" : ""))
+      : "--";
+    const reason = (h.reasons || []).join("; ");
+    $("hazReason").textContent = reason || "--";
+    $("hazReason").title = reason;
+    $("hazTs").textContent = h.updated_at ? new Date(h.updated_at * 1000).toLocaleTimeString() : "--";
+    $("hazAck").style.display = h.latched ? "" : "none";
+  } catch (e) { /* server restarting */ }
+}
+setInterval(refreshHazard, 1000);
+refreshHazard();
+
+$("hazAck").addEventListener("click", async () => {
+  try {
+    const r = await fetch("/hazard/acknowledge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const j = await r.json();
+    if (!r.ok || j.ok === false) { toast(j.error || ("HTTP " + r.status), true); return; }
+    if (j.latched) {
+      toast("acknowledged, but the hazard is STILL ACTIVE — emergency remains latched", true);
+    } else {
+      toast("hazard latch acknowledged — use Mode → Idle to leave SAFETY_STOP");
+    }
+    refreshHazard();
+  } catch (e) { toast("network error: " + e, true); }
+});
 </script>
 </body>
 </html>
