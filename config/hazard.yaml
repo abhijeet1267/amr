@@ -1,0 +1,59 @@
+# Context-aware multi-hazard safety layer (see docs/hazard.md).
+#
+# IMPORTANT: `status: NOT_VERIFIED`. Every threshold below is a *configurable
+# test value*, not a value measured on real sensors in the real warehouse. Gas
+# limits in particular are sensor-specific (an MQ-2 is calibrated against one
+# reference gas and its ppm output is approximate). Do not treat these numbers
+# as life-safety limits until they are validated and `status` is set to
+# VERIFIED.
+#
+# `enabled` defaults to false: the layer can be built and exercised offline, but
+# an operator must explicitly opt in before it can influence the robot.
+
+hazard:
+  enabled: false
+  status: NOT_VERIFIED
+
+  # Speed multiplier applied in the SLOW state (0 < value <= 1).
+  slow_speed_scale: 0.5
+
+  # Bounded ring buffer for recorded hazard events (memory is never unbounded).
+  max_events: 256
+
+  # Optional JSONL export (one JSON object per line) for a dashboard or the
+  # future spatial hazard visualisation. null disables the export.
+  event_log_path: null
+
+  # Gas / smoke thresholds, in `gas_unit`. Set gas_critical_at to 0 to disable
+  # the critical band (a source that can then only ever warn).
+  gas_warn_at: 300
+  gas_critical_at: 1000
+  gas_unit: "ppm"
+
+  # Vision detector confidence thresholds (0..1) for human / fire detection.
+  human_warn_at: 0.5
+  human_critical_at: 0.8
+
+  # A CRITICAL reading of one of these kinds latches EMERGENCY (life safety).
+  # An empty list disables latching entirely (CRITICAL then yields STOP).
+  emergency_kinds: ["FIRE", "GAS", "SMOKE"]
+
+  # A WARNING reading of one of these kinds reduces speed (SLOW) rather than
+  # merely warning.
+  slow_kinds: ["GAS", "SMOKE", "HUMAN", "ZONE_BREACH"]
+
+  # Rectangular areas of interest in the world frame (metres). While the robot
+  # is inside one it raises a hazard reading, so the same air reading can mean
+  # different things in a charging bay than in an open aisle.
+  #
+  # PLACEHOLDER: the coordinates below are examples, not a surveyed layout.
+  # They intentionally overlap `shelf_c` in warehouse.yaml so the layer can be
+  # exercised offline. Re-survey before enabling.
+  zones:
+    - name: "charging_bay"
+      x_min: 3.5
+      x_max: 4.5
+      y_min: 1.0
+      y_max: 2.0
+      severity: "CRITICAL"
+      kind: "ZONE_BREACH"

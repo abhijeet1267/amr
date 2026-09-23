@@ -7,7 +7,7 @@ Provides:
 * :func:`get_logger` — cheap accessor that is safe to call before setup.
 * :func:`log_event` — emit compact, grep-friendly event lines such as
   ``COMMAND MOVE L=150 R=150``, ``SENSOR F=82 L=70 R=90 B=120`` or
-  ``SAFETY STOP`` (see docs/architecture.md §Logging).
+  ``SAFETY STOP`` (see ``AI_CONTEXT/ARCHITECTURE.md``).
 
 Log files are rotated so the system never grows them without bound.
 """

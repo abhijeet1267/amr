@@ -36,7 +36,8 @@ re-armed on every valid command.
 ## Layer 2 — Pi receives sensor + status state
 
 The Pi maintains a structured `RobotState` (see
-[`architecture.md`](architecture.md)) that includes the latest sensor readings,
+[`AI_CONTEXT/ARCHITECTURE.md`](../AI_CONTEXT/ARCHITECTURE.md)) that includes the
+latest sensor readings,
 connection status, drive state and safety state. The Pi polls `STATUS` and
 `SENSOR`, and handles unsolicited `WATCHDOG`/`SENSOR` lines.
 

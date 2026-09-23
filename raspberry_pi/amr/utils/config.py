@@ -22,7 +22,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -139,6 +139,52 @@ class WarehouseConfig:
 
 
 @dataclass
+class HazardConfig:
+    """Context-aware multi-hazard safety layer (see docs/hazard.md).
+
+    ``status`` mirrors :class:`SafetyConfig`: it is ``NOT_VERIFIED`` until the
+    gas/vision thresholds have been validated against real sensors in the real
+    warehouse. These are *configurable test values*, not measured ones.
+
+    ``enabled`` defaults to ``False`` so that adding this layer cannot change the
+    behaviour of an existing deployment until an operator opts in.
+
+    ``emergency_kinds`` / ``slow_kinds`` select which :class:`HazardKind` values
+    escalate to ``EMERGENCY`` / ``SLOW``; ``None`` means "use the documented
+    default", while an explicit empty list deliberately disables that band.
+    """
+
+    enabled: bool = False
+    status: str = "NOT_VERIFIED"
+
+    #: Speed multiplier applied in the SLOW state (0 < scale <= 1).
+    slow_speed_scale: float = 0.5
+
+    #: Ring-buffer size for recorded hazard events.
+    max_events: int = 256
+
+    #: Optional JSONL export path for hazard events (dashboard / visualisation).
+    event_log_path: Optional[str] = None
+
+    #: Gas / smoke sensor thresholds (same unit, see unit).
+    gas_warn_at: float = 300.0
+    gas_critical_at: float = 1000.0
+    gas_unit: str = "ppm"
+
+    #: Vision detector confidence thresholds (0..1).
+    human_warn_at: float = 0.5
+    human_critical_at: float = 0.8
+
+    #: Kinds that latch EMERGENCY / reduce speed at WARNING severity.
+    emergency_kinds: Optional[List[str]] = None
+    slow_kinds: Optional[List[str]] = None
+
+    #: Rectangular areas of interest: {name, x_min, x_max, y_min, y_max,
+    #: severity?, kind?}. Empty means "no location rules".
+    zones: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
 class AppConfig:
     """Aggregated, validated application configuration."""
 
@@ -147,6 +193,7 @@ class AppConfig:
     robot: RobotConfig
     warehouse: WarehouseConfig
     config_dir: str
+    hazard: HazardConfig = field(default_factory=HazardConfig)
 
 
 # --------------------------------------------------------------------------- #
@@ -234,6 +281,7 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
     safety_data = _load_yaml(cfg_dir / "safety.yaml")
     robot_data = _load_yaml(cfg_dir / "robot.yaml")
     warehouse_data = _load_yaml(cfg_dir / "warehouse.yaml")
+    hazard_data = _load_yaml(cfg_dir / "hazard.yaml")
 
     serial = _build(SerialConfig, serial_data.get("serial", {}), "serial")
     safety = _build(SafetyConfig, safety_data.get("safety", {}), "safety")
@@ -260,15 +308,19 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
         locations=dict(warehouse_blob.get("locations", {}) or {}),
     )
 
+    hazard_blob = hazard_data.get("hazard", hazard_data) or {}
+    hazard = _build(HazardConfig, hazard_blob, "hazard")
+
     # ---- validation (fail fast on nonsense) ----
     _validate_serial(serial)
     _validate_safety(safety)
     _validate_motors(robot.motors)
     _validate_warehouse(warehouse)
+    _validate_hazard(hazard)
 
     return AppConfig(
         serial=serial, safety=safety, robot=robot,
-        warehouse=warehouse, config_dir=str(cfg_dir),
+        warehouse=warehouse, config_dir=str(cfg_dir), hazard=hazard,
     )
 
 
@@ -296,6 +348,27 @@ def _validate_safety(c: SafetyConfig) -> None:
 def _validate_motors(c: MotorConfig) -> None:
     if not (1 <= c.max_speed <= 255):
         raise ConfigError(f"motors.max_speed {c.max_speed} out of range [1,255]")
+
+
+def _validate_hazard(c: HazardConfig) -> None:
+    """Reject hazard settings that would make the layer unsafe or meaningless."""
+    if c.max_events < 1:
+        raise ConfigError("hazard.max_events must be >= 1")
+    if not (0.0 < c.slow_speed_scale <= 1.0):
+        raise ConfigError("hazard.slow_speed_scale must be in (0, 1]")
+    if c.gas_warn_at < 0:
+        raise ConfigError("hazard.gas_warn_at must be >= 0")
+    if c.gas_critical_at and c.gas_critical_at < c.gas_warn_at:
+        raise ConfigError(
+            "hazard.gas_critical_at must be 0 (disabled) or >= gas_warn_at"
+        )
+    for name in ("human",):
+        warn = getattr(c, f"{name}_warn_at")
+        crit = getattr(c, f"{name}_critical_at")
+        if not (0.0 <= warn <= 1.0):
+            raise ConfigError(f"hazard.{name}_warn_at must be within [0, 1]")
+        if not (0.0 <= crit <= 1.0):
+            raise ConfigError(f"hazard.{name}_critical_at must be within [0, 1]")
 
 
 def _validate_warehouse(c: WarehouseConfig) -> None:

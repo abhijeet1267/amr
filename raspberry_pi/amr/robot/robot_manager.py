@@ -35,7 +35,7 @@ always be able to stop the robot.
 from __future__ import annotations
 
 import time
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
 
 from ..communication.arduino_serial import ArduinoSerial, SerialTimeout
 from ..control import ArduinoMotorDriver, DifferentialDrive
@@ -46,6 +46,9 @@ from ..sensors import UltrasonicManager, UltrasonicReading
 from ..utils.config import AppConfig
 from .mode_controller import ModeController, ModeTransitionError
 from .robot_state import RobotMode, RobotState
+
+if TYPE_CHECKING:  # pragma: no cover - typing only; no runtime import cycle
+    from ..hazard import HazardManager, HazardStatus
 
 
 class RobotCommandError(Exception):
@@ -79,6 +82,13 @@ class RobotManager:
         self._last_decision: Optional[SafetyDecision] = None
         self._last_ok: Optional[float] = None
 
+        # Optional hazard layer (Layer 3.5). ``None`` means "not attached", in
+        # which case every behaviour in this class is exactly as it was before
+        # the hazard feature existed.
+        self.hazard: Optional["HazardManager"] = None
+        self._hazard_pose_provider: Optional[Callable[[], Any]] = None
+        self._last_hazard_status: Optional["HazardStatus"] = None
+
     # ------------------------------------------------------------------ #
     # Factory: full mock stack (no hardware, no pyserial)
     # ------------------------------------------------------------------ #
@@ -102,6 +112,61 @@ class RobotManager:
         serial = ArduinoSerial(transport, timeout=0.05)
         driver = ArduinoMotorDriver(serial, max_speed=config.robot.motors.max_speed)
         return cls(serial, driver, config), transport
+
+    # ------------------------------------------------------------------ #
+    # Hazard layer (Layer 3.5, optional)
+    # ------------------------------------------------------------------ #
+    def attach_hazard(
+        self,
+        manager: "HazardManager",
+        pose_provider: Optional[Callable[[], Any]] = None,
+    ) -> None:
+        """Attach the optional context-aware multi-hazard safety layer.
+
+        Additive and opt-in: until this is called the manager behaves exactly as
+        it did before the hazard feature existed. Once attached the hazard layer
+        can only **escalate** — a ``STOP``/``EMERGENCY`` verdict vetoes motion
+        and forces ``SAFETY_STOP``, and a ``SLOW`` verdict caps the commanded
+        speed. It never relaxes the Layer-3 proximity gate, and it never touches
+        the motors itself.
+
+        :param pose_provider: optional callable returning the robot's current
+            pose (any object with ``x``/``y``), used to tag hazard events with a
+            location for the future spatial hazard visualisation.
+        """
+        self.hazard = manager
+        self._hazard_pose_provider = pose_provider
+        names = [
+            str(getattr(s, "name", type(s).__name__)) for s in manager.sources
+        ]
+        self.log.info(
+            "hazard layer attached (%d source(s): %s)",
+            len(names),
+            ", ".join(names) or "none",
+        )
+
+    def hazard_snapshot(self) -> Optional[dict]:
+        """The hazard layer's JSON snapshot, or ``None`` when not attached."""
+        if self.hazard is None:
+            return None
+        return self.hazard.snapshot()
+
+    def _hazard_location(self) -> Any:
+        if self._hazard_pose_provider is None:
+            return None
+        try:
+            return self._hazard_pose_provider()
+        except Exception:  # noqa: BLE001 - a bad provider must not stop the loop
+            return None
+
+    def _scaled(self, speed: int) -> int:
+        """Apply the hazard speed scale (identity when no layer is attached)."""
+        if self.hazard is None:
+            return speed
+        scale = self.hazard.speed_scale
+        if scale >= 1.0:
+            return speed
+        return max(0, int(round(speed * scale)))
 
     # ------------------------------------------------------------------ #
     # Lifecycle
@@ -173,6 +238,17 @@ class RobotManager:
         if self.state.connected and decision.action is SafetyAction.STOP:
             self._enforce_stop(decision)
 
+        # Layer 3.5 (optional): evaluate the hazard layer and enforce its veto.
+        # Deliberately after Layer 3 so a proximity stop is never masked, and it
+        # can only escalate the outcome — never clear a Layer-3 stop.
+        if self.hazard is not None:
+            self._last_hazard_status = self.hazard.evaluate(self._hazard_location())
+            if self.state.connected and self._last_hazard_status.blocks_motion:
+                reasons = tuple(self._last_hazard_status.reasons) or (
+                    f"hazard {self._last_hazard_status.state.value}",
+                )
+                self._enforce_stop(SafetyDecision(SafetyAction.STOP, reasons))
+
         return decision
 
     def shutdown(self) -> None:
@@ -210,6 +286,9 @@ class RobotManager:
         decision = self.safety.check(self._last_reading, self.state.connected)
         if not decision.allowed:
             raise RobotCommandError(f"safety veto: {decision}")
+        # Layer 3.5 (optional): the hazard layer vetoes motion on its own.
+        if self.hazard is not None and self.hazard.status.blocks_motion:
+            raise RobotCommandError(f"hazard veto: {self.hazard.status}")
 
     def _apply(self, fn) -> None:
         """Gate, run a drive command, publish the commanded speeds."""
@@ -220,26 +299,28 @@ class RobotManager:
         self.state.right_speed = right
         self.state.updated_at = time.time()
 
+    # NOTE: speeds pass through _scaled(), which is the identity function unless a
+    # hazard layer is attached and currently reports SLOW (see attach_hazard).
     def forward(self, speed: int = 100) -> None:
-        self._apply(lambda: self.drive.forward(speed))
+        self._apply(lambda: self.drive.forward(self._scaled(speed)))
 
     def backward(self, speed: int = 100) -> None:
-        self._apply(lambda: self.drive.backward(speed))
+        self._apply(lambda: self.drive.backward(self._scaled(speed)))
 
     def rotate_left(self, speed: int = 100) -> None:
-        self._apply(lambda: self.drive.rotate_left(speed))
+        self._apply(lambda: self.drive.rotate_left(self._scaled(speed)))
 
     def rotate_right(self, speed: int = 100) -> None:
-        self._apply(lambda: self.drive.rotate_right(speed))
+        self._apply(lambda: self.drive.rotate_right(self._scaled(speed)))
 
     def turn_left(self, speed: int = 80) -> None:
-        self._apply(lambda: self.drive.turn_left(speed))
+        self._apply(lambda: self.drive.turn_left(self._scaled(speed)))
 
     def turn_right(self, speed: int = 80) -> None:
-        self._apply(lambda: self.drive.turn_right(speed))
+        self._apply(lambda: self.drive.turn_right(self._scaled(speed)))
 
     def move(self, left: int, right: int) -> None:
-        self._apply(lambda: self.drive.move(left, right))
+        self._apply(lambda: self.drive.move(self._scaled(left), self._scaled(right)))
 
     def stop(self) -> None:
         """Command a motion stop. Never gated — always allowed."""
@@ -313,6 +394,9 @@ class RobotManager:
         d = self.state.to_dict()
         d["safety"] = str(self._last_decision) if self._last_decision else None
         d["version"] = self.version
+        if self.hazard is not None:
+            # Additive key: absent unless a hazard layer is attached.
+            d["hazard"] = self.hazard.snapshot()
         return d
 
     # ------------------------------------------------------------------ #

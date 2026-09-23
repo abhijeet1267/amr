@@ -85,3 +85,71 @@ def test_custom_values_override(tmp_path):
     assert cfg.safety.status == "VERIFIED"
     # Untouched values keep defaults.
     assert cfg.safety.watchdog_timeout_ms == 1000
+
+
+# --- hazard layer (config/hazard.yaml) ------------------------------------- #
+def test_hazard_defaults_when_no_file(tmp_path):
+    cfg = load_config(str(tmp_path))
+    # The layer must be off and unverified until an operator opts in.
+    assert cfg.hazard.enabled is False
+    assert cfg.hazard.status == "NOT_VERIFIED"
+    assert cfg.hazard.zones == []
+    assert cfg.hazard.emergency_kinds is None      # None -> documented default
+    assert cfg.hazard.event_log_path is None
+
+
+def test_repo_hazard_config_loads(config_dir):
+    cfg = load_config(str(config_dir))
+    assert cfg.hazard.enabled is False
+    assert cfg.hazard.status == "NOT_VERIFIED"
+    assert cfg.hazard.slow_speed_scale == 0.5
+    assert cfg.hazard.max_events == 256
+    assert cfg.hazard.gas_warn_at == 300
+    assert cfg.hazard.gas_critical_at == 1000
+    assert cfg.hazard.gas_unit == "ppm"
+    # The placeholder zone is present and must be flagged as unverified.
+    assert [z["name"] for z in cfg.hazard.zones] == ["charging_bay"]
+
+
+def test_hazard_custom_values_override(tmp_path):
+    (tmp_path / "hazard.yaml").write_text(
+        "hazard:\n"
+        "  enabled: true\n"
+        "  status: VERIFIED\n"
+        "  slow_speed_scale: 0.25\n"
+        "  max_events: 8\n"
+        "  emergency_kinds: []\n"
+        "  zones:\n"
+        "    - name: bay\n"
+        "      x_min: 1\n"
+        "      x_max: 2\n"
+        "      y_min: 0\n"
+        "      y_max: 1\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(str(tmp_path))
+    assert cfg.hazard.enabled is True
+    assert cfg.hazard.status == "VERIFIED"
+    assert cfg.hazard.slow_speed_scale == 0.25
+    assert cfg.hazard.max_events == 8
+    assert cfg.hazard.emergency_kinds == []        # explicit "disable latching"
+    assert cfg.hazard.zones[0]["name"] == "bay"
+    # Untouched hazard values keep their defaults.
+    assert cfg.hazard.gas_warn_at == 300
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "hazard:\n  slow_speed_scale: 0\n",       # must be in (0, 1]
+        "hazard:\n  slow_speed_scale: 1.5\n",     # must be in (0, 1]
+        "hazard:\n  max_events: 0\n",             # must be >= 1
+        "hazard:\n  gas_warn_at: -1\n",           # must be >= 0
+        "hazard:\n  gas_critical_at: 10\n  gas_warn_at: 300\n",  # critical < warn
+        "hazard:\n  human_warn_at: 2.0\n",        # confidence out of range
+    ],
+)
+def test_bad_hazard_settings_rejected(tmp_path, body):
+    (tmp_path / "hazard.yaml").write_text(body, encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(str(tmp_path))
