@@ -106,8 +106,8 @@ Baseline history: `dfa70c6` → `eadf6a5` → `4eeb571` → `5a09791` →
 
 | # | Hash | Commit |
 |---|---|---|
-| 7 | *this commit* | `feat(hazard): add spatial visualisation of recorded events` — C3 renderer, lazy re-exports, 23 tests, docs |
-| 8 | filled in by the follow-up docs commit | `docs(ai-context): record C3 commit hash` — this row's hash (a file cannot contain its own hash) |
+| 7 | `59269a4` | `feat(hazard): add spatial visualisation of recorded events` — C3 renderer, lazy re-exports, 23 tests, docs |
+| 8 | *this commit* | `docs(ai-context): record C3 commit hash` — this row's hash (a file cannot contain its own hash) |
 
 For the live value run `git rev-parse HEAD`.
 
