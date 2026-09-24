@@ -68,7 +68,12 @@ def web(config_dir):
     camera = CameraManager(
         MockCamera(available=True), CameraConfig(enabled=True)
     )
-    app = AMRWebApp(mgr, tick_hz=10.0, camera=camera)
+    # The whole stack is mock-backed (MockSerialTransport + MockCamera), so the
+    # dashboard must tag every value SIMULATION rather than present it as a
+    # physical measurement. This is the same flag `run_web` passes for --mock.
+    app = AMRWebApp(
+        mgr, tick_hz=10.0, camera=camera, simulated=True
+    )
     port = app.start(host="127.0.0.1", port=0)
     mgr.start()  # bring the (mock) link up so the control loop sees a robot
     yield app, port, mgr
@@ -570,3 +575,101 @@ def test_status_and_panel_expose_hazard(web_hazard):
     assert "hazBadge" in html                  # panel header indicator
     assert "/hazard" in html                   # panel polls the endpoint
     assert "/hazard/acknowledge" in html       # panel offers the ack control
+
+
+# --------------------------------------------------------------------------- #
+# C7 — dashboard foundation: read-only telemetry + health + dashboard HTML
+# --------------------------------------------------------------------------- #
+class TestDashboardAPI:
+    def test_health_is_public_and_reports_ok(self, web):
+        _app, port, _mgr = web
+        code, ctype, body = _get(port, "/health")
+        assert code == 200
+        assert "application/json" in ctype
+        j = json.loads(body.decode("utf-8"))
+        assert j["ok"] is True
+        assert j["status"] in ("OK", "DEGRADED")
+        assert j["simulated"] is True      # the fixture runtime is mock-backed
+        assert j["connected"] is True
+        assert j["schema_version"] == "1.0"
+
+    def test_health_lists_every_subsystem_source(self, web):
+        _app, port, _mgr = web
+        _code, _ctype, body = _get(port, "/health")
+        sources = json.loads(body.decode("utf-8"))["sources"]
+        # Real vs simulated must be explicit for every dashboard subsystem.
+        for section in ("camera", "hazards", "mission", "navigation",
+                        "sensors", "safety", "battery", "system"):
+            assert sources[section] in ("LIVE", "SIMULATION", "UNAVAILABLE")
+
+    def test_telemetry_returns_the_full_contract(self, web):
+        _app, port, _mgr = web
+        code, ctype, body = _get(port, "/telemetry")
+        assert code == 200
+        assert "application/json" in ctype
+        j = json.loads(body.decode("utf-8"))
+        for key in ("schema_version", "timestamp", "simulated", "source",
+                    "mode", "robot_id", "position", "orientation", "velocity",
+                    "navigation", "safety", "hazards", "battery", "sensors",
+                    "mission", "camera", "system"):
+            assert key in j, key
+
+    def test_telemetry_never_invents_hardware_measurements(self, web):
+        """Battery is absent in this project: it must be null, not 0."""
+        _app, port, _mgr = web
+        _code, _ctype, body = _get(port, "/telemetry")
+        battery = json.loads(body.decode("utf-8"))["battery"]
+        assert battery["source"] == "UNAVAILABLE"
+        assert battery["percentage"] is None
+        assert battery["voltage"] is None
+
+    def test_telemetry_contract_is_stable_across_polls(self, web):
+        """The *shape* of the contract never changes between polls.
+
+        Values legitimately move (the fixture's control loop is running), so
+        this asserts structural stability — same keys, same per-section source
+        tags — which is what a client can actually rely on.
+        """
+        _app, port, _mgr = web
+        shapes = []
+        for _ in range(3):
+            _code, _ctype, body = _get(port, "/telemetry")
+            j = json.loads(body.decode("utf-8"))
+            shapes.append((sorted(j), {k: v.get("source")
+                                      for k, v in j.items()
+                                      if isinstance(v, dict)}))
+        assert shapes[0] == shapes[1] == shapes[2]
+
+    def test_dashboard_page_is_served(self, web):
+        _app, port, _mgr = web
+        code, ctype, body = _get(port, "/dashboard")
+        assert code == 200
+        assert "text/html" in ctype
+        html = body.decode("utf-8")
+        assert "AMR CONTROL CENTER" in html
+        assert "/telemetry" in html          # the page polls the new endpoint
+
+    def test_dashboard_is_read_only_over_http(self, web):
+        """The dashboard must not expose a second motor-control path."""
+        _app, port, _mgr = web
+        code, _ctype, _body = _get(port, "/dashboard")
+        assert code == 200
+        # A dashboard page with no motion verbs in its own JS.
+        for verb in ("command", "drive", "motor", "pwm"):
+            assert f'"{verb}"' not in _get(port, "/dashboard")[2].decode()
+
+    def test_existing_routes_still_work_alongside_dashboard(self, web):
+        """C7 extends the C2 server; it does not replace any route."""
+        _app, port, _mgr = web
+        assert _get(port, "/")[0] == 200
+        assert _get(port, "/status")[0] == 200
+        assert _get(port, "/hazard")[0] == 200
+        assert _get(port, "/health")[0] == 200
+        assert _get(port, "/telemetry")[0] == 200
+
+    def test_unknown_dashboard_path_still_404s(self, web):
+        _app, port, _mgr = web
+        with pytest.raises(urllib.error.HTTPError) as e:
+            _get(port, "/telemetry/nope")
+        assert e.value.code == 404
+

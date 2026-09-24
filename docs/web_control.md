@@ -39,6 +39,9 @@ every 500 ms and the camera view every 2 s.
 | GET    | `/camera`  | Camera status (JSON)                               |
 | GET    | `/image`   | One JPEG frame (`image/jpeg`, or 503 unavailable)  |
 | GET    | `/hazard`  | Hazard layer status (JSON, see below)              |
+| GET    | `/telemetry` | Full read-only telemetry snapshot (C7)           |
+| GET    | `/health`  | Liveness / degradation report (C7)                 |
+| GET    | `/dashboard` | Monitoring dashboard page (C7)                  |
 | POST   | `/command` | Execute one command (JSON in, JSON out)            |
 | POST   | `/hazard/acknowledge` | Release a latched hazard `EMERGENCY` (step 1 of the two-step release) |
 
@@ -133,6 +136,28 @@ that appears only while `latched` is `true`.
 
 ---
 
+## Telemetry & dashboard (C7)
+
+Three read-only endpoints were added to the **same** `AMRWebApp` — no second
+HTTP server was created:
+
+| Route | Returns |
+|---|---|
+| `GET /telemetry` | a full `TelemetrySnapshot` (position, navigation, safety, hazards, battery, sensors, mission, camera, system) |
+| `GET /health` | a liveness report — `OK` / `DEGRADED` / `OFFLINE` plus per-subsystem detail |
+| `GET /dashboard` | a self-contained monitoring page (stdlib only, no external assets) |
+
+**These cannot move the robot.** The collector behind them performs reads only:
+it never calls `tick()`, `request_mode()` or any write method, and a test
+asserts this by spying on `tick()` and on the serial transport's written bytes.
+`POST /command` remains the sole control path and is untouched by C7.
+
+Every telemetry section carries a `source` tag — `LIVE`, `SIMULATION`, or
+`UNAVAILABLE` — and absent measurements serialise as `null` rather than being
+invented. Full contract and field list: [telemetry.md](telemetry.md).
+
+---
+
 ## Threading model
 
 * One background **control-loop** thread calls `mgr.tick()` at a fixed rate
@@ -179,8 +204,11 @@ a later phase without touching the web layer.
 
 * `tests/test_web_server.py` — runs a real `ThreadingHTTPServer` on an
   ephemeral port against the full mock stack: mode gating, safety rejection,
-  speed bounds, E-STOP, camera endpoints, and the C2 hazard contract
+  speed bounds, E-STOP, camera endpoints, the C2 hazard contract
   (`GET /hazard` shapes, latched `EMERGENCY`, acknowledge **cannot** clear an
-  active hazard, the two-step release, 400s for a missing layer / bad payload).
+  active hazard, the two-step release, 400s for a missing layer / bad payload),
+  and the C7 read-only endpoints (`/telemetry`, `/health`, `/dashboard`).
+* `tests/test_telemetry.py` — the C7 contract: schema, missing optional fields,
+  serialisation, deterministic snapshots, and the read-only guarantee.
 * `tests/test_camera_manager.py` — backends, `capture_jpeg` normalisation,
   graceful degradation.

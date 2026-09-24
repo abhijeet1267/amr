@@ -150,7 +150,15 @@ def run_demo(mgr: RobotManager, out=print) -> int:
 # --------------------------------------------------------------------------- #
 def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> int:
     """Run the web control panel until Ctrl-C. Returns a process exit code."""
-    app = AMRWebApp(mgr, camera=build_camera(config, args.mock))
+    app = AMRWebApp(
+        mgr,
+        camera=build_camera(config, args.mock),
+        # C7: the dashboard is told the truth about where its numbers come
+        # from. A mock run is tagged SIMULATION everywhere, so the UI can never
+        # present simulated telemetry as a physical measurement.
+        simulated=args.mock,
+        software_version=__version__,
+    )
     port = app.start(host=args.host, port=args.port)
     shown = "localhost" if args.host in ("0.0.0.0", "") else args.host
     print(f"AMR web control: http://{shown}:{port}  (Ctrl-C to stop)")

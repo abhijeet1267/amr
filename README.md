@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **537 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **592 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -155,11 +155,12 @@ into `SAFETY_STOP` are deterministic; the robot never auto-releases itself.
 | `amr/warehouse/` | Task queue + orchestration (Phase 16) | `WarehouseTaskManager`, `WarehouseMap`, `Task` |
 | `amr/camera/` | Camera facade (libcamera / V4L2 / mock) | `CameraManager`, `MockCamera` |
 | `amr/web/` | Stdlib HTTP control panel + JSON API | `AMRWebApp` |
+| `amr/telemetry/` | Read-only telemetry contract + collector (C7) | `TelemetrySnapshot`, `TelemetryCollector` |
 | `amr/mocks/` | Hardware-free doubles for tests | `MockSerial`, `MockMotor`, `MockCamera` |
 | `amr/utils/` | Config loading + helpers | `load_config`, `SafetyConfig`, `RobotConfig` |
 | `config/` | YAML: `robot`, `safety`, `serial`, `warehouse` | — |
 | `firmware/arduino/` | Arduino C++ controller | `amr_controller.ino`, `MotorControl` |
-| `docs/` | `safety`, `serial_protocol`, `web_control` | — |
+| `docs/` | `safety`, `serial_protocol`, `web_control`, `hazard`, `telemetry` | — |
 
 ---
 
@@ -247,6 +248,9 @@ veto, illegal mode transition, or a dropped link all surface as `HTTP 400`.
 | GET | `/camera` | Camera status (JSON) |
 | GET | `/image` | One JPEG frame (`image/jpeg`, or `503` unavailable) |
 | GET | `/hazard` | Hazard layer status (JSON; `attached: false` when not wired) |
+| GET | `/telemetry` | Full read-only telemetry snapshot (C7) |
+| GET | `/health` | Liveness / degradation report (C7) |
+| GET | `/dashboard` | Monitoring dashboard page (C7) |
 | POST | `/command` | Execute one command (JSON in/out) |
 | POST | `/hazard/acknowledge` | Release a latched hazard `EMERGENCY` (step 1 of the two-step release; never resets the robot mode) |
 
@@ -257,6 +261,11 @@ every 500 ms, `/hazard` every second, and the camera every 2 s; a background
 control thread calls `tick()` at 5 Hz. There is **no authentication** — this is
 a single-operator LAN tool; never expose the port to the internet. Details in
 [`docs/web_control.md`](docs/web_control.md).
+
+> **Read-only monitoring (C7).** `GET /telemetry`, `/health`, and `/dashboard`
+> are a *view* of the runtime: they perform no `tick()` and issue no commands.
+> `POST /command` remains the only control path, unchanged. See
+> [`docs/telemetry.md`](docs/telemetry.md).
 
 ---
 
@@ -349,7 +358,8 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   ├── safety.md               # layered safety model
 │   ├── serial_protocol.md      # wire protocol reference
 │   ├── web_control.md          # web panel + HTTP API
-│   └── hazard.md               # context-aware multi-hazard safety layer
+│   ├── hazard.md               # context-aware multi-hazard safety layer
+│   ├── telemetry.md            # telemetry contract + read-only dashboard (C7)
 ├── AI_CONTEXT/                 # shared context for the multi-agent team
 │   ├── PROJECT_CONTEXT.md  CURRENT_STATUS.md  ARCHITECTURE.md
 │   └── TASK_BOARD.md  HANDOFF.md

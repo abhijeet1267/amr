@@ -71,6 +71,7 @@ from ..hazard import HazardSeverity, HazardState
 from ..logging import get_logger
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
+from ..telemetry import TelemetryCollector
 
 #: motion commands accepted by /command and their default speeds
 _MOTION = {
@@ -107,6 +108,11 @@ class AMRWebApp:
         mgr: RobotManager,
         tick_hz: float = 5.0,
         camera: Optional[CameraManager] = None,
+        telemetry: Optional[TelemetryCollector] = None,
+        navigator: Any = None,
+        warehouse: Any = None,
+        simulated: bool = False,
+        software_version: Optional[str] = None,
     ):
         self._mgr = mgr
         self._tick_hz = max(0.5, float(tick_hz))
@@ -116,6 +122,18 @@ class AMRWebApp:
         self._server: Optional[ThreadingHTTPServer] = None
         self._threads: list = []
         self.log = get_logger("web")
+        # Read-only projection of this same manager for the C7 dashboard. It is
+        # built here (rather than required from the caller) so the web app can
+        # never be wired to a different runtime than the one it controls, and
+        # so it can only ever read.
+        self.telemetry = telemetry or TelemetryCollector(
+            mgr,
+            navigator=navigator,
+            warehouse=warehouse,
+            camera=camera,
+            simulated=simulated,
+            software_version=software_version,
+        )
 
     # ------------------------------------------------------------------ #
     # Lifecycle
@@ -196,6 +214,38 @@ class AMRWebApp:
             if self._camera is None:
                 return None
             return self._camera.capture_jpeg()
+
+    # ------------------------------------------------------------------ #
+    # C7 — read-only telemetry projection (no motor path whatsoever)
+    # ------------------------------------------------------------------ #
+    def telemetry_snapshot(self) -> dict:
+        """Full read-only telemetry snapshot for ``GET /telemetry``.
+
+        The collector only *reads* the runtime (it never calls ``tick()``,
+        never dispatches a command and never touches an actuator), so this
+        handler cannot move the robot no matter what it returns.
+        """
+        with self._lock:
+            return self.telemetry.snapshot()
+
+    def health(self) -> Tuple[dict, int]:
+        """Liveness/readiness probe for ``GET /health``.
+
+        Composes two independent facts: the collector's subsystem/reachability
+        summary, and whether this HTTP server is actually serving. The HTTP
+        status reflects only the latter — a *degraded robot* is still a
+        reachable dashboard, so it answers 200 and reports ``DEGRADED`` in the
+        body rather than masquerading as a server outage.
+        """
+        with self._lock:
+            running = self._server is not None
+            body = dict(self.telemetry.health())
+        body["read_only"] = True
+        body["server"] = "amr-dashboard"
+        body["serving"] = running
+        if not running:
+            body["status"] = "STOPPED"
+        return body, (200 if running else 503)
 
     # ------------------------------------------------------------------ #
     # Hazard layer (Layer 3.5) — read + acknowledge only
@@ -431,6 +481,13 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(self.app.camera_status())
         elif path == "/hazard":
             self._send_json(self.app.hazard_status())
+        elif path == "/telemetry":
+            self._send_json(self.app.telemetry_snapshot())
+        elif path == "/health":
+            body, code = self.app.health()
+            self._send_json(body, code)
+        elif path == "/dashboard":
+            self._send_html(DASHBOARD_HTML)
         elif path == "/image":
             jpeg = self.app.image()
             if jpeg is None:
@@ -796,3 +853,261 @@ $("hazAck").addEventListener("click", async () => {
 </body>
 </html>
 """
+
+
+# --------------------------------------------------------------------------- #
+# C7 monitoring dashboard (read-only; self-contained; no external assets)
+# --------------------------------------------------------------------------- #
+# A deliberately minimal control center: it *reads* GET /telemetry and GET /health
+# and renders what it receives. It has no form, no button and no fetch() with a
+# method other than GET, so the page contains no motor-control path at all.
+DASHBOARD_HTML = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMR Control Center</title>
+<style>
+:root {
+  --bg: #0e1420; --card: #161f2e; --line: #263247; --ink: #e6edf6;
+  --dim: #8b9bb4; --ok: #3fb950; --warn: #d29922; --crit: #f85149;
+  --sim: #a371f7;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+header { padding: 14px 20px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+h1 { font-size: 17px; margin: 0; letter-spacing: .06em; }
+.badge { padding: 3px 10px; border-radius: 999px; font-size: 11px;
+  font-weight: 700; letter-spacing: .08em; border: 1px solid currentColor; }
+.b-ok { color: var(--ok); } .b-warn { color: var(--warn); }
+.b-crit { color: var(--crit); } .b-sim { color: var(--sim); }
+.b-dim { color: var(--dim); }
+main { padding: 20px; display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px 16px; }
+.card h2 { font-size: 11px; margin: 0 0 10px; color: var(--dim);
+  text-transform: uppercase; letter-spacing: .12em; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+.kv dt { color: var(--dim); } .kv dd { margin: 0; text-align: right;
+  font-variant-numeric: tabular-nums; }
+ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
+.empty { color: var(--dim); font-style: italic; }
+footer { padding: 10px 20px 24px; color: var(--dim); font-size: 12px; }
+a { color: var(--sim); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>AMR CONTROL CENTER</h1>
+  <span id="mode" class="badge b-dim">MODE &mdash;</span>
+  <span id="sim" class="badge b-dim">SOURCE &mdash;</span>
+  <span id="conn" class="badge b-dim">CONNECTING</span>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Robot</h2>
+    <dl class="kv">
+      <dt>Connection</dt><dd id="r-conn">&mdash;</dd>
+      <dt>Mode</dt><dd id="r-mode">&mdash;</dd>
+      <dt>Position (m)</dt><dd id="r-pos">&mdash;</dd>
+      <dt>Yaw</dt><dd id="r-yaw">&mdash;</dd>
+      <dt>Velocity</dt><dd id="r-vel">&mdash;</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Navigation</h2>
+    <dl class="kv">
+      <dt>State</dt><dd id="n-state">&mdash;</dd>
+      <dt>Goal</dt><dd id="n-goal">&mdash;</dd>
+      <dt>Progress</dt><dd id="n-prog">&mdash;</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Safety</h2>
+    <dl class="kv">
+      <dt>State</dt><dd id="s-state">&mdash;</dd>
+      <dt>Action</dt><dd id="s-action">&mdash;</dd>
+      <dt>E-STOP</dt><dd id="s-estop">&mdash;</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Battery</h2>
+    <dl class="kv">
+      <dt>Status</dt><dd id="b-state">&mdash;</dd>
+      <dt>Percentage</dt><dd id="b-pct">&mdash;</dd>
+      <dt>Voltage</dt><dd id="b-volt">&mdash;</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Sensors</h2>
+    <ul id="sensors"><li class="empty">none reported</li></ul>
+  </section>
+
+  <section class="card">
+    <h2>Hazards</h2>
+    <ul id="hazards"><li class="empty">none active</li></ul>
+  </section>
+
+  <section class="card">
+    <h2>Mission</h2>
+    <dl class="kv">
+      <dt>Mission</dt><dd id="m-id">&mdash;</dd>
+      <dt>Task</dt><dd id="m-task">&mdash;</dd>
+      <dt>Completed</dt><dd id="m-done">&mdash;</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Camera</h2>
+    <dl class="kv">
+      <dt>Status</dt><dd id="c-state">&mdash;</dd>
+      <dt>Source</dt><dd id="c-src">&mdash;</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>System</h2>
+    <dl class="kv">
+      <dt>Uptime</dt><dd id="y-up">&mdash;</dd>
+      <dt>Software</dt><dd id="y-ver">&mdash;</dd>
+      <dt>Schema</dt><dd id="y-schema">&mdash;</dd>
+    </dl>
+  </section>
+</main>
+
+<footer>
+  Read-only monitoring. This page issues GET requests only and has no motor
+  control path. Legacy control panel: <a href="/">/</a>.
+</footer>
+__DASHBOARD_JS__
+</body>
+</html>
+"""
+
+DASHBOARD_JS = """<script>
+"use strict";
+// Read-only: this file only ever calls GET. No POST, no command endpoint.
+var POLL_MS = 1000;
+
+function txt(id, v) { document.getElementById(id).textContent = v; }
+function num(v, d) { return (typeof v === "number") ? v.toFixed(d) + " m" : "not available"; }
+function src(v) { return '<span class="badge b-dim">' + v + "</span>"; }
+
+function renderSensors(s) {
+  var ul = document.getElementById("sensors");
+  var out = [];
+  for (var i = 0; i < s.ultrasonic.length; i++) {
+    var u = s.ultrasonic[i];
+    var d = (u.distance_cm === null || u.distance_cm === undefined)
+      ? "no reading" : u.distance_cm + " cm";
+    out.push("<li>" + u.position + " &middot; " + d + " " + src(u.source) + "</li>");
+  }
+  ul.innerHTML = out.length ? out.join("") : '<li class="empty">none reported</li>';
+}
+
+function renderHazards(h) {
+  var ul = document.getElementById("hazards");
+  var out = [];
+  for (var i = 0; i < h.active.length; i++) {
+    var a = h.active[i];
+    var cls = a.severity === "CRITICAL" ? "b-crit" : "b-warn";
+    var loc = a.location
+      ? " @ (" + a.location.x + ", " + a.location.y + ")"
+      : " @ location not supplied";
+    out.push('<li><span class="badge ' + cls + '">' + a.kind + "</span> "
+      + " " + a.severity + " &middot; " + a.source + loc + "</li>");
+  }
+  ul.innerHTML = out.length ? out.join("") : '<li class="empty">none active</li>';
+}
+
+function apply(t) {
+  var sim = !!t.simulated;
+  var simB = document.getElementById("sim");
+  simB.textContent = sim ? "SIMULATION" : "LIVE HARDWARE";
+  simB.className = "badge " + (sim ? "b-sim" : "b-ok");
+
+  var mode = t.system.mode;
+  txt("mode", mode);
+  txt("r-mode", mode);
+  var modeCls = "b-dim";
+  if (mode === "SAFETY_STOP" || mode === "ERROR") { modeCls = "b-crit"; }
+  else if (mode === "AUTONOMOUS" || mode === "MANUAL") { modeCls = "b-ok"; }
+  document.getElementById("mode").className = "badge " + modeCls;
+
+  txt("r-conn", t.system.connected ? "connected" : "not connected");
+  txt("r-pos", num(t.position.x, 2) + ", " + num(t.position.y, 2));
+  txt("r-yaw", typeof t.orientation.yaw === "number"
+    ? t.orientation.yaw.toFixed(2) + " rad" : "not available");
+  txt("r-vel", num(t.velocity.linear, 2) + " / " + num(t.velocity.angular, 2));
+
+  txt("n-state", t.navigation.state);
+  txt("n-goal", t.navigation.current_goal || "none");
+  txt("n-prog", typeof t.navigation.progress === "number"
+    ? t.navigation.progress.toFixed(2) : "not available");
+
+  txt("s-state", t.safety.state);
+  txt("s-action", t.safety.action);
+  txt("s-estop", t.safety.emergency_stop ? "ACTIVE" : "clear");
+
+  // Battery is UNAVAILABLE until real hardware reports it: render the source
+  // tag rather than inventing a "state" the contract does not define.
+  var batAvail = t.battery.source !== "UNAVAILABLE";
+  txt("b-state", batAvail ? t.battery.source : "not connected");
+  txt("b-pct", t.battery.percentage === null
+    ? "not available" : t.battery.percentage + " %");
+  txt("b-volt", t.battery.voltage === null
+    ? "not available" : t.battery.voltage + " V");
+
+  renderSensors(t.sensors);
+  renderHazards(t.hazards);
+
+  txt("m-id", t.mission.mission_id || "none");
+  txt("m-task", t.mission.current_task || "none");
+  txt("m-done", t.mission.completed_tasks);
+
+  txt("c-state", t.camera.status || "OFFLINE");
+  txt("c-src", (t.camera.source_name || "none")
+    + " (" + t.camera.source + ")");
+
+  txt("y-up", typeof t.system.uptime === "number"
+    ? Math.round(t.system.uptime) + " s" : "not available");
+  txt("y-ver", t.system.software_version);
+  txt("y-schema", t.schema_version);
+}
+
+function poll() {
+  fetch("/telemetry", { cache: "no-store" })
+    .then(function (r) {
+      if (!r.ok) { throw new Error("HTTP " + r.status); }
+      return r.json();
+    })
+    .then(function (t) {
+      apply(t);
+      var c = document.getElementById("conn");
+      c.textContent = "LIVE FEED";
+      c.className = "badge b-ok";
+    })
+    .catch(function (e) {
+      var c = document.getElementById("conn");
+      c.textContent = "NO DATA";
+      c.className = "badge b-crit";
+    });
+}
+
+poll();
+setInterval(poll, POLL_MS);
+</script>"""
+
+# Substitute the JS token once, at import time, so the served document is a
+# single self-contained HTML string with no templating left on the wire.
+DASHBOARD_HTML = DASHBOARD_HTML.replace("__DASHBOARD_JS__", DASHBOARD_JS)
+
