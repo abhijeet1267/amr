@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-366%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-461%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **366 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **461 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -89,6 +89,9 @@ python -m amr.hazard
 
 # 5. Render recorded hazard events onto the warehouse map (static SVG, offline)
 python -m amr.hazard.visualisation --out hazard-map.svg
+
+# 6. Vision -> hazard pipeline using SIMULATED detections (no camera, no ML)
+python -m amr.hazard.vision
 ```
 
 Against the real robot the same entry points work without `--mock`; the camera
@@ -146,7 +149,7 @@ into `SAFETY_STOP` are deterministic; the robot never auto-releases itself.
 | `amr/control/` | Differential drive + motor driver | `DifferentialDrive`, `MotorDriver`, `clamp_speed` |
 | `amr/communication/` | Serial protocol + transport | `ArduinoSerial`, `ArduinoSerialTransport` |
 | `amr/safety/` | Deterministic Pi-side policy | `SafetyManager`, `SafetyDecision`, `SafetyAction` |
-| `amr/hazard/` | Context-aware multi-hazard layer (Layer 3.5) | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog` |
+| `amr/hazard/` | Context-aware multi-hazard layer (Layer 3.5) | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `VisionHazardSource`, `VisionDetection` |
 | `amr/sensors/` | Ultrasonic validation | `UltrasonicManager`, `UltrasonicReading` |
 | `amr/navigation/` | Goals, odometry, waypoint planning | `Navigator`, `Pose`, `Goal` |
 | `amr/warehouse/` | Task queue + orchestration (Phase 16) | `WarehouseTaskManager`, `WarehouseMap`, `Task` |
@@ -319,9 +322,10 @@ python -m pytest -q                 # full suite
 python -m pytest -q tests/test_web_server.py   # one area
 ```
 
-The 16 test files cover protocol parsing, the mode state machine, the safety
+The 17 test files cover protocol parsing, the mode state machine, the safety
 policy, differential-drive math, odometry/navigation, the warehouse task
-manager, the camera manager, the hazard layer, and a real
+manager, the camera manager, the hazard layer, the vision-to-hazard pipeline
+(`tests/test_vision.py`, simulated detections only), and a real
 `ThreadingHTTPServer` driven against the
 mock stack (mode gating, safety rejection, speed bounds, E-STOP, camera
 endpoints). Everything runs on the mocks under `amr/mocks/`.
@@ -384,6 +388,12 @@ navigation → warehouse). Explicit next steps:
    already exists (`python -m amr.hazard.visualisation` → SVG);
    `config/hazard.yaml` is still `NOT_VERIFIED` and has no sensor hardware
    behind it.
+7. **Real camera backend** — C5 ships a framework-independent vision→hazard
+   contract (`amr/hazard/vision.py`) driven by a deterministic **simulated**
+   detector. A real backend (OpenCV / YOLO / Jetson) can be plugged in behind
+   the same `VisionDetector` protocol without changing the hazard system. No
+   camera or ML model has been run or measured, and no detection accuracy is
+   claimed.
 
 ---
 

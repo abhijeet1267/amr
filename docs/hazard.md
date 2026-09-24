@@ -290,6 +290,66 @@ amr.hazard.visualisation` does not double-import the module. Covered by
 
 ---
 
+## Vision → hazard (C5)
+
+```
+camera / video  →  VisionDetector  →  [VisionDetection]  →  VisionHazardSource
+                 →  HazardReading  →  HazardManager  →  HazardEvent
+                 →  event log  →  C3 map  →  C2 web API
+```
+
+The vision path is **evidence only**. It has no motor or Arduino access — it
+produces `HazardReading` objects and the existing hazard layer stays the sole
+authority on state. A test asserts the module imports no motor/serial code.
+
+### The detection contract
+
+`amr.hazard.vision` is framework-independent and stdlib-only. `VisionDetection`
+is a frozen dataclass carrying `vision_class`, `confidence`, `bbox`,
+`timestamp`, `source`, optional `location`, optional `object_id` and
+`metadata`. `VisionDetection.from_any()` coerces dicts, 2-tuples and duck-typed
+backend objects, and returns `None` (never raises) for malformed input — one bad
+detection cannot take down the pipeline. `VisionDetector` is a protocol with
+`detect(frame) -> tuple[VisionDetection, ...]`, so OpenCV, YOLO, Jetson,
+recorded video or a simulated backend can be substituted later without touching
+the hazard system.
+
+### Severity, confidence and location
+
+* **Confidence is preserved end-to-end** (`0.84` in → `0.84` in the event; it is
+  never rescaled or forced to 1.0) and is exposed as `HazardEvent.confidence`
+  via `GET /hazard`.
+* Thresholds come from `config/hazard.yaml` (`vision_warn_at`,
+  `vision_critical_at`; both fall back to the human thresholds when unset). They
+  are **software defaults, not experimentally validated**.
+* Severity follows the existing policy table — `FIRE` at high confidence reaches
+  `EMERGENCY`; a `PERSON` detection yields `STOP`, **not** `EMERGENCY`. Nothing
+  is auto-escalated beyond the configured policy.
+* **A bounding box is image space, never metres.** It is preserved in
+  `metadata["bbox"]`; only a *supplied* world-frame `location` is propagated to
+  `HazardEvent.location`. When none is supplied the location stays `None` and
+  C3 lists the event in its "without location" panel. The layer never invents
+  world coordinates from pixels.
+
+### Simulated detector (SIMULATION ONLY)
+
+`SimulatedVisionDetector` is a deterministic offline stand-in with 12 named
+scenarios (`normal`, `person`, `fire`, `smoke`, `obstacle`, `low_confidence`,
+`multiple_objects`, `with_location`, `without_location`, `malformed`,
+`unknown_class`, `multiple_cameras`). Every value it emits is **simulated test
+input** and implies **no real-world detection accuracy**; no camera is read.
+Malformed and unknown-class entries are dropped safely. See
+`tests/test_vision.py` (95 tests, fully offline).
+
+Run the demo:
+
+```bash
+python -m amr.hazard.vision                  # a few scenarios
+python -m amr.hazard.vision person fire      # or name them
+```
+
+---
+
 ## Limitations / not done yet
 
 * **No physical sensors are wired.** `config/robot.yaml` still has
@@ -300,8 +360,8 @@ amr.hazard.visualisation` does not double-import the module. Covered by
   against one reference gas and its ppm output is approximate).
 * The example zone in `config/hazard.yaml` is a placeholder that happens to
   overlap `shelf_c`; it is not a surveyed layout.
-* `VisionHazardSource` provides only the *seam* for fire/human detection; no
-  detector model is implemented.
+* `VisionHazardSource` ships a **contract and a deterministic simulated
+  detector** (see below) — no real camera or ML model is wired in.
 * The layer is **wired into `amr/web`** (`GET /hazard` + `POST
   /hazard/acknowledge`, opt-in via `config.hazard.enabled`) but **not into
   `amr/warehouse`** — task scheduling does not consult the hazard verdict yet.

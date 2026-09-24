@@ -5,6 +5,139 @@
 
 ---
 
+---
+
+## Session: C5 — vision detector → `VisionHazardSource` → hazard event
+
+**Agent:** cline (Laptop 1 / core robot agent) · **Branch:** `main` ·
+**Date:** 2026-09-24 · **Baseline when started:** `ce07420` (clean tree)
+**Commit:** see §10 below · **Tests:** 366 → **461 passed, 2 skipped, 0 failed**
+
+### 1. What was completed
+
+**C5 is fully implemented, tested, integrated and documented.** The vision path
+now exists end-to-end in software:
+
+```
+CameraFrame / VisionDetector (protocol)
+        ↓
+VisionDetection  (validated contract)
+        ↓
+VisionHazardSource  (existing class, extended — not duplicated)
+        ↓
+HazardManager → HazardEventLog → C3 render_map_svg() → C2 GET /hazard
+```
+
+* **New `raspberry_pi/amr/hazard/vision.py`** (571 lines, stdlib only) —
+  `VisionClass`, `VisionBoundingBox`, `VisionDetection` (frozen dataclass with
+  strict validation + `from_any()` coercion), `CameraFrame`/`VisionDetector`
+  protocols, `make_vision_reading(s)`, `SIMULATED_SCENARIOS` (12 named cases),
+  `SimulatedVisionDetector`, and a `python -m amr.hazard.vision` demo.
+* **Extended the existing `VisionHazardSource`** in `sources.py` to accept a
+  `VisionDetection` sequence, a detector, or raw dicts, and to emit a
+  `HazardKind.VISION_FAULT` reading when the detector itself raises (existing
+  tests pin the default to `ROBOT_FAULT`, so that default is unchanged).
+* **`HazardReading` / `HazardEvent` gained `metadata`** and `HazardReading`
+  gained `location`; the manager now prefers a source-supplied hazard pose over
+  the robot pose. Confidence is preserved verbatim (0..1) end-to-end and is
+  exposed via `HazardEvent.confidence` and `HazardEvent.to_dict()`.
+* **Config:** a validated `vision:` block in `config/hazard.yaml`
+  (`enabled`, `warn_at`, `critical_at`, `classes`) parsed by `HazardConfig`,
+  with safe defaults and `resolved_vision_thresholds()`.
+* **95 new tests** in `tests/test_vision.py` covering all 14 mandated areas plus
+  failure handling, C3 SVG, C2 snapshot and safety integration.
+
+### 2. Hardware / firmware honesty
+
+| Area | Status |
+|---|---|
+| Software simulation | **PASS** (461 tests + 3 demos) |
+| Physical camera | **NOT TESTED** — no camera connected, none read |
+| ML model / accuracy | **NOT TESTED / NOT CLAIMED** — no weights, no YOLO/OpenCV |
+| Firmware | **NOT TESTED / UNTOUCHED** — no Arduino flashed or rebuilt |
+| Robot motion caused by vision | **NOT TESTED** — the layer produces evidence only; the existing safety layer is authoritative and was exercised via mocks |
+
+The `SimulatedVisionDetector` is **simulated input**, not a camera result, and
+carries no accuracy claim.
+
+### 3. Files changed (12, 2 new)
+
+| Path | Change |
+|---|---|
+| `raspberry_pi/amr/hazard/vision.py` | **New**: detection contract, protocols, simulated detector, demo |
+| `raspberry_pi/tests/test_vision.py` | **New**: 95 tests |
+| `raspberry_pi/amr/hazard/types.py` | `HazardReading.location/metadata`, `HazardEvent.metadata`, `.confidence`, serialisation, `VISION_FAULT` / `kind_for_class` |
+| `raspberry_pi/amr/hazard/sources.py` | `VisionHazardSource` accepts detections/detector/dicts |
+| `raspberry_pi/amr/hazard/manager.py` | Event records source-supplied location + metadata |
+| `raspberry_pi/amr/hazard/__init__.py` | Lazy PEP 562 re-exports |
+| `raspberry_pi/amr/utils/config.py` | `HazardConfig` vision block + validation |
+| `config/hazard.yaml` | `vision:` block |
+| `docs/hazard.md` | New vision section; pipeline, limits |
+| `README.md` | Badge/table 366→461, demo step 6, roadmap item |
+| `AI_CONTEXT/CURRENT_STATUS.md` | Counts, module status, entry point |
+| `AI_CONTEXT/TASK_BOARD.md` | C5 `[x]` with outcome |
+
+### 4. Supported classes (canonical table, nothing invented)
+
+`PERSON`/`HUMAN` → `HazardKind.HUMAN`, `FIRE` → `HazardKind.FIRE`,
+`SMOKE` → `HazardKind.SMOKE`, `OBSTACLE` → `HazardKind.OBSTACLE`.
+Unknown classes are ignored (not a new hazard type). Severity comes from the
+existing `HazardConfig` thresholds — `PERSON` is **not** assumed to be
+`EMERGENCY`; only kinds in the manager's configured emergency set reach
+`EMERGENCY`.
+
+### 5. Location handling
+
+World coordinates are **only** stored when a detection supplies them (e.g. a
+calibrated detector/localiser). A bounding box stays in `metadata` as image
+space and is **never** converted to metres. A detection with no location leaves
+`location=None`; the manager then falls back to the robot pose, exactly as
+before. No coordinates are fabricated.
+
+### 6. Tests performed
+
+| Command | Result |
+|---|---|
+| `python -m pytest tests/test_vision.py` | **95 passed** |
+| `python -m pytest` (full) | **461 passed, 2 skipped, 0 failed** |
+| `python -m amr.hazard` | exit 0 — `steps=4 failures=0 events_recorded=3 final_hazard=NORMAL` |
+| `python -m amr.warehouse` | exit 0 — `completed=3 failed=0` |
+| `python -m amr.hazard.vision` | exit 0 — SIMULATION, `events_recorded=3`, prints `SIMULATION ONLY` |
+| `python -m amr.hazard.visualisation --out /tmp/c5_verify.svg` | exit 0, SVG well-formed (parsed with `ElementTree`) |
+
+The 2 skips are the pre-existing OpenCV/numpy camera tests.
+
+### 7. Demo
+
+`python -m amr.hazard.vision` runs the deterministic scenarios end-to-end
+(detection received → hazard reading → event recorded) and ends with an explicit
+`SIMULATION ONLY: no camera was read and no robot was controlled.` line.
+
+### 8. Recommended next task
+
+**C6 — activate obstacle avoidance (`TURN` / `REPLAN`)** is unblocked but flagged
+**high risk** (changes Layer-3 stop behaviour). Safer high-value next steps:
+(a) a real camera/ML backend behind the existing `VisionDetector` protocol
+(hardware-dependent), or (b) a small, read-only C2 web route that serves the C3
+SVG. Do not mark C6 done without keeping the deterministic stop tests green.
+
+### 9. Commits / GitHub
+
+* Implementation: `feat(hazard): add vision hazard source`.
+* Context: `docs(ai-context): record C5 commit hash`.
+* Local branch `main`; origin was `dfa70c6` at session start. **Push status is
+  recorded in §10; if the push was blocked by authentication the commits remain
+  local and must be pushed manually.**
+
+### 10. Exact commit hashes
+
+Implementation: `__C5_IMPL__`
+Documentation: `__C5_DOC__`
+Local HEAD at handoff write: `__C5_IMPL__`.
+origin/main at handoff write: `__ORIGIN_MAIN__`.
+
+---
+
 ## Session: C3 — spatial hazard visualisation (read side)
 
 **Agent:** cline · **Branch:** `main` ·

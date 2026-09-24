@@ -34,6 +34,25 @@ hazard:
   human_warn_at: 0.5
   human_critical_at: 0.8
 
+  # ---- vision detector (C5) ------------------------------------------- #
+  # The vision path turns camera evidence into hazard readings. It is OFF by
+  # default and stays off until a real detector is connected and validated.
+  #
+  # NOTE: these are SOFTWARE DEFAULTS chosen to make the pipeline testable.
+  # They are NOT measured detection rates and carry no accuracy claim.
+  vision_enabled: false
+
+  # null = reuse human_warn_at / human_critical_at (one source of truth).
+  vision_warn_at: null
+  vision_critical_at: null
+
+  # null = accept every class in VISION_CLASS_TO_KIND (PERSON/HUMAN, FIRE,
+  # SMOKE, OBSTACLE, RESTRICTED_ZONE). Set a list to narrow the policy.
+  vision_classes: null
+
+  # Camera identity used when a detection carries no source of its own.
+  vision_source: "simulated_camera"
+
   # A CRITICAL reading of one of these kinds latches EMERGENCY (life safety).
   # An empty list disables latching entirely (CRITICAL then yields STOP).
   emergency_kinds: ["FIRE", "GAS", "SMOKE"]

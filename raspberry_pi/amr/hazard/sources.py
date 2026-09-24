@@ -27,7 +27,7 @@ genuinely optional.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Iterable, List, Optional, Protocol, Sequence, Tuple
 
 from .types import (
@@ -138,39 +138,59 @@ class GasSensorSource:
 
 
 class VisionHazardSource:
-    """Fire / human / generic visual hazards from a vision detector callback.
+    """Visual hazards from a vision detector callback (C5 evidence adapter).
 
-    ``detector()`` returns an iterable of detections. Each detection is either
+    ``detector()`` returns an iterable of detections (a static iterable of
+    detections may be supplied directly instead of a callable, for replay and
+    tests). Each detection may be
 
+    * a :class:`~amr.hazard.vision.VisionDetection` (the canonical C5 contract:
+      class, confidence, bbox, timestamp, source, optional world location) --
+      validated and mapped through :mod:`amr.hazard.vision`, or
     * a :class:`HazardReading` (passed through, with ``source`` re-stamped when
       it is still ``"unknown"``), or
     * a ``(kind, confidence)`` pair, where ``confidence`` is 0..1 and is mapped
       to a severity via ``warn_at`` / ``critical_at``.
 
     An optional third element is a message string. A detector that returns
-    nothing means "no visual hazard".
+    nothing means "no visual hazard". This source only *produces evidence* --
+    it never decides a safety state and never drives motors.
     """
 
     def __init__(
         self,
-        detector: Callable[[], Optional[Iterable[Any]]],
+        detector: Any,
         name: str = "vision",
         warn_at: float = 0.5,
         critical_at: float = 0.8,
+        fault_kind: HazardKind = HazardKind.ROBOT_FAULT,
+        fault_severity: HazardSeverity = HazardSeverity.WARNING,
     ):
         self.name = name
         self._detector = detector
         self._warn_at = float(warn_at)
         self._critical_at = float(critical_at)
+        #: Detector failures are reported as a fault reading. The defaults
+        #: keep the pre-C5 behaviour (``ROBOT_FAULT`` / ``WARNING``); a
+        #: deployment may opt into the dedicated ``VISION_FAULT`` kind.
+        self.fault_kind = HazardKind.parse(fault_kind)
+        self.fault_severity = HazardSeverity.parse(fault_severity)
 
     def read(self) -> Tuple[HazardReading, ...]:
         try:
-            detections = self._detector()
+            # The detector may be a zero-argument callback (the usual live
+            # case) or an already-materialised sequence of detections (handy
+            # for replay, recorded frames and tests). Supporting both keeps
+            # the adapter backend-agnostic without adding a second class.
+            if callable(self._detector):
+                detections = self._detector()
+            else:
+                detections = self._detector
         except Exception as exc:  # noqa: BLE001 - a bad detector must not crash us
             return (
                 HazardReading(
-                    kind=HazardKind.ROBOT_FAULT,
-                    severity=HazardSeverity.WARNING,
+                    kind=self.fault_kind,
+                    severity=self.fault_severity,
                     source=self.name,
                     message=f"{self.name} detector failed: {exc}",
                 ),
@@ -184,18 +204,32 @@ class VisionHazardSource:
         return tuple(readings)
 
     def _convert(self, detection: Any) -> Optional[HazardReading]:
+        # C5 canonical contract: validate + map a VisionDetection. The import
+        # is local so amr.hazard.sources stays importable on its own and the
+        # vision module is never loaded unless vision evidence is in use.
+        if not isinstance(detection, (HazardReading, tuple, list)):
+            try:
+                from .vision import make_vision_reading
+            except Exception:  # pragma: no cover - defensive
+                return None
+            reading = make_vision_reading(
+                detection,
+                name=self.name,
+                warn_at=self._warn_at,
+                critical_at=self._critical_at,
+            )
+            if reading is None:
+                return None
+            # Keep the *source* identity of the camera (multi-camera support)
+            # when the detection names one; otherwise fall back to our name.
+            if reading.source not in ("unknown", self.name):
+                return reading
+            return replace(reading, source=self.name)
+
         if isinstance(detection, HazardReading):
             if detection.source != "unknown":
                 return detection
-            return HazardReading(
-                kind=detection.kind,
-                value=detection.value,
-                unit=detection.unit,
-                severity=detection.severity,
-                source=self.name,
-                message=detection.message,
-                timestamp=detection.timestamp,
-            )
+            return replace(detection, source=self.name)
         if isinstance(detection, (tuple, list)) and len(detection) >= 2:
             kind = HazardKind.parse(detection[0])
             confidence = float(detection[1])

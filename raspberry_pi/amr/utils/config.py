@@ -175,6 +175,26 @@ class HazardConfig:
     human_warn_at: float = 0.5
     human_critical_at: float = 0.8
 
+    # ---- vision detector (C5) ------------------------------------------- #
+    #: Master switch for the vision->hazard path. Defaults to ``False`` so an
+    #: existing deployment is unaffected until an operator opts in.
+    vision_enabled: bool = False
+
+    #: Confidence band for a *generic* vision class. ``None`` means "reuse
+    #: ``human_warn_at`` / ``human_critical_at``" so the two cannot drift apart
+    #: silently. These are SOFTWARE DEFAULTS, not validated detection rates.
+    vision_warn_at: Optional[float] = None
+    vision_critical_at: Optional[float] = None
+
+    #: Which detector labels are treated as hazards. ``None`` means "every
+    #: label in ``amr.hazard.types.VISION_CLASS_TO_KIND``" (the default, and
+    #: the recommended setting). An explicit list narrows the policy; unknown
+    #: labels are rejected at load time rather than silently ignored.
+    vision_classes: Optional[List[str]] = None
+
+    #: Default camera identity stamped on detections that carry no source.
+    vision_source: str = "simulated_camera"
+
     #: Kinds that latch EMERGENCY / reduce speed at WARNING severity.
     emergency_kinds: Optional[List[str]] = None
     slow_kinds: Optional[List[str]] = None
@@ -182,6 +202,18 @@ class HazardConfig:
     #: Rectangular areas of interest: {name, x_min, x_max, y_min, y_max,
     #: severity?, kind?}. Empty means "no location rules".
     zones: List[Dict[str, Any]] = field(default_factory=list)
+
+    def resolved_vision_thresholds(self) -> tuple[float, float]:
+        """Return ``(warn_at, critical_at)`` for the vision source.
+
+        Falls back to the human thresholds when the vision-specific values are
+        unset, so there is exactly one place to change a confidence band.
+        """
+        warn = (self.human_warn_at if self.vision_warn_at is None
+                else self.vision_warn_at)
+        crit = (self.human_critical_at if self.vision_critical_at is None
+                else self.vision_critical_at)
+        return float(warn), float(crit)
 
 
 @dataclass
@@ -369,6 +401,34 @@ def _validate_hazard(c: HazardConfig) -> None:
             raise ConfigError(f"hazard.{name}_warn_at must be within [0, 1]")
         if not (0.0 <= crit <= 1.0):
             raise ConfigError(f"hazard.{name}_critical_at must be within [0, 1]")
+
+    # ---- vision (C5) --------------------------------------------------- #
+    for key in ("vision_warn_at", "vision_critical_at"):
+        val = getattr(c, key)
+        if val is not None and not (0.0 <= val <= 1.0):
+            raise ConfigError(f"hazard.{key} must be within [0, 1] or null")
+    v_warn, v_crit = c.resolved_vision_thresholds()
+    if v_crit < v_warn:
+        raise ConfigError(
+            "hazard.vision_critical_at must be >= vision_warn_at"
+        )
+    if c.vision_classes is not None:
+        if not isinstance(c.vision_classes, (list, tuple)):
+            raise ConfigError("hazard.vision_classes must be a list or null")
+        # Import lazily: config loading must not depend on the hazard package.
+        from amr.hazard.types import VISION_CLASS_TO_KIND
+
+        known = {k.upper() for k in VISION_CLASS_TO_KIND}
+        for label in c.vision_classes:
+            if not isinstance(label, str):
+                raise ConfigError("hazard.vision_classes entries must be strings")
+            if label.strip().upper() not in known:
+                raise ConfigError(
+                    f"hazard.vision_classes: unknown vision class {label!r}; "
+                    f"supported: {sorted(known)}"
+                )
+    if not str(c.vision_source).strip():
+        raise ConfigError("hazard.vision_source must be a non-empty name")
 
 
 def _validate_warehouse(c: WarehouseConfig) -> None:

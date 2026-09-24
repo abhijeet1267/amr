@@ -72,10 +72,33 @@ _LAZY_VISUALISATION = frozenset(
     {"STATE_COLORS", "events_from_snapshot", "render_map_svg"}
 )
 
+#: Lazily re-exported from :mod:`amr.hazard.vision` for the same reason: the
+#: vision contract is imported on demand so ``python -m amr.hazard.vision``
+#: does not create a second module object (which would break isinstance
+#: checks on VisionDetection across the package boundary).
+_LAZY_VISION = frozenset(
+    {
+        "SIMULATED_SCENARIOS",
+        "CameraFrame",
+        "SimulatedVisionDetector",
+        "VisionBoundingBox",
+        "VisionClass",
+        "VisionDetection",
+        "VisionDetector",
+        "make_vision_reading",
+        "make_vision_readings",
+        "simulate",
+    }
+)
+
 
 def __getattr__(name: str):
     if name in _LAZY_VISUALISATION:
         from . import visualisation
 
         return getattr(visualisation, name)
+    if name in _LAZY_VISION:
+        from . import vision
+
+        return getattr(vision, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

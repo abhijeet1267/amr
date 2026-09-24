@@ -335,7 +335,13 @@ class HazardManager:
                     message=reading.describe(),
                     raised_at=self._clock(),
                     source=reading.source,
-                    location=where,
+                    # Prefer the hazard's own pose when the source knows one
+                    # (e.g. a vision detection with a world-frame estimate);
+                    # otherwise fall back to the robot pose. A source that
+                    # cannot locate the hazard simply passes location=None --
+                    # we never invent coordinates from image-space data.
+                    location=reading.location or where,
+                    metadata=dict(reading.metadata),
                 )
                 self._active[key] = self.events.record(event)
                 continue

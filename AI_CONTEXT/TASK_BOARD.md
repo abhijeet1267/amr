@@ -84,12 +84,18 @@ suite **366 passed, 2 skipped**.
 real one and the wiring. **Blocked by:** sensor hardware + pin assignment.
 Do not invent pins.
 
-### C5 — Fire / human detection model `[ ]`
-**Touches:** new module under `raspberry_pi/amr/camera/` or `amr/hazard/`,
-tests
-Implement a detector returning `[(HazardKind.FIRE, confidence), ...]` to feed
-`VisionHazardSource`. Must degrade gracefully with no camera and must not become
-an import-time dependency (no OpenCV/ROS at import).
+### C5 — Vision detector → VisionHazardSource → hazard event `[x]` (2026-09-24)
+**Touches:** `raspberry_pi/amr/hazard/vision.py` (new), `types.py`, `sources.py`,
+`manager.py`, `amr/utils/config.py`, `config/hazard.yaml`, `tests/test_vision.py` (new),
+docs
+Implemented a framework-independent vision→hazard pipeline:
+`CameraFrame/VisionDetector` protocol → `VisionDetection` (validated contract) →
+`VisionHazardSource` → existing `HazardManager` → `HazardEventLog` → C3 SVG → C2 web API.
+Supported classes: PERSON/HUMAN, FIRE, SMOKE, OBSTACLE (mapped via one canonical
+table; unknown classes are ignored, not invented). A deterministic
+`SimulatedVisionDetector` (12 named scenarios) and a `python -m amr.hazard.vision`
+demo ship for offline use. **No camera, ML model, or accuracy measurement is
+claimed** — the detector is simulated input only. +95 tests (461 total).
 
 ### C6 — Activate obstacle avoidance (`TURN` / `REPLAN`) `[ ]`
 **Touches:** `raspberry_pi/amr/safety/safety_manager.py`, `docs/safety.md`,

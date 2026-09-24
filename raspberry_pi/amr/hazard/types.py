@@ -46,20 +46,22 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 
 class HazardKind(str, Enum):
     """What kind of hazard a reading describes."""
 
     GAS = "GAS"                    # combustible / toxic gas (e.g. MQ-2)
-    SMOKE = "SMOKE"                # smoke / particulate
+    SMOKE = "SMOKE"                # smoke / particulate (gas or vision sensor)
     FIRE = "FIRE"                  # open flame detected (vision or IR)
     HUMAN = "HUMAN"                # person detected in the robot's path
+    OBSTACLE = "OBSTACLE"          # generic visual obstacle (C5 extension point)
     TEMPERATURE = "TEMPERATURE"    # over-temperature
     ZONE_BREACH = "ZONE_BREACH"    # robot location inside a restricted zone
     ROBOT_FAULT = "ROBOT_FAULT"    # robot / navigation state is unhealthy
     VISION = "VISION"              # generic visual hazard
+    VISION_FAULT = "VISION_FAULT"  # vision detector/camera unavailable (C5)
     UNKNOWN = "UNKNOWN"
 
     @classmethod
@@ -173,6 +175,22 @@ _STATE_RANK: Dict[HazardState, int] = {
 }
 
 
+VISION_CLASS_TO_KIND: Dict[str, HazardKind] = {
+    # Canonical vision class label (upper-cased, stripped) -> hazard kind.
+    # PERSON/HUMAN are synonyms for the same person kind; OBSTACLE and
+    # RESTRICTED_ZONE are supported mappings (coachable extension points).
+    "HUMAN": HazardKind.HUMAN,
+    "PERSON": HazardKind.HUMAN,
+    "PEOPLE": HazardKind.HUMAN,
+    "FIRE": HazardKind.FIRE,
+    "FLAME": HazardKind.FIRE,
+    "SMOKE": HazardKind.SMOKE,
+    "OBSTACLE": HazardKind.OBSTACLE,
+    "RESTRICTED_ZONE": HazardKind.ZONE_BREACH,
+    "RESTRICTED": HazardKind.ZONE_BREACH,
+}
+
+
 @dataclass(frozen=True)
 class HazardLocation:
     """Where a hazard (or the robot when it detected one) was located.
@@ -198,13 +216,30 @@ class HazardLocation:
         """Best-effort conversion of a pose-like object into a location.
 
         Accepts a :class:`HazardLocation`, any object exposing ``x``/``y``
-        (e.g. ``amr.navigation.types.Pose``), or a 2–3 element sequence.
-        Returns ``None`` when nothing usable is supplied.
+        (e.g. ``amr.navigation.types.Pose`), a mapping with ``x``/``y`` keys
+        (e.g. JSON from a detector backend), or a 2-3 element sequence.
+        Returns ``None`` when nothing usable is supplied -- in particular a
+        mapping that lacks both coordinates yields ``None`` rather than a
+        fabricated origin.
         """
         if value is None:
             return None
         if isinstance(value, HazardLocation):
             return value
+        if isinstance(value, Mapping):
+            if "x" not in value or "y" not in value:
+                return None
+            raw_theta = value.get("theta", 0.0) or 0.0
+            zone = value.get("zone")
+            try:
+                return cls(
+                    x=float(value["x"]),
+                    y=float(value["y"]),
+                    theta=float(raw_theta),
+                    zone=str(zone) if zone is not None else None,
+                )
+            except (TypeError, ValueError):
+                return None
         if hasattr(value, "x") and hasattr(value, "y"):
             return cls(
                 x=float(value.x),
@@ -238,11 +273,22 @@ class HazardReading:
     source: str = "unknown"
     message: str = ""
     timestamp: float = field(default_factory=time.time)
+    #: Where the hazard itself is, when the source knows (e.g. a vision
+    #: detection that carries a world-frame pose). ``None`` means "unknown" and
+    #: is deliberately *not* a fabricated 0,0: the manager falls back to the
+    #: robot's own pose when recording the event.
+    location: Optional[HazardLocation] = None
+    #: Free-form, non-safety-critical context carried from a source (e.g. a
+    #: vision detection's image-space bbox and object_id). Never used to make a
+    #: safety decision; persisted so the event log keeps the evidence trail.
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # Coerce tolerantly: readings may originate from external detectors.
         object.__setattr__(self, "kind", HazardKind.parse(self.kind))
         object.__setattr__(self, "severity", HazardSeverity.parse(self.severity))
+        if not isinstance(self.metadata, Mapping):
+            object.__setattr__(self, "metadata", {})
 
     @property
     def is_critical(self) -> bool:
@@ -270,6 +316,8 @@ class HazardReading:
             "source": self.source,
             "message": self.message,
             "timestamp": self.timestamp,
+            "location": self.location.to_dict() if self.location else None,
+            "metadata": dict(self.metadata),
         }
 
 
@@ -294,11 +342,28 @@ class HazardEvent:
     source: str = "unknown"
     location: Optional[HazardLocation] = None
     cleared_at: Optional[float] = None
+    #: Evidence context preserved from the originating reading (e.g. a vision
+    #: detection's bbox / object_id). Recorded for audit and visualisation; it
+    #: is never consulted when deciding the safety state.
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "kind", HazardKind.parse(self.kind))
         object.__setattr__(self, "severity", HazardSeverity.parse(self.severity))
         object.__setattr__(self, "state", HazardState.parse(self.state))
+        if not isinstance(self.metadata, Mapping):
+            object.__setattr__(self, "metadata", {})
+
+    @property
+    def confidence(self) -> Optional[float]:
+        """Detector confidence when the event came from a vision source.
+
+        Returned as-is (0..1, never rescaled); ``None`` for non-vision events.
+        """
+        raw = self.metadata.get("confidence")
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            return None
+        return float(raw)
 
     @property
     def resolved(self) -> bool:
@@ -346,6 +411,8 @@ class HazardEvent:
             "duration_s": self.duration_s,
             "resolved": self.resolved,
             "location": self.location.to_dict() if self.location else None,
+            "metadata": dict(self.metadata),
+            "confidence": self.confidence,
         }
 
 
