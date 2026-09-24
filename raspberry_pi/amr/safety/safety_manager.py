@@ -32,10 +32,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 from ..sensors.ultrasonic import UltrasonicReading
 from ..utils.config import SafetyConfig
+
+if TYPE_CHECKING:  # pragma: no cover - import-cycle guard (avoidance imports us)
+    from .avoidance import AvoidancePolicy, ObstacleReport
 
 #: WAIT threshold = CAUTION_FACTOR x stop threshold (documented default).
 CAUTION_FACTOR = 2.0
@@ -86,8 +89,34 @@ class SafetyManager:
         self,
         reading: Optional[UltrasonicReading],
         connected: bool,
+        *,
+        avoidance: Optional["AvoidancePolicy"] = None,
+        obstacle: Optional["ObstacleReport"] = None,
+        clearance: Optional[Dict[str, float]] = None,
     ) -> SafetyDecision:
-        """Evaluate the current situation. Pure function — no I/O, no state."""
+        """Evaluate the current situation. Pure function — no I/O, no state.
+
+        Rules 1-5 below are unchanged and always evaluated first: a ``STOP`` or
+        ``WAIT`` verdict short-circuits before obstacle avoidance is even
+        considered, so an obstacle can never upgrade a stop into a manoeuvre.
+
+        When ``avoidance`` is supplied (C6) and the base verdict is ``PROCEED``,
+        a non-blocking ``obstacle`` may upgrade the action to the already
+        reserved ``TURN`` / ``REPLAN``. With ``avoidance=None`` — the default —
+        behaviour is byte-identical to before C6.
+        """
+        base = self._check_base(reading, connected)
+        if avoidance is None or base.action is not SafetyAction.PROCEED:
+            return base
+        decision, _ = avoidance.decide(base, obstacle, clearance=clearance)
+        return decision
+
+    def _check_base(
+        self,
+        reading: Optional[UltrasonicReading],
+        connected: bool,
+    ) -> SafetyDecision:
+        """The original C1-5 deterministic rules, untouched by C6."""
         # 1. Communication health has priority over everything.
         if not connected:
             return SafetyDecision(

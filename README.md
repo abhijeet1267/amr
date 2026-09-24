@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **461 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **537 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -322,8 +322,10 @@ python -m pytest -q                 # full suite
 python -m pytest -q tests/test_web_server.py   # one area
 ```
 
-The 17 test files cover protocol parsing, the mode state machine, the safety
-policy, differential-drive math, odometry/navigation, the warehouse task
+The 18 test files cover protocol parsing, the mode state machine, the safety
+policy (including the C6 obstacle-avoidance policy
+`tests/test_avoidance.py` — turn/replan, stop priority, loop guard,
+determinism), differential-drive math, odometry/navigation, the warehouse task
 manager, the camera manager, the hazard layer, the vision-to-hazard pipeline
 (`tests/test_vision.py`, simulated detections only), and a real
 `ThreadingHTTPServer` driven against the

@@ -21,5 +21,27 @@ safety:
   sensor_min_valid_cm: 2
   sensor_max_valid_cm: 400
 
+  # C6 obstacle avoidance (see docs/safety.md). OFF by default: with
+  # `enabled: false` (or with no obstacle provider wired) the navigator behaves
+  # exactly as it did before C6.
+  #
+  # SAFETY: this only ever acts on NON-blocking obstacles. A critical obstacle
+  # (or any emergency condition) is handled upstream by the hazard layer /
+  # Layer-3 STOP path and always wins; avoidance is never consulted first and
+  # can never upgrade a STOP or WAIT into a TURN or REPLAN.
+  avoidance:
+    enabled: false
+    # Replans allowed for one obstacle episode before the navigator gives up
+    # and reports FAILED (the loop guard). Prevents endless manoeuvre loops.
+    max_replans: 3
+    # Speed scale applied while executing a turn arc (0..1). NOT_VERIFIED:
+    # a conservative software default, not a measured value.
+    turn_speed_scale: 0.5
+    # Duration of a committed turn arc (s). NOT_VERIFIED: software default.
+    turn_duration_s: 0.6
+    # Clearance (m) that counts as "open" for a turn decision. Values at or
+    # below this are treated as blocked. NOT_VERIFIED: software default.
+    open_clearance_m: 1.0
+
   # NOT_VERIFIED | VERIFIED
   status: NOT_VERIFIED

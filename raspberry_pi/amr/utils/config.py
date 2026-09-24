@@ -47,6 +47,28 @@ class SerialConfig:
 
 
 @dataclass
+class AvoidanceConfig:
+    """C6 obstacle-avoidance tuning (see ``config/safety.yaml``).
+
+    ``enabled`` defaults to **False**: avoidance is opt-in, so an unconfigured
+    or freshly-cloned robot behaves exactly as it did before C6. Every numeric
+    bound is a conservative *software default* and is **not** physically
+    validated — see ``docs/safety.md``.
+    """
+
+    enabled: bool = False
+    #: Replans allowed per obstacle episode before the navigator reports
+    #: ``FAILED``. This is the loop guard against repeated manoeuvres.
+    max_replans: int = 3
+    #: Speed scale (0..1) while executing a turn arc.
+    turn_speed_scale: float = 0.5
+    #: Duration (s) of a committed turn arc.
+    turn_duration_s: float = 0.6
+    #: Clearance (m) at or below which a side counts as blocked.
+    open_clearance_m: float = 1.0
+
+
+@dataclass
 class SafetyConfig:
     """Layered safety thresholds.
 
@@ -63,6 +85,8 @@ class SafetyConfig:
     sensor_min_valid_cm: int = 2
     sensor_max_valid_cm: int = 400
     status: str = "NOT_VERIFIED"
+    #: C6 avoidance tuning; nested, so it is built explicitly in load_config().
+    avoidance: AvoidanceConfig = field(default_factory=AvoidanceConfig)
 
 
 @dataclass
@@ -317,6 +341,12 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
 
     serial = _build(SerialConfig, serial_data.get("serial", {}), "serial")
     safety = _build(SafetyConfig, safety_data.get("safety", {}), "safety")
+    # `avoidance` is a nested block, so _build() (which only handles flat
+    # scalar fields) cannot construct it — build it explicitly.
+    safety_blob = safety_data.get("safety", {}) or {}
+    safety.avoidance = _build(
+        AvoidanceConfig, safety_blob.get("avoidance", {}) or {}, "safety.avoidance"
+    )
 
     robot_blob = robot_data.get("robot", robot_data) or {}
     robot = RobotConfig(
