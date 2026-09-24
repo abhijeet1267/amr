@@ -172,6 +172,7 @@ Status flags: `safety.yaml` and `hazard.yaml` are `NOT_VERIFIED`, and
 | A new stop condition | route through `SafetyManager`/`ModeController` → `SAFETY_STOP` | add an ad-hoc motor write |
 | A new manipulator | implement `amr.warehouse.tasks.Manipulator` | modify the task manager |
 | A new config knob | add to the relevant dataclass + YAML + `_validate_*` | hardcode it |
+| A new dashboard/monitoring view | read the C7 `TelemetrySnapshot` | add a second copy of robot state, or give the view a write path |
 
 ---
 
@@ -181,8 +182,35 @@ Stdlib-only (`ThreadingHTTPServer`), no build step, no external assets, and **no
 authentication** (single-operator LAN tool — never expose the port).
 
 `GET /` panel · `GET /status` · `GET /sensor` · `GET /camera` ·
-`GET /image` · `GET /hazard` · `POST /command` (`estop`, `stop`, `mode`,
+`GET /image` · `GET /hazard` · `GET /telemetry` · `GET /health` ·
+`GET /dashboard` · `POST /command` (`estop`, `stop`, `mode`,
 drive commands) · `POST /hazard/acknowledge` (step 1 of the two-step
 emergency release — never resets the robot mode). `estop`/`stop` are never
 gated. Details: `docs/web_control.md`.
+
+---
+
+## 10. Telemetry / digital-twin layer (C7)
+
+`amr/telemetry/` sits **beside** the runtime, not inside it:
+
+```
+existing runtime (RobotManager, SafetyManager, HazardManager,
+                   Navigator, WarehouseTaskManager, CameraManager)
+        ↓  read-only — no tick(), no writes, no command path
+TelemetryCollector  →  TelemetrySnapshot (frozen, schema-versioned)
+        ↓
+GET /telemetry · GET /health · GET /dashboard
+```
+
+It is an **observation** layer. The collector holds no Arduino/GPIO/PWM handle
+and imports no hardware driver; `POST /command` remains the only path to the
+actuators, and a test asserts the collector writes nothing to the serial
+transport. Each section carries a `source` tag (`LIVE` / `SIMULATION` /
+`UNAVAILABLE`) and missing measurements are `null`, never invented — so the UI
+can honestly show `NOT AVAILABLE` instead of a plausible-looking number.
+
+Later milestones (camera monitor, 2D map, 3D twin, mission/hazard panels,
+replay) all read this one snapshot rather than each holding their own copy of
+robot state. See `docs/telemetry.md`.
 

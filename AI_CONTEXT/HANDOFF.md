@@ -5,6 +5,111 @@
 
 ---
 
+## Session: C7 — dashboard foundation (read-only telemetry + monitoring API)
+
+**Agent:** cline · **Branch:** `main` ·
+**Baseline when started:** `1833eee` (clean tree) · **Full suite:** **592 passed, 2 skipped, 0 failed**
+**Feature commit:** `3870c8a`
+
+### 1. What was completed
+
+**C7 — dashboard foundation.** A new **read-only** `amr/telemetry/` package, a
+schema-versioned telemetry snapshot, three new HTTP routes on the *existing*
+web server, and a minimal self-contained dashboard page.
+
+```
+existing runtime → TelemetryCollector → TelemetrySnapshot → /telemetry /health /dashboard
+                  (reads only)                            (no motor path)
+```
+
+* **New `raspberry_pi/amr/telemetry/types.py`** — frozen dataclasses: `DataSource`,
+  `Vector3`, `Orientation`, `Velocity`, `NavigationTelemetry`, `SafetyTelemetry`,
+  `HazardTelemetry`, `BatteryTelemetry`, `SensorTelemetry`, `MissionTelemetry`,
+  `CameraTelemetry`, `SystemTelemetry`, `TelemetrySnapshot`, `HealthReport`.
+* **New `raspberry_pi/amr/telemetry/collector.py`** — `TelemetryCollector` +
+  `snapshot()` / `health()`; **reads only** public state of the existing managers.
+* **New `GET /telemetry`, `GET /health`, `GET /dashboard`** on the existing
+  `AMRWebApp` (C2) — **no second HTTP server**, no new port, no build step.
+* **55 new tests** (46 `test_telemetry.py` + 9 in `test_web_server.py`).
+* **Docs:** new `docs/telemetry.md`; updated `docs/web_control.md`, `README.md`,
+  `AI_CONTEXT/` (task board, architecture, status).
+
+### 2. The two rules C7 had to honour
+
+**No second control path.** The collector performs reads only: it never calls
+`tick()`, `request_mode()`, or any write method, and holds no Arduino/GPIO/PWM
+handle. Tests assert this by spying on both `RobotManager.tick()` and the mock
+serial transport's recorded writes. `POST /command` remains the only way to move
+the robot and is unchanged by C7.
+
+**No fabricated data.** Every section carries a `source` tag — `LIVE`,
+`SIMULATION`, or `UNAVAILABLE` — and a measurement that does not exist is
+`null`, never a plausible-looking number. There is no battery pack, so
+`battery.percentage` is `null` (not `78`); there is no capture pipeline, so
+`camera.fps` is `null`; there is no LiDAR, so there is no LiDAR field. The
+dashboard renders `NOT AVAILABLE` / `SIMULATION` badges for those rows.
+
+### 3. Bugs found and fixed while building C7
+
+Building the collector against the real runtime surfaced three genuine contract
+mismatches, all fixed (no existing test was changed to hide them):
+
+1. `_sensors` and `_safety` read keys that `RobotState.to_dict()` never
+   produces (`safety_action`/`safety_reasons`; the real key is `safety`, plus
+   `SafetyManager.last_decision`).
+2. `Navigator.plan()` requires a goal argument, so the naive read silently
+   swallowed a `TypeError` and the route was always empty. The route is now
+   derived from the active goal.
+3. The `plan`/`route` path never reported the actual planned polyline.
+
+### 4. Tests
+
+| Command | Result |
+|---|---|
+| `cd raspberry_pi && python -m pytest tests/test_telemetry.py` | 46 passed |
+| `cd raspberry_pi && python -m pytest tests/test_web_server.py` | 34 passed |
+| `cd raspberry_pi && python -m pytest` | **592 passed, 2 skipped, 0 failed** |
+
+The 2 skips are the pre-existing camera tests that need `opencv-python`/`numpy`.
+
+### 5. What C7 deliberately does NOT do
+
+No live camera stream (C8), no interactive 2D map (C9), no 3D twin (C10), no
+mission/hazard UI panels beyond plain JSON (C11–C13), no recording/replay (C14).
+The C7 dashboard is a minimal status page on purpose — the data architecture is
+the deliverable, and each later milestone reads this one snapshot rather than
+keeping its own copy of robot state.
+
+### 6. Files changed (6 new, 6 modified)
+
+| Path | Change |
+|---|---|
+| `raspberry_pi/amr/telemetry/types.py` | **New**: the frozen telemetry contract |
+| `raspberry_pi/amr/telemetry/collector.py` | **New**: read-only `TelemetryCollector` |
+| `raspberry_pi/amr/telemetry/__init__.py` | **New**: package exports |
+| `raspberry_pi/tests/test_telemetry.py` | **New**: 46 tests |
+| `docs/telemetry.md` | **New**: contract, API, safety boundary |
+| `raspberry_pi/amr/web/server.py` | Collector wiring + `/telemetry`, `/health`, `/dashboard` |
+| `raspberry_pi/amr/main.py` | Constructs the collector; passes `simulated=args.mock` |
+| `raspberry_pi/tests/test_web_server.py` | +9 tests for the new routes |
+| `docs/web_control.md` | C7 section + test list |
+| `README.md` | Badge/count 537→592, module + doc rows, API table |
+| `AI_CONTEXT/TASK_BOARD.md` | C7 marked `[x]`; monitoring roadmap C8–C15; legacy C8–C10 renumbered to C17–C19 |
+| `AI_CONTEXT/ARCHITECTURE.md` | §10 telemetry layer, API surface, extension point |
+
+### 7. Handoff integrity
+
+| Commit | Contents |
+|---|---|
+| (feature) | `feat(dashboard): add read-only telemetry foundation` — telemetry package, web routes, tests, docs |
+| (this commit) | `docs(ai-context): record C7 commit hash` — the `AI_CONTEXT/` files |
+
+Resolve the live hash with `git rev-parse HEAD` (also mirrored in
+`AI_CONTEXT/CURRENT_STATUS.md`). **Verified at commit time:**
+`python -m pytest` → 592 passed, 2 skipped, 0 failed.
+
+---
+
 ## Session: C6 — activate obstacle avoidance (`TURN` / `REPLAN`)
 
 **Agent:** cline · **Branch:** `main` · **Date:** 2026-09-24 ·

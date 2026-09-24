@@ -119,22 +119,92 @@ Every hook defaults to `None`, so pre-C6 behaviour is unchanged when unwired.
 was used; all `safety.avoidance` thresholds are NOT_VERIFIED and avoidance is
 `enabled: false` by default. +76 tests (537 total).
 
-### C7 — Real manipulator (gripper / arm) `[ ]`
+### C7 — Digital-twin / monitoring foundation (telemetry + read-only dashboard) `[x]` (2026-09-24)
+**Touches:** new `raspberry_pi/amr/telemetry/` package, `amr/web/server.py`,
+`amr/main.py`, `tests/test_telemetry.py` (new), `tests/test_web_server.py`,
+`docs/telemetry.md` (new), `docs/web_control.md`, `README.md`
+New **read-only** `amr/telemetry/` package: a frozen `TelemetrySnapshot` contract
+(schema-versioned) plus a `TelemetryCollector` that only *reads* existing public
+state. Every section carries a `source` tag (`LIVE` / `SIMULATION` /
+`UNAVAILABLE`) and **absent measurements serialise as `null` — never a
+fabricated number** (no battery pack ⇒ `battery.percentage` is `null`, not 78).
+Reuses the existing sources (`RobotState.to_dict()`, `HazardManager.snapshot()`,
+`Navigator`, `WarehouseTaskManager`, `CameraManager.describe()`) instead of
+shadowing them. Exposed as `GET /telemetry`, `GET /health`, `GET /dashboard` on
+the **existing** `AMRWebApp` — no second HTTP server. **No motor path:** the
+collector never calls `tick()` or any write method (asserted by tests spying on
+`tick()` and the serial writes), and `POST /command` remains the sole control
+path. +55 tests (592 total). All values simulated; no hardware used.
+
+### C8 — Raspberry Pi camera monitor `[ ]` (upcoming)
+**Touches:** `amr/camera/`, `amr/web/server.py`, new streaming route, tests
+A `CameraSource` → `CameraFrame` abstraction supporting both the SIMULATED and
+REAL Pi camera without changing the dashboard. Show status/timestamp/source/
+resolution; show `SIMULATION` or `CAMERA OFFLINE` when no real camera exists.
+Tests must use a deterministic fake source — **no Pi camera required to run
+the suite**.
+
+### C9 — Live 2D warehouse map `[ ]` (upcoming)
+**Touches:** new dashboard map module, reuses `WarehouseMap` + navigation pose
+Interactive map (boundary, shelves, zones, charging station, robot pose/yaw,
+route, travelled path, goal, obstacles, hazards). Reuse the existing warehouse
+and navigation coordinate system — do **not** invent a second one. Static map
+data stays separate from dynamic robot state.
+
+### C10 — 3D Digital Twin `[ ]` (upcoming)
+**Touches:** new browser-based 3D view, reuses the telemetry snapshot
+Browser 3D of the warehouse + AMR (chassis, wheels, sensors, camera). Robot
+transform derives from `telemetry.position` / `telemetry.orientation`. **Purely
+a visualisation layer — the 3D model must never control the robot.**
+
+### C11 — Telemetry panel `[ ]` (upcoming)
+**Touches:** dashboard frontend
+Robot / navigation / safety / battery / sensor panels. Display only sensors that
+actually exist; show `NOT AVAILABLE` rather than a fabricated value.
+
+### C12 — Mission monitoring `[ ]` (upcoming)
+**Touches:** dashboard frontend, reuses `WarehouseTaskManager`
+Mission → PICKUP → NAVIGATE → AVOID → ARRIVE → DROP → RETURN, with mission id,
+current task, destination, progress, completed and failed counts. Integrates
+with the existing warehouse simulation.
+
+### C13 — Hazard visualisation in the dashboard `[ ]` (upcoming)
+**Touches:** dashboard frontend, reuses C5/C3 hazard pipeline
+Show PERSON / FIRE / SMOKE / OBSTACLE on the 2D map with class, confidence,
+severity, source, timestamp and location **only when actually supplied**. An
+image-space bbox must NOT be converted to world coordinates — bboxes stay in
+the camera view (with class + confidence overlay), never on the map.
+
+### C14 — Historical replay `[ ]` (upcoming)
+**Touches:** new recorder module + dashboard replay controls
+Record timestamp, pose, navigation/safety state, hazards and mission; replay a
+previous run with PLAY / PAUSE / RESTART and 0.5x / 1x / 2x speed. Very useful
+for demonstrations. Playback sequence must be deterministic.
+
+### C15 — Unified demo `[ ]` (upcoming)
+**Touches:** `amr/main.py` demo mode + dashboard
+One deterministic simulation-mode demo: robot starts → mission begins → moves →
+simulated camera detects obstacle/person/fire → hazard appears → safety reacts →
+navigation reacts → route changes → mission continues, all visualised live.
+
+### C16 — Real manipulator (gripper / arm) `[ ]`
 **Touches:** `raspberry_pi/amr/warehouse/tasks.py` (implement `Manipulator`),
 `config/warehouse.yaml` (`manipulator` backend name)
 Replace the `mock` backend. Keep `MockManipulator` for tests.
 
-### C8 — RFID `[ ]`
+### C17 — RFID `[ ]`
 **Touches:** new module + `config/`, tests
 Not started anywhere in the repo. Define a reader interface, integrate with the
 warehouse task manager for shelf/payload identification.
 
-### C9 — ROS 2 bridge `[ ]`
+### C18 — ROS 2 bridge `[ ]`
 **Touches:** new `ros2/` package, docs
 **Not present today.** Must be optional: the core stack must keep importing with
 no ROS installed. Publish `RobotState` / `HazardStatus`, subscribe to goals.
+A natural consumer of the C7 telemetry snapshot, but it must not become a
+control path of its own.
 
-### C10 — Housekeeping `[x]` (done by the hazard session)
+### C19 — Housekeeping `[x]` (done by the hazard session)
 * Fix the stale `docs/architecture.md` link in `docs/safety.md` — **done**, now
   points at `AI_CONTEXT/ARCHITECTURE.md`. The same stale reference in
   `raspberry_pi/amr/logging/logger.py` was fixed too.

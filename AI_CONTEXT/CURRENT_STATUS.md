@@ -1,8 +1,8 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** commit `ed0497c` (C6 feature) + the working tree described in
-`HANDOFF.md` — full suite **537 passed, 2 skipped, 0 failed** (461 at C5 + 76
-new avoidance tests). Re-verify with the commands below before trusting these
+**Last verified:** commit `3870c8a` (C7) — full suite
+**592 passed, 2 skipped, 0 failed** (537 at C6 + 46 new telemetry tests + 9 new
+dashboard HTTP tests). Re-verify with the commands below before trusting these
 numbers.
 
 ---
@@ -11,11 +11,12 @@ numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **537 passed, 2 skipped, 0 failed** |
-| Test files | 18 (`tests/test_*.py`) |
+| `cd raspberry_pi && python -m pytest` | **592 passed, 2 skipped, 0 failed** |
+| Test files | 19 (`tests/test_*.py`) |
 | CI | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff` |
 | Hardware required | **None.** Everything runs on `amr/mocks/` |
 | Live web smoke (C2, `--mock --web` + `hazard.enabled=true`) | `GET /hazard` → `attached:true, state:NORMAL, sources:["zones"]`; `POST /hazard/acknowledge` → `ok:true`; `/status` carries the `hazard` key |
+| Dashboard smoke (C7, `--mock --web`) | `GET /health` → 200 `ok:true, simulated:true, read_only:true`; `GET /telemetry` → 200 valid schema-1.0 JSON with per-section `source` tags; `GET /dashboard` → 200 HTML |
 
 The 2 skips are the camera tests that need `opencv-python`/`numpy`; they run when
 those are installed and skip gracefully otherwise. They are the only conditional
@@ -31,8 +32,9 @@ test_hazard.py             48    test_robot_manager.py     20
 test_hazard_visualisation.py 23  test_robot_state.py        5
 test_logging.py            12    test_safety_manager.py    14
 test_mode_controller.py    13    test_ultrasonic.py         9
-test_warehouse.py          39    test_web_server.py        25
-test_vision.py             95    test_avoidance.py         76  (new in C6)
+test_warehouse.py          39    test_web_server.py        34
+test_vision.py             95    test_avoidance.py         76
+test_telemetry.py          46    (new in C7 — read-only telemetry contract)
 ```
 
 ---
@@ -50,7 +52,8 @@ test_vision.py             95    test_avoidance.py         76  (new in C6)
 | `camera` | **Implemented, partially tested** (2 tests need OpenCV) | `test_camera_manager.py` |
 | `navigation` (incl. C6 avoidance gate) | **Implemented, unit-tested** | `test_navigation.py` (50), `test_avoidance.py` (76) |
 | `warehouse` (tasks, map, manipulator) | **Implemented, unit-tested** | `test_warehouse.py` (39) |
-| `web` (panel + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (25), incl. `GET /hazard` + acknowledge (C2) |
+| `telemetry` (C7 read-only contract + collector) | **Implemented, unit-tested** | `test_telemetry.py` (46) |
+| `web` (panel + dashboard + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (34), incl. `GET /hazard` + acknowledge (C2) and `GET /telemetry` / `/health` / `/dashboard` (C7) |
 | `logging` | **Implemented, unit-tested** | `test_logging.py` |
 | `utils/config` | **Implemented, unit-tested** | `test_config.py` (18) |
 | `mocks` | **Implemented**, indirectly covered by every suite | — |
