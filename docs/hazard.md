@@ -137,10 +137,11 @@ buffer (`max_events`):
 * tagged with the robot's location when one is available (`HazardLocation`:
   `x`, `y`, `theta`, optional `zone`);
 * resolved when the reading disappears, recording `cleared_at` / `duration_s`;
-* exportable as **JSONL** (one JSON object per line) via `event_log_path`, for a
-  future dashboard and spatial hazard visualisation. `read_events(path)` is the
-  tolerant read side. Export is best-effort: an unwritable path logs a warning
-  and never raises, because a logging failure must not stop the safety loop.
+* exportable as **JSONL** (one JSON object per line) via `event_log_path`,
+  rendered onto the map by the spatial visualisation below. `read_events(path)`
+  is the tolerant read side. Export is best-effort: an unwritable path logs a
+  warning and never raises, because a logging failure must not stop the safety
+  loop.
 
 Latching is independent of event resolution: clearing a fire reading resolves the
 event, but the `EMERGENCY` latch persists until acknowledged.
@@ -250,6 +251,45 @@ HTTP. The layer is attached in `amr/main.py` only when
 
 ---
 
+## Spatial visualisation (read side)
+
+`amr.hazard.visualisation` renders recorded events onto the warehouse map as a
+single self-contained SVG — the read side of the JSONL export:
+
+```bash
+cd raspberry_pi
+python -m amr.hazard.visualisation --events events.jsonl --out hazard-map.svg
+python -m amr.hazard.visualisation --out -        # SVG to stdout
+```
+
+* **Pure read-side** — imports nothing from `amr.robot` / `amr.navigation` /
+  `amr.warehouse`, never touches the control loop; safe to run on a laptop that
+  has only the JSONL file. Inputs are duck-typed: `config/warehouse.yaml`
+  locations (dict *or* list entries), `HazardEvent` objects / `read_events()`
+  dicts / a full `HazardManager.snapshot()`, plus the zones from
+  `config/hazard.yaml`.
+* **Deterministic** — no clock, no randomness: identical inputs produce
+  byte-identical SVG.
+* **Tolerant** — malformed location/zone entries are skipped; events without a
+  usable location are listed in the side panel instead of being dropped.
+* **Styled like `assets/warehouse-map.svg`** — metre grid and axis ticks,
+  aspect-preserving y-up projection, waypoints (`dock` green), dashed
+  restricted-zone rectangles, a colour legend, and one marker per event
+  coloured by `STATE_COLORS`. Resolved events render dimmed
+  (`fill-opacity` 0.45); an active `EMERGENCY` gets a white ring; co-located
+  events fan out instead of overlapping. Markers carry `data-state` /
+  `data-resolved` attributes and a `<title>` tooltip; all text is
+  XML-escaped.
+
+The public API is `render_map_svg(locations, events, *, zones, title)` and
+`events_from_snapshot(snapshot)` (de-duplicates `active_events` /
+`recent_events`, active copies win, sorted oldest-first). Both are
+re-exported from `amr.hazard` — lazily, so `python -m
+amr.hazard.visualisation` does not double-import the module. Covered by
+`tests/test_hazard_visualisation.py` (23 tests), all offline.
+
+---
+
 ## Limitations / not done yet
 
 * **No physical sensors are wired.** `config/robot.yaml` still has
@@ -260,8 +300,6 @@ HTTP. The layer is attached in `amr/main.py` only when
   against one reference gas and its ppm output is approximate).
 * The example zone in `config/hazard.yaml` is a placeholder that happens to
   overlap `shelf_c`; it is not a surveyed layout.
-* No spatial visualisation yet — events carry locations and export as JSONL, but
-  nothing renders them.
 * `VisionHazardSource` provides only the *seam* for fire/human detection; no
   detector model is implemented.
 * The layer is **wired into `amr/web`** (`GET /hazard` + `POST

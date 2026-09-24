@@ -49,7 +49,7 @@ Each layer depends only on the layers below it.
 | 1 | `amr.communication` | Serial protocol + transport | `protocol.py`, `ArduinoSerial`, `ArduinoSerialTransport` |
 | 2 | `amr.control` | Motor driver + differential-drive vocabulary | `MotorDriver`, `ArduinoMotorDriver`, `DifferentialDrive`, `clamp_speed` |
 | 3 | `amr.safety` | Deterministic proximity policy | `SafetyManager`, `SafetyDecision`, `SafetyAction` |
-| 3.5 | `amr.hazard` | Context-aware multi-hazard aggregation | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog` |
+| 3.5 | `amr.hazard` | Context-aware multi-hazard aggregation + read-side spatial visualisation | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `render_map_svg` |
 | 4 | `amr.sensors` | Ultrasonic read + validation | `UltrasonicManager`, `UltrasonicReading` |
 | 5 | `amr.robot` | The gated runtime owner | `RobotManager`, `RobotState`, `ModeController`, `RobotMode` |
 | 6 | `amr.camera` | Camera facade (libcamera / V4L2 / mock) | `CameraManager` |

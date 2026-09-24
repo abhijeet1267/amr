@@ -42,6 +42,7 @@ __all__ = [
     "DEFAULT_CAPACITY",
     "DEFAULT_EMERGENCY_KINDS",
     "DEFAULT_SLOW_KINDS",
+    "STATE_COLORS",
     "GasSensorSource",
     "HazardEvent",
     "HazardEventLog",
@@ -57,7 +58,24 @@ __all__ = [
     "RestrictedZoneSource",
     "RobotStateSource",
     "VisionHazardSource",
+    "events_from_snapshot",
     "read_events",
+    "render_map_svg",
     "severity_for",
     "zones_from_config",
 ]
+
+#: Lazily re-exported from :mod:`amr.hazard.visualisation`. Kept lazy so that
+#: ``python -m amr.hazard.visualisation`` does not pre-import the module before
+#: runpy executes it (runpy would emit a RuntimeWarning otherwise).
+_LAZY_VISUALISATION = frozenset(
+    {"STATE_COLORS", "events_from_snapshot", "render_map_svg"}
+)
+
+
+def __getattr__(name: str):
+    if name in _LAZY_VISUALISATION:
+        from . import visualisation
+
+        return getattr(visualisation, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

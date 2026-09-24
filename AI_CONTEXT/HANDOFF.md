@@ -5,10 +5,123 @@
 
 ---
 
-## Session: C2 — web panel hazard integration (Laptop 1)
+## Session: C3 — spatial hazard visualisation (read side)
+
+**Agent:** cline · **Branch:** `main` ·
+**Commit:** see §10 · **Baseline when started:** `179f0e7` (clean tree)
+
+### 1. What was completed
+
+**C3 — spatial hazard visualisation (read side).** Recorded events render
+onto the warehouse map as one self-contained SVG, styled like
+`assets/warehouse-map.svg`. Pure read-side: never touches the control loop.
+
+* **New `raspberry_pi/amr/hazard/visualisation.py`** — `render_map_svg()`
+  plus `events_from_snapshot()` plus CLI
+  `python -m amr.hazard.visualisation --events X.jsonl --out map.svg|-`.
+* **Lazy re-exports** in `amr/hazard/__init__.py` via PEP 562 `__getattr__`.
+* **23 new tests** in `tests/test_hazard_visualisation.py` (offline).
+* **Docs:** `docs/hazard.md`, `README.md`, `AI_CONTEXT/` updates.
+
+Explicitly **not** done: no live dashboard, no web route, no warehouse
+wiring, no sensor sources (still no hardware).
+
+### 2. Files changed (8, new + modified)
+
+| Path | Change |
+|---|---|
+| `raspberry_pi/amr/hazard/visualisation.py` | **New**: renderer + CLI, stdlib only |
+| `raspberry_pi/tests/test_hazard_visualisation.py` | **New**: 23 tests |
+| `raspberry_pi/amr/hazard/__init__.py` | Lazy PEP 562 re-exports (3 names) |
+| `docs/hazard.md` | New section; stale limitation removed |
+| `README.md` | Badge + table 343 to 366, demo step 5 |
+| `AI_CONTEXT/CURRENT_STATUS.md` | Counts 366, 16 files, new entry point |
+| `AI_CONTEXT/TASK_BOARD.md` | C3 `[ ]` to `[x]` with outcome |
+| `AI_CONTEXT/ARCHITECTURE.md` | Layer 3.5 row notes `render_map_svg` |
+
+### 3. Tests
+
+| Command | Result | Status |
+|---|---|---|
+| `python -m pytest` (full suite) | **366 passed, 2 skipped, 0 failed** in ~18 s | **software-tested** |
+| `python -m pytest tests/test_hazard_visualisation.py` | **23 passed** | **software-tested** |
+| `python -m amr.hazard` | exit 0 (no regression) | **software-tested** |
+| `python -m amr.hazard.visualisation --out /tmp/x.svg` | exit 0, valid SVG | **software-tested** |
+
+The 2 skips are the conditional OpenCV camera tests.
+
+### 4. API
+
+`render_map_svg(locations, events, *, zones=(), title=...) -> str` and
+`events_from_snapshot(snapshot) -> list[dict]` (active wins, sorted).
+CLI: `--events X.jsonl --out map.svg|- --title T --config-dir D`.
+
+### 5. Safety behaviour
+
+* The renderer imports nothing from `amr.robot` / `amr.navigation` /
+  `amr.warehouse`, issues no commands, and runs fully offline on a laptop
+  that has only the JSONL export — it **cannot** affect the control loop.
+* No thresholds, latches, or acknowledgement semantics were touched; C2's
+  two-step release is unchanged.
+
+### 6. Hardware status
+
+**No physical hardware was tested.** All results above are software/mock/offline
+tests on this machine. `config/hazard.yaml` remains `NOT_VERIFIED`, and
+`hazard.enabled` remains `false` in the shipped config.
+
+### 7. Known issues
+
+* The SVG is a **static offline render**, not a live dashboard — there is still
+  no web route serving it (a future task could add one as pure read-side).
+* `amr/warehouse` still ignores the hazard verdict (unchanged from C2).
+* No hazard sensor sources are wired (no hardware); thresholds still
+  `NOT_VERIFIED`; no panel authentication (pre-existing).
+* `ruff check` on the new files reports only modern-typing suggestions
+  (`UP035/UP006/UP045`) that apply equally to the whole pre-existing `amr/`
+  tree (273 findings on the clean tree) — the new code deliberately matches
+  the repo's existing `typing.Dict/List/Optional` convention.
+
+### 8. Remaining work
+
+See `TASK_BOARD.md` §C. Next recommended: **C5** (fire/human detector feeding
+`VisionHazardSource`, giving the layer — and this map — its first real
+non-zone source) or serve this SVG from the web panel as a read-only view.
+C1/C4 remain blocked on hardware; C6 is high-risk Layer-3 behaviour change;
+C7–C9 unstarted.
+
+### 9. Integration notes
+
+* **No interface of `amr/hazard` was changed** — C3 only *reads*
+  `HazardEvent.to_dict()` / `read_events()` dicts / `snapshot()` dicts. No
+  `INTEGRATION_REQUESTS.md` was needed.
+* Treat `render_map_svg()` / `events_from_snapshot()` / `STATE_COLORS` as the
+  stable read-side contract — only additive changes are safe.
+* Re-read `TASK_BOARD.md` before starting — C5 is the likely next pick.
+
+### 10. Commit
+
+Baseline history: `dfa70c6` → `eadf6a5` → `4eeb571` → `5a09791` →
+`a9bc358` (C2 feature) → `179f0e7` (C2 hash record). This session's commits:
+
+| # | Hash | Commit |
+|---|---|---|
+| 7 | *this commit* | `feat(hazard): add spatial visualisation of recorded events` — C3 renderer, lazy re-exports, 23 tests, docs |
+| 8 | filled in by the follow-up docs commit | `docs(ai-context): record C3 commit hash` — this row's hash (a file cannot contain its own hash) |
+
+For the live value run `git rev-parse HEAD`.
+
+Working tree: only the 8 files listed in §2; no `.kilo/`, no secrets, no
+temporary files. Nothing was pushed.
+
+---
+
+## Previous session: C2 — web panel hazard integration (Laptop 1)
 
 **Agent:** cline (Laptop 1 / Core Robot Agent) · **Branch:** `main` ·
-**Commit:** see §10 · **Baseline when started:** `5a09791` (clean tree)
+**Commit:** see §10 (of that session) · **Baseline when started:** `5a09791` (clean tree)
+
+### 1. What was completed (C2, kept for history)
 
 ### 1. What was completed
 

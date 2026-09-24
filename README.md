@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-343%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-366%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **343 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **366 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -70,7 +70,7 @@ suite runs entirely on **mocks** — no serial device, no motors, no camera.
 
 ## See it work
 
-Three ways to run the stack — all of them safe and mockable:
+Several ways to run the stack — all of them safe and mockable:
 
 ```bash
 cd raspberry_pi
@@ -86,6 +86,9 @@ python -m amr.warehouse --mock
 
 # 4. A scripted multi-hazard scenario (gas -> human -> fire) against a mocked robot
 python -m amr.hazard
+
+# 5. Render recorded hazard events onto the warehouse map (static SVG, offline)
+python -m amr.hazard.visualisation --out hazard-map.svg
 ```
 
 Against the real robot the same entry points work without `--mock`; the camera
@@ -377,8 +380,10 @@ navigation → warehouse). Explicit next steps:
 5. **Vision** — build marker/QR/shelf recognition on `CameraManager.capture()`.
 6. **Hazard hardware & telemetry** — wire real gas/smoke/fire sensors into
    `amr/hazard` and surface `HazardManager.snapshot()` plus the spatial event
-   history in the web panel and a dashboard (`config/hazard.yaml` is still
-   `NOT_VERIFIED` and has no sensor hardware behind it).
+   history in the web panel and a live dashboard. The offline map renderer
+   already exists (`python -m amr.hazard.visualisation` → SVG);
+   `config/hazard.yaml` is still `NOT_VERIFIED` and has no sensor hardware
+   behind it.
 
 ---
 

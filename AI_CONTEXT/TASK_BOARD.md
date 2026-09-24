@@ -63,12 +63,19 @@ when no layer), panel badge + hazard card + conditional Acknowledge button,
 `attach_hazard_layer()` in `main.py` gated on `config.hazard.enabled`,
 10 new tests (25 in `test_web_server.py`), suite **343 passed, 2 skipped**.
 
-### C3 — Spatial hazard visualisation `[ ]`
+### C3 — Spatial hazard visualisation `[x]`
 **Touches:** new `raspberry_pi/amr/hazard/` module or a small viewer script,
 `docs/hazard.md`
 Render recorded events (`read_events(path)` / `HazardManager.snapshot()`) onto the
 warehouse map from `config/warehouse.yaml` (`assets/warehouse-map.svg` shows the
 style). Pure read-side; must not touch the control loop.
+**Done:** new `amr/hazard/visualisation.py` — `render_map_svg()` (deterministic
+SVG: y-up projection, `STATE_COLORS` markers, dimmed resolved, emergency ring,
+cluster fan-out, dashed zones, waypoint labels, XML escaping, side panel for
+unlocated events) + `events_from_snapshot()` (active copies win, sorted) + CLI
+`python -m amr.hazard.visualisation --events X.jsonl --out map.svg|-`; lazy
+PEP 562 re-exports in `amr.hazard` (no runpy `RuntimeWarning`); 23 new tests,
+suite **366 passed, 2 skipped**.
 
 ### C4 — Real gas / smoke sensor driver `[!]` blocked
 **Touches:** `config/robot.yaml` (pins), new `raspberry_pi/amr/sensors/` module,
