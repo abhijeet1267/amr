@@ -123,18 +123,17 @@ SVG. Do not mark C6 done without keeping the deterministic stop tests green.
 
 ### 9. Commits / GitHub
 
-* Implementation: `feat(hazard): add vision hazard source`.
-* Context: `docs(ai-context): record C5 commit hash`.
-* Local branch `main`; origin was `dfa70c6` at session start. **Push status is
-  recorded in §10; if the push was blocked by authentication the commits remain
-  local and must be pushed manually.**
+* Implementation: `24cdc72` — `feat(hazard): add vision hazard source`
+* Context: `docs(ai-context): record C5 commit hash` (this session's second commit)
+* Branch `main`. **Push SUCCEEDED**: `dfa70c6..24cdc72 main -> main` (fast-forward,
+  8 local commits published). No force-push was used.
 
 ### 10. Exact commit hashes
 
-Implementation: `__C5_IMPL__`
+Implementation: `24cdc72`
 Documentation: `__C5_DOC__`
-Local HEAD at handoff write: `__C5_IMPL__`.
-origin/main at handoff write: `__ORIGIN_MAIN__`.
+Local HEAD at handoff write: `24cdc72`.
+origin/main after push (verified): `24cdc72` — `HEAD == origin/main` confirmed.
 
 ---
 
