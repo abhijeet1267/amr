@@ -105,6 +105,16 @@ Layer 3.5 hard rules: **escalate only**, **never drive**, **fail safe**,
 default stack is behaviourally identical to the pre-hazard code. See
 `docs/hazard.md`.
 
+Layer 3 gained an optional **obstacle-avoidance** extension (C6) in
+`amr/safety/avoidance.py`, consumed by an avoidance gate at the top of
+`LocalNavigator.step()`. It emits `TURN`/`REPLAN` for **non-blocking**
+obstacles only, and returns a Layer-3 `STOP`/`WAIT` **unchanged** — so
+emergency stop keeps absolute priority. The gate runs before the control law
+and can only reduce motion; commands still leave through the one existing
+`command()` → `RobotManager` gate. All hooks default to `None` and
+`safety.avoidance.enabled` is `false`, so the default stack is unchanged.
+See `docs/safety.md` §C6. **Simulation only; thresholds NOT_VERIFIED.**
+
 A reading of `-1` (no echo / clear) is *not* an obstacle, per direction.
 A complete loss of valid sensor data **is** unsafe (Layer 3 rule 2).
 

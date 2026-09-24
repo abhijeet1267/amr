@@ -97,12 +97,27 @@ table; unknown classes are ignored, not invented). A deterministic
 demo ship for offline use. **No camera, ML model, or accuracy measurement is
 claimed** — the detector is simulated input only. +95 tests (461 total).
 
-### C6 — Activate obstacle avoidance (`TURN` / `REPLAN`) `[ ]`
-**Touches:** `raspberry_pi/amr/safety/safety_manager.py`, `docs/safety.md`,
-`tests/test_safety_manager.py`
-Promote the reserved `SafetyAction.TURN` / `REPLAN` from reserved to active
-policy. **Risk: high — this changes Layer-3 stop behaviour.** Must keep the
-existing deterministic-stop tests green and add coverage for the new actions.
+### C6 — Activate obstacle avoidance (`TURN` / `REPLAN`) `[x]` (2026-09-24)
+**Touches:** new `raspberry_pi/amr/safety/avoidance.py`,
+`amr/navigation/navigator.py`, `amr/safety/safety_manager.py`,
+`amr/utils/config.py`, `config/safety.yaml`, `tests/test_avoidance.py` (new),
+`docs/safety.md`
+Promoted the reserved `SafetyAction.TURN` / `REPLAN` to active policy via a pure,
+config-driven `AvoidancePolicy` and an avoidance gate in `LocalNavigator`.
+**No existing stop test was changed** — the pre-existing deterministic-stop
+suite is untouched and still green. The safety argument rests on ordering: the
+Layer-3 verdict is evaluated first and `STOP`/`WAIT` are returned unchanged
+(TURN/REPLAN are never considered), a *critical* obstacle still blocks motion
+through the pre-existing hazard → `RobotManager` path, and only a non-blocking
+`WARNING` obstacle is avoidable. All manoeuvre commands still leave through the
+single existing `command()` → `RobotManager` gate, so no second motor path
+exists. Turns require a *proven clear* side (roomier side wins; no clearance
+data ⇒ REPLAN rather than a guessed heading) and a per-episode `max_replans`
+budget escalates to `NavStatus.FAILED`, so a persistent obstacle cannot loop.
+Every hook defaults to `None`, so pre-C6 behaviour is unchanged when unwired.
+**Software/simulation only** — no robot, camera, ultrasonic hardware or Arduino
+was used; all `safety.avoidance` thresholds are NOT_VERIFIED and avoidance is
+`enabled: false` by default. +76 tests (537 total).
 
 ### C7 — Real manipulator (gripper / arm) `[ ]`
 **Touches:** `raspberry_pi/amr/warehouse/tasks.py` (implement `Manipulator`),

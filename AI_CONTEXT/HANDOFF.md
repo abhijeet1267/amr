@@ -5,6 +5,150 @@
 
 ---
 
+## Session: C6 — activate obstacle avoidance (`TURN` / `REPLAN`)
+
+**Agent:** cline · **Branch:** `main` · **Date:** 2026-09-24 ·
+**Baseline when started:** `7a169fa` (clean tree, = `origin/main`) ·
+**Tests:** 461 → **537 passed, 2 skipped, 0 failed**
+
+### 1. What was completed
+
+**C6 is fully implemented, tested and documented.** The reserved
+`SafetyAction.TURN` / `REPLAN` are now *active* policy. Previously they were
+declared but never produced; now a non-blocking obstacle can produce them.
+
+The safety argument rests on **ordering, not on thresholds**:
+
+1. `SafetyManager.evaluate()` runs the original rules (now factored into
+   `_check_base()`) **first**. A `STOP` or `WAIT` is returned unchanged and the
+   avoidance policy is never even called.
+2. Only when the base verdict is `PROCEED` *and* an `AvoidancePolicy` is
+   supplied may an obstacle upgrade the action.
+3. A *critical* obstacle never reaches C6: the hazard layer raises `STOP` and
+   blocks motion through the pre-existing hazard → `RobotManager` path.
+4. So the only thing C6 ever acts on is a **non-blocking `WARNING` obstacle**.
+
+* **New `raspberry_pi/amr/safety/avoidance.py`** (357 lines) — pure, config-driven
+  and side-effect free: `ObstacleSide`, `ObstacleReport`, `AvoidanceAction`
+  (`NONE`/`TURN`/`REPLAN`/`STOP`), `AvoidancePolicy.decide()`, and
+  `report_from_hazard()` (adapts a `HazardStatus` to obstacle evidence).
+* **`LocalNavigator`** gained an opt-in avoidance gate. Manoeuvre commands leave
+  through the **single existing `command()` callback** — no second motor path.
+* **`SafetyManager.evaluate()`** gained three keyword-only, all-`None` params
+  (`avoidance`, `obstacle`, `clearance`). The old 2-arg call signature still works
+  and returns a byte-identical result.
+* **Config:** `AvoidanceConfig` in `amr/utils/config.py` + `safety.avoidance`
+  block in `config/safety.yaml`, **`enabled: false` by default**.
+* **76 new tests** in `tests/test_avoidance.py` (738 lines, all offline).
+
+Explicitly **not** done: no sensor/hardware wiring, no ultrasonic clearance
+provider, no `RobotManager` auto-wiring of the policy, and **no pre-existing stop
+test was modified** — the deterministic-stop suite is untouched and green.
+
+### 2. Files changed (11, new + modified)
+
+| Path | Change |
+|---|---|
+| `raspberry_pi/amr/safety/avoidance.py` | **New**: policy, report, action types (357 lines) |
+| `raspberry_pi/tests/test_avoidance.py` | **New**: 76 tests (738 lines) |
+| `raspberry_pi/amr/navigation/navigator.py` | Opt-in avoidance gate; committed turn; replan budget |
+| `raspberry_pi/amr/safety/safety_manager.py` | `_check_base()` split; keyword-only avoidance params |
+| `raspberry_pi/amr/utils/config.py` | `AvoidanceConfig` + nested `load_config()` build |
+| `config/safety.yaml` | `safety.avoidance` block, `enabled: false` |
+| `docs/safety.md` | New C6 section: ordering guarantee, turn/replan rules, limits |
+| `README.md` | Test count 461 → 537 |
+| `AI_CONTEXT/CURRENT_STATUS.md` | Counts, module row, honest test-status rows |
+| `AI_CONTEXT/ARCHITECTURE.md` | Layer-3 row notes the C6 policy + gating order |
+| `AI_CONTEXT/TASK_BOARD.md` | C6 `[ ]` → `[x]` with the full safety argument |
+
+### 3. Tests
+
+| Command | Result | Status |
+|---|---|---|
+| `python -m pytest tests/test_avoidance.py` | **76 passed** | ✅ software |
+| `python -m pytest` (full suite) | **537 passed, 2 skipped, 0 failed** | ✅ software |
+| `python -m pytest tests/test_safety_manager.py` | 14 passed, unchanged | ✅ no regression |
+| `python -m pytest tests/test_navigation.py` | passed, unchanged | ✅ no regression |
+| `python -m amr.warehouse` | `completed=3 failed=0`, exit 0 | ✅ no regression |
+| `python -m amr.main --mock` | exit 0 | ✅ no regression |
+| `python -m py_compile` on all changed modules | clean | ✅ |
+| **Robot on floor / obstacle avoidance** | **not run** | ❌ **hardware-dependent** |
+| **Arduino firmware** | **untouched, not flashed** | ❌ **firmware-dependent** |
+
+The 2 skips are the pre-existing camera tests needing `opencv-python`/`numpy`.
+
+**One observed transient failure (unresolved, disclosed).** During this session a
+single full-suite run reported `1 failed, 536 passed` without naming the test in
+the captured output, and it did **not** reproduce in 13 subsequent full runs
+(`tests/test_web_server.py` alone: 12/12 clean). No sleeps, `time.time()`,
+`perf_counter`, `random` or `uuid` assertions exist anywhere in `tests/`, and
+`amr/safety/avoidance.py` imports no time/random/uuid — so C6 is deterministic
+by construction. The only external resource in the suite is the real
+`ThreadingHTTPServer` on an ephemeral port (pre-existing, from C2), the most
+plausible source of a rare transient. **C6 touched no HTTP or timing code.**
+Recorded rather than hidden; if it recurs, capture the full `FAILED` line.
+
+### 4. Coverage of the 12 required areas
+
+| # | Area | Where |
+|---|---|---|
+| 1 | Evidence reaches the decision layer | `TestEvidenceReachesDecisionLayer` |
+| 2 | Obstacle triggers `TURN` | `TestTurn` |
+| 3 | Obstacle triggers `REPLAN` | `TestReplan` |
+| 4 | Normal navigation unchanged | `TestNormalNavigationUnchanged` |
+| 5 | E-stop overrides `TURN` | `TestStopPriority` |
+| 6 | E-stop overrides `REPLAN` | `TestStopPriority` |
+| 7 | Malformed evidence doesn't crash | `TestMalformedEvidence` |
+| 8 | Low-confidence policy | `TestLowConfidence` |
+| 9 | No uncontrolled command loops | `TestLoopGuard` |
+| 10 | C2 / C3 / C5 + warehouse compatibility | `TestCompatibility` |
+| 11 | Determinism (repeatable runs) | `TestDeterminism` |
+| 12 | Config / validation | `TestConfig` |
+
+### 5. Documented policy decisions (deliberate, not accidental)
+
+* **A turn needs a *proven clear* side.** With no clearance data, or with both
+  sides blocked, the policy returns `REPLAN` — it never guesses a heading.
+  The roomier side wins when both are open.
+* **Confidence is never re-thresholded or rescaled by C6.** That gate belongs to
+  the hazard layer (C5). C6 honours whatever actionable reading reaches it.
+* **Loss of information degrades conservatively.** An obstacle provider that
+  raises ⇒ no evidence. A clearance provider that raises ⇒ `REPLAN`, not a turn.
+* **`max_replans` is per obstacle *episode*.** When the obstacle clears the
+  budget resets; exhaustion reports `NavStatus.FAILED` with `"exhausted"`.
+* **A `STOP` arriving mid-turn preempts immediately** and commands `(0, 0)`.
+
+### 6. Known issues / limitations
+
+* `safety.avoidance.*` values are **NOT_VERIFIED** conservative software
+  defaults. `turn_speed_scale`, `turn_duration_s` and `open_clearance_m` have
+  **never been measured on a robot**.
+* Avoidance is **`enabled: false`** by default and **not yet wired** into
+  `RobotManager`/`main.py` — a caller must pass the policy explicitly.
+* No clearance provider ships with C6; `clearance` arrives as a plain dict.
+* No obstacles have been physically detected or avoided. No camera, ultrasonic
+  or Arduino hardware was exercised in this session.
+
+### 7. Recommended next task
+
+**C7 — real manipulator (gripper / arm)**, or wire an ultrasonic clearance
+provider + opt-in `AvoidancePolicy` into `main.py` **after** hardware
+verification of the clearance values. Do not enable avoidance on a real robot
+before `config/safety.yaml` is measured and flipped to `VERIFIED`.
+
+### 8. Handoff integrity
+
+| Commit | Contents |
+|---|---|
+| `ed0497c` | `feat(safety): activate TURN/REPLAN obstacle avoidance` — code, config, tests, `docs/safety.md`, README count |
+| (this commit) | `docs(ai-context): record C6 commit hash` — the four `AI_CONTEXT/` files |
+
+A file cannot contain the hash of the commit that creates it, so the second
+commit above is labelled *this commit*; resolve the live value with
+`git rev-parse HEAD` (also mirrored in `AI_CONTEXT/CURRENT_STATUS.md`).
+**Verified at commit time:** `python -m pytest` → 537 passed, 2 skipped,
+0 failed, on the tree committed as `ed0497c`.
+
 ---
 
 ## Session: C5 — vision detector → `VisionHazardSource` → hazard event

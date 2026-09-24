@@ -1,8 +1,9 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** the C5 working tree described in `HANDOFF.md` — full suite
-**461 passed, 2 skipped, 0 failed** (366 at C3 + 95 new vision tests).
-Re-verify with the commands below before trusting these numbers.
+**Last verified:** commit `ed0497c` (C6 feature) + the working tree described in
+`HANDOFF.md` — full suite **537 passed, 2 skipped, 0 failed** (461 at C5 + 76
+new avoidance tests). Re-verify with the commands below before trusting these
+numbers.
 
 ---
 
@@ -10,8 +11,8 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **461 passed, 2 skipped, 0 failed** |
-| Test files | 17 (`tests/test_*.py`) |
+| `cd raspberry_pi && python -m pytest` | **537 passed, 2 skipped, 0 failed** |
+| Test files | 18 (`tests/test_*.py`) |
 | CI | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff` |
 | Hardware required | **None.** Everything runs on `amr/mocks/` |
 | Live web smoke (C2, `--mock --web` + `hazard.enabled=true`) | `GET /hazard` → `attached:true, state:NORMAL, sources:["zones"]`; `POST /hazard/acknowledge` → `ok:true`; `/status` carries the `hazard` key |
@@ -31,7 +32,7 @@ test_hazard_visualisation.py 23  test_robot_state.py        5
 test_logging.py            12    test_safety_manager.py    14
 test_mode_controller.py    13    test_ultrasonic.py         9
 test_warehouse.py          39    test_web_server.py        25
-test_vision.py             95    (new in C5 — vision -> hazard)
+test_vision.py             95    test_avoidance.py         76  (new in C6)
 ```
 
 ---
@@ -42,12 +43,12 @@ test_vision.py             95    (new in C5 — vision -> hazard)
 |---|---|---|
 | `communication` (protocol, serial) | **Implemented, unit-tested** | `test_protocol.py` (37) |
 | `control` (driver, diff drive) | **Implemented, unit-tested** | `test_motor_controller.py`, `test_differential_drive.py` |
-| `safety` (Layer 3) | **Implemented, unit-tested** | `test_safety_manager.py` (14) |
+| `safety` (Layer 3, incl. C6 avoidance) | **Implemented, unit-tested, opt-in** | `test_safety_manager.py` (14), `test_avoidance.py` (76) |
 | `hazard` (Layer 3.5, incl. `visualisation`, `vision`) | **Implemented, unit-tested, opt-in** | `test_hazard.py` (48), `test_hazard_visualisation.py` (23), `test_vision.py` (95), `python -m amr.hazard`, `python -m amr.hazard.vision` |
 | `sensors` (ultrasonic validation) | **Implemented, unit-tested** | `test_ultrasonic.py` |
 | `robot` (manager, modes, state) | **Implemented, unit-tested** | `test_robot_manager.py`, `test_mode_controller.py`, `test_robot_state.py` |
 | `camera` | **Implemented, partially tested** (2 tests need OpenCV) | `test_camera_manager.py` |
-| `navigation` | **Implemented, unit-tested** | `test_navigation.py` (50) |
+| `navigation` (incl. C6 avoidance gate) | **Implemented, unit-tested** | `test_navigation.py` (50), `test_avoidance.py` (76) |
 | `warehouse` (tasks, map, manipulator) | **Implemented, unit-tested** | `test_warehouse.py` (39) |
 | `web` (panel + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (25), incl. `GET /hazard` + acknowledge (C2) |
 | `logging` | **Implemented, unit-tested** | `test_logging.py` |
@@ -110,8 +111,13 @@ python -m amr.hazard.visualisation   # render the events JSONL onto the map (SVG
   tested. What is still missing is a **real detector**: no OpenCV, YOLO or
   hardware camera backend is wired, and the thresholds in `config/hazard.yaml`
   are unvalidated software defaults.
-* Aggressive obstacle avoidance is intentionally absent:
-  `SafetyAction.TURN` / `REPLAN` are reserved and never emitted by Layer 3.
+* C6 activated `TURN` / `REPLAN` for **non-blocking** obstacles
+  (`amr/safety/avoidance.py` + an avoidance gate in `LocalNavigator`).
+  `STOP`/`WAIT` are returned unchanged and a critical obstacle still takes the
+  pre-existing hazard→`RobotManager` path, so emergency stop keeps priority.
+  **Software/simulation only**, `enabled: false` by default, all thresholds
+  NOT_VERIFIED. The ultrasonic clearance provider is **not yet wired**, so in
+  the default configuration avoidance replans rather than steering.
 * Web panel has **no authentication** — LAN-only, single operator.
 
 ---
