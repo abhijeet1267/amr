@@ -46,3 +46,4 @@ dist/
 # --- Runtime / data ---
 *.tmp
 tmp/
+nohup.out
