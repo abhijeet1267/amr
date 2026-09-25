@@ -113,6 +113,96 @@ explanatory comment. The tests were right and the prose was wrong, so the
 comment was reworded. The invariant is now asserted three times, because a
 comment can break it as easily as a fetch can.
 
+## Automatic recording (C14c)
+
+The recording half of the chain is automatic. `amr/telemetry/auto_record.py`
+wraps C14's `TelemetryRecorder` in a small lifecycle: `start()` opens a run,
+`record(snapshot)` appends one throttled frame, `stop()` closes it.
+
+The web runtime calls it from the **control loop that already exists**:
+
+```
+AMRWebApp._control_loop(interval)          <- one loop, one lock, pre-existing
+    |
+    +--> mgr.tick()                       <- robot control (unchanged)
+    +--> self._replay.tick(interval)      <- C14b playback (unchanged)
+    +--> self._auto.record(
+    |        self.telemetry.snapshot())   <- C15: the SAME snapshot the
+    |                                        dashboard reads
+    +--> sleep via _stop_evt.wait(interval)
+```
+
+`self.telemetry.snapshot()` is the C7 collector the live dashboard already
+consumes, so there is **one snapshot, two consumers** — not a second
+collection path and not a second loop.
+
+### Lifecycle
+
+| Event | What happens |
+|---|---|
+| `app.start()` | `AutoRecorder.start()` — opens `run-<YYYYmmdd-HHMMSS>.jsonl` |
+| each tick | `record(snapshot)` — throttled by `replay.min_interval_s` |
+| `app.stop()` | `stop()` → summary, file closed and complete |
+
+A run that recorded nothing writes no file. A name that already exists gets a
+suffix rather than overwriting a previous run, so two runs both stay
+discoverable. Source-level tests assert the server still contains exactly one
+`def _control_loop` and one `self._stop_evt.wait(interval)`.
+
+### Timestamps
+
+C14's rule is preserved exactly: **a snapshot with no usable timestamp is
+skipped, not recorded at a guessed moment.** The recorder never manufactures a
+timestamp to increase the frame count.
+
+### Failure isolation
+
+`record()` is wrapped in `try/except` inside the loop. A recorder that raises
+(e.g. `OSError: disk full`) is logged and the control loop continues — recording
+is an optional observer, never a dependency of the control path. This is
+covered by a test that swaps in a recorder which always raises.
+
+### Configuration
+
+```yaml
+# config/replay.yaml
+replay:
+  enabled: true
+  auto_record: true
+  recordings_dir: null     # null => records nothing (the shipped default)
+```
+
+Both `auto_record` and a non-null `recordings_dir` are required, so the default
+configuration records nothing. Set `recordings_dir` (relative paths resolve
+against the config directory) to start recording.
+
+### Complete lifecycle
+
+```
+LIVE robot / mock
+   -> telemetry snapshot
+   -> TelemetryRecorder            (C14, automatic)
+   -> JSONL in replay.recordings_dir
+   -> RecordingStore               (C14b discovery, same directory)
+   -> GET /replay/recordings       (dashboard selector)
+   -> ReplayPlayer                 (C14, unchanged)
+   -> Historical Replay card       (C14b, PLAY/PAUSE/RESTART/0.5x/1x/2x)
+```
+
+C14/C14b/C14c recordings need **no conversion step** — the format is unchanged.
+
+### Safety
+
+Recording is read-only. It never commands motors, publishes velocity, invokes
+`/command`, writes serial/GPIO, triggers navigation or replanning, or alters
+mission or hazard state. The only side effect is a local JSONL file. A test
+asserts zero actuator writes across control-loop ticks with recording active.
+
+### Hardware status
+
+Software and mock only. **No hardware or firmware validation was performed** —
+no physical robot, Raspberry Pi, camera, or Arduino was exercised.
+
 ## Limitations
 
 - **Hardware tested: no.** Software/mock only.

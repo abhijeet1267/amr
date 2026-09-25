@@ -294,6 +294,42 @@ speed|unload`. Zero actuator writes verified end to end over real HTTP.
 Tests: 1100 passed, 2 skipped, 0 failed (1032 at C14 + 68). Hardware NOT
 tested. See `docs/replay_dashboard.md`.
 
+### C14c — Automatic telemetry recording `[x]` (complete, C15 session)
+**Touches:** `amr/telemetry/auto_record.py`, `amr/web/server.py`, `config/replay.yaml`
+
+> **Naming note:** the C15 *session brief* called this "C15 — auto-recording",
+> but `C15` was already taken on this board by the unified demo (below). It is
+> recorded here as **C14c** because it completes the C14 recording chain and
+> depends on it. The unified demo keeps the C15 slot.
+
+Closes the recording loop. `AMRWebApp._control_loop` — the loop that already
+ticked the robot and already advanced C14b replay — now also feeds the
+authoritative C7 telemetry snapshot to `AutoRecorder`. That completes the
+lifecycle: LIVE → RECORD → DISCOVER → LOAD → REPLAY.
+
+- **One snapshot, two consumers:** the *same* `TelemetryCollector.snapshot()`
+  feeds the live dashboard and the recorder. No second collection path.
+- **Lifecycle:** started in `app.start()`, finalised in `app.stop()` — no
+  truncated file on shutdown, verified line-by-line.
+- **Storage:** the same directory `RecordingStore` reads, so an auto recording
+  is discoverable by `GET /replay/recordings` with **no conversion step**.
+- **Naming:** `run-<YYYYmmdd-HHMMSS>.jsonl`; a collision suffix is added rather
+  than overwriting a previous run.
+- **Timestamps:** C14's rule is preserved — a snapshot with no usable timestamp
+  is skipped, never back-dated to inflate the frame count.
+- **Failure isolation:** a recorder that raises (e.g. `OSError: disk full`) is
+  logged and the control loop keeps running; a test proves the loop survives.
+- **Config:** `replay.auto_record` + `replay.recordings_dir`, both shipped so the
+  **default records nothing** (`recordings_dir: null`).
+- **Safety:** read-only. Zero actuator writes (asserted with `NoActuation`).
+
+Deliberately **not** added: no recording thread, no second loop, no second
+timer, no queue/async pipeline. Source-level tests assert exactly one
+`_control_loop` and one `_stop_evt.wait(interval)` in the server.
+
+Tests: 1127 passed, 2 skipped, 0 failed (1100 at C14b + 27). Hardware NOT
+tested. See `docs/replay_dashboard.md`.
+
 ### C15 — Unified demo `[ ]` (upcoming)
 **Touches:** `amr/main.py` demo mode + dashboard
 One deterministic simulation-mode demo: robot starts → mission begins → moves →

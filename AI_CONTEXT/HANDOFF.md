@@ -5,6 +5,125 @@
 
 ---
 
+## Session: C14c — Automatic telemetry recording (the C15 brief)
+
+**Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
+
+> **Naming:** the brief for this session called the work "C15 — auto-recording",
+> but `C15` on `TASK_BOARD.md` is the *unified demo*, a different milestone. It
+> is filed here as **C14c** because it completes the C14 recording chain. The
+> board entry records the same decision.
+
+### Implementation
+
+`AMRWebApp._control_loop` — the loop that already ticked the robot and already
+advanced C14b replay — now also feeds the authoritative C7 telemetry snapshot to
+a new `AutoRecorder`. That closes the loop: LIVE → RECORD → DISCOVER → LOAD →
+REPLAY.
+
+- **One snapshot, two consumers.** `self.telemetry.snapshot()` is the *same*
+  collector the dashboard reads. No second collection path, no second loop.
+- **Lifecycle.** `app.start()` opens `run-<YYYYmmdd-HHMMSS>.jsonl`;
+  `app.stop()` finalises it. A test reads the file line-by-line after shutdown
+  to prove there is no truncated trailing line.
+- **Storage.** The same directory `RecordingStore` reads, so a live recording is
+  discoverable by `GET /replay/recordings` with **no conversion step**.
+- **Timestamps.** C14's rule preserved: a snapshot with no usable timestamp is
+  skipped, never back-dated to inflate the frame count.
+- **Failure isolation.** `record()` is wrapped in `try/except`; a recorder that
+  raises is logged and the control loop keeps running. Covered by a test that
+  swaps in an always-raising recorder.
+- **Naming.** Timestamp-based, with a collision suffix rather than an overwrite,
+  so two runs both remain discoverable.
+
+### Architecture
+
+```
+existing _control_loop(interval)        <- one loop, one lock (unchanged)
+    +--> mgr.tick()
+    +--> self._replay.tick(interval)
+    +--> self._auto.record(self.telemetry.snapshot())
+    +--> _stop_evt.wait(interval)
+```
+
+**Not added, deliberately:** no recording thread, no second control loop, no
+second timer, no queue/async pipeline. Source-level tests assert the server
+still contains exactly one `def _control_loop` and one
+`self._stop_evt.wait(interval)`, and that `auto_record` imports no `threading`
+and no `time.sleep`.
+
+### Files
+
+| File | Change |
+|---|---|
+| `raspberry_pi/amr/telemetry/auto_record.py` | **New** — `AutoRecorder`, `recording_name` |
+| `raspberry_pi/amr/telemetry/recorder.py` | Small additive helpers only; C14 format unchanged |
+| `raspberry_pi/amr/telemetry/__init__.py` | Export `AutoRecorder` |
+| `raspberry_pi/amr/web/server.py` | `auto_record`/`recordings_dir` kwargs, `_auto`, 3 lines in the existing loop |
+| `raspberry_pi/amr/utils/config.py` | `auto_record` / `recordings_dir` on `ReplayConfig` |
+| `raspberry_pi/amr/main.py` | Pass the resolved recordings dir to the app |
+| `config/replay.yaml` | `auto_record: true`, `recordings_dir: null` |
+| `raspberry_pi/tests/test_auto_record.py` | **New** — 27 tests |
+| `docs/replay_dashboard.md`, `AI_CONTEXT/*`, `README.md` | Docs |
+
+### Tests
+
+| Command | Result |
+|---|---|
+| `python -m pytest` (full) | **1127 passed, 2 skipped, 0 failed** (1100 → +27) |
+| `python -m pytest tests/test_auto_record.py` | 27 passed |
+| `python -m amr.hazard` / `.vision` / `amr.warehouse` / `.visualisation` | all exit 0 |
+| `python -m amr.main --mock --demo` | exit 0 |
+
+End-to-end proven by a real live run: with `replay.recordings_dir` set, the web
+runtime wrote `run-20260925-233203.jsonl` (2295 B) which
+`GET /replay/recordings` listed while the process was still running.
+
+Covered: discovery, load, PLAY/PAUSE/RESTART (C14b), end-to-end
+record→discover→replay, shutdown completeness, restart producing two valid
+distinct recordings, failure isolation, zero actuator writes, and the
+source-level architecture guards.
+
+### A regression caught
+
+The live smoke failed while every unit test passed: I had written the smoke's
+`replay.yaml` with keys I invented (`directory`, `min_interval_s`) instead of the
+real `recordings_dir`/`auto_record`, so the app silently had no directory. The
+unit tests never caught it because they pass the directory directly. Fixed by
+reading the real config keys — a reminder that config-shaped behaviour needs a
+run through the actual config file, not just the constructor.
+
+### Safety
+
+- `POST /command` remains the only actuator path — unchanged.
+- Recording transport writes: **0** (asserted with `NoActuation`).
+- No new control loop, no recording thread, no second timer.
+- Recording is read-only: it never commands motors, publishes velocity,
+  triggers navigation/replanning, or alters mission or hazard state.
+
+### Hardware status
+
+**NOT TESTED.** Software and mock only. No physical robot, Raspberry Pi, camera,
+or Arduino was exercised. No firmware was built or flashed.
+
+### Known limitations
+
+- `recordings_dir: null` by default, so the shipped config records nothing until
+  configured.
+- Recording is throttled to `replay.min_interval_s`; frames between ticks are
+  intentionally dropped rather than buffered.
+- Retention is manual — no automatic pruning of old runs.
+- The recording captures telemetry only; no camera frames or video.
+
+### Remaining work
+
+C15 (unified demo) is the natural next step: it would exercise this recording
+chain in one deterministic simulation-mode run, and would give the project the
+single demonstration entry point that the C7–C14c pieces have been building
+towards.
+
+---
+
 ## Session: C14b — Dashboard replay controls
 
 **Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
