@@ -153,18 +153,32 @@ resolution; show `SIMULATION` or `CAMERA OFFLINE` when no real camera exists.
 Tests must use a deterministic fake source — **no Pi camera required to run
 the suite**.
 
-### C9 — Live 2D warehouse map `[ ]` (upcoming)
-**Touches:** new dashboard map module, reuses `WarehouseMap` + navigation pose
-Interactive map (boundary, shelves, zones, charging station, robot pose/yaw,
-route, travelled path, goal, obstacles, hazards). Reuse the existing warehouse
-and navigation coordinate system — do **not** invent a second one. Static map
-data stays separate from dynamic robot state.
+### C9 — Live 2D warehouse map `[x]` complete (2026-09-25)
+**Outcome:** shipped in `raspberry_pi/amr/map/` — `snapshot.py` (presentation-
+independent `MapSnapshot`), `transform.py` (the single world→screen conversion
+plus bounded `PathHistory`), `service.py` (`MapService` + deterministic SVG
+renderer). Wired into the existing `AMRWebApp` as **`GET /map`** and
+**`GET /map.svg`**, plus a live map card on `GET /dashboard` (scroll-zoom, drag-
+pan, follow-robot, reset, label toggle — all read-only, riding the existing 1 Hz
+poll). **111 new tests; full suite 771 passed, 2 skipped.**
+Reuses the existing warehouse/navigation frame (metres, y-up, radians) and its
+objects (`WarehouseMap`, `HazardZone`, `Navigator`, `HazardManager`,
+telemetry) — no second navigation engine or coordinate system. The C5 hazard
+placement rule is preserved: a hazard is placed only with a real world location;
+image-space bboxes are listed under `unlocated` and never given coordinates.
+**The project models no shelf/rack/obstacle/boundary geometry**, so the map
+reports those as UNAVAILABLE with a visible note and fits its viewport to real
+data instead of drawing an invented floor plan.
+**REAL ROBOT / RASPBERRY PI / NAVIGATION HARDWARE: NOT TESTED** — software only.
+See `docs/map.md`.
 
 ### C10 — 3D Digital Twin `[ ]` (upcoming)
-**Touches:** new browser-based 3D view, reuses the telemetry snapshot
+**Touches:** new browser-based 3D view, reuses the C9 `MapSnapshot`
 Browser 3D of the warehouse + AMR (chassis, wheels, sensors, camera). Robot
 transform derives from `telemetry.position` / `telemetry.orientation`. **Purely
-a visualisation layer — the 3D model must never control the robot.**
+a visualisation layer — the 3D model must never control the robot.** C9's
+`MapSnapshot` is presentation-independent precisely so this can consume it
+directly instead of re-deriving map state.
 
 ### C11 — Telemetry panel `[ ]` (upcoming)
 **Touches:** dashboard frontend

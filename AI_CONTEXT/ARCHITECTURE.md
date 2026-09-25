@@ -182,7 +182,8 @@ Stdlib-only (`ThreadingHTTPServer`), no build step, no external assets, and **no
 authentication** (single-operator LAN tool — never expose the port).
 
 `GET /` panel · `GET /status` · `GET /sensor` · `GET /camera` ·
-`GET /image` · `GET /hazard` · `GET /telemetry` · `GET /health` ·
+`GET /camera/status` · `GET /camera/frame` · `GET /image` · `GET /hazard` ·
+`GET /telemetry` · `GET /health` · `GET /map` · `GET /map.svg` ·
 `GET /dashboard` · `POST /command` (`estop`, `stop`, `mode`,
 drive commands) · `POST /hazard/acknowledge` (step 1 of the two-step
 emergency release — never resets the robot mode). `estop`/`stop` are never
@@ -213,4 +214,35 @@ can honestly show `NOT AVAILABLE` instead of a plausible-looking number.
 Later milestones (camera monitor, 2D map, 3D twin, mission/hazard panels,
 replay) all read this one snapshot rather than each holding their own copy of
 robot state. See `docs/telemetry.md`.
+
+---
+
+## 11. Map layer (C9)
+
+`amr/map/` is also an **observation** layer, and splits map *state* from map
+*drawing* so C10 can reuse the state:
+
+```
+WarehouseMap · HazardZone · Navigator · HazardManager · TelemetryCollector
+        ↓  read-only adapters (world metres, y-up, radians — unchanged)
+MapSnapshot  →  GET /map          (JSON, presentation-independent)
+            →  GET /map.svg      (server-rendered SVG)
+            →  dashboard panel   (interactive SVG, same data)
+            →  C10 3D twin       (future)
+```
+
+* **One** coordinate conversion lives in `amr/map/transform.py`
+  (uniform scale, y flipped for SVG). The browser repeats the same formula for
+  zoom/pan only; it never decides map semantics.
+* `PathHistory` bounds the travelled trail (600 pts, de-duplicated) so a
+  1 Hz dashboard poll cannot grow memory without limit.
+* The C5 rule is enforced at this boundary: a hazard is placed **only** with a
+  real world `location`; image-space evidence is listed under `unlocated` with
+  no coordinates.
+* The project models **no** shelf/rack/obstacle/boundary geometry, so those
+  report `UNAVAILABLE` with a visible note instead of an invented floor plan.
+* Read-only: `amr/map/` imports no motor/PWM/serial/GPIO code, never steps the
+  navigator, and a test proves map reads write nothing to the serial transport.
+
+See `docs/map.md`.
 

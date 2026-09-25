@@ -1,9 +1,8 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** the C8 working tree — full suite
-**660 passed, 2 skipped, 0 failed** (592 at C7 + 46 camera-contract tests + 3
-runtime-wiring tests + 8 telemetry camera tests + 11 camera dashboard HTTP
-tests). Re-verify with the commands below before trusting these numbers.
+**Last verified:** the C9 working tree — full suite
+**771 passed, 2 skipped, 0 failed** (660 at C8 + 111 map tests). Re-verify with
+the commands below before trusting these numbers.
 
 ---
 

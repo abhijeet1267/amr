@@ -5,6 +5,140 @@
 
 ---
 
+## Session: C9 — Live 2D warehouse map
+
+**Agent:** cline · **Branch:** `main` · **Date:** 2026-09-25 ·
+**Baseline when started:** `3521924` (clean tree, = `origin/main`) ·
+**Tests:** 660 → **771 passed, 2 skipped, 0 failed** (+111)
+
+### 1. What was completed
+
+A live 2D warehouse map in the existing dashboard, drawn from the runtime the
+robot already uses. No second navigation engine, no second coordinate system.
+
+* **New `raspberry_pi/amr/map/`** (3 modules):
+  * `snapshot.py` — presentation-independent `MapSnapshot` + adapters from the
+    existing `WarehouseMap`/`HazardZone`/`Navigator`/`HazardManager`/telemetry.
+  * `transform.py` — the **single** world→screen conversion (`MapTransform`) and
+    a bounded, de-duplicated `PathHistory`.
+  * `service.py` — `MapService` (sampling + path trail) and a deterministic SVG
+    renderer.
+* **New routes on the existing `AMRWebApp`:** `GET /map` (JSON) and
+  `GET /map.svg` (server-rendered, `?width=&height=&zoom=` clamped).
+* **Dashboard:** a *Live 2D Warehouse Map* card with a source badge, safety
+  badge, and robot/goal/route/hazard summary. Scroll-zoom, drag-pan,
+  follow-robot, reset-view and label-toggle — all read-only, riding the existing
+  1 Hz poll (no second timer).
+* **111 new tests** in `tests/test_map.py`.
+* **Docs:** new `docs/map.md`; updated `docs/web_control.md`, `README.md`,
+  `AI_CONTEXT/` (architecture, status, task board).
+
+### 2. Coordinate system (the repository's own, unchanged)
+
+Warehouse frame: **metres**, **y-up**, `theta` in **radians**, origin at the
+`dock` `(0, 0)`. Taken from `amr/navigation/types.py` `Pose` and
+`config/warehouse.yaml` — no new convention. Every response publishes
+`units`/`frame`/`y_axis`/`yaw_units`.
+
+World→screen: `scale = min(fitW/worldW, fitH/worldH) * zoom`,
+`screen_x = x*scale + offset_x`, `screen_y = offset_y - y*scale`. One uniform
+scale preserves aspect ratio; the single `y` negation is the only frame
+difference (world y-up, SVG y-down).
+
+### 3. Honesty constraints encoded
+
+* **No fabricated geometry.** The repo models **no** shelf/rack/obstacle/
+  boundary geometry — only waypoints and hazard-zone rectangles. Those fields
+  report empty/`null` with a visible `note`; the viewport is fitted to real data
+  and labelled as *not* a surveyed boundary.
+* **C5 placement rule preserved.** A hazard is placed only with a real world
+  `location`; image-space bboxes go to `unlocated` with a reason and **no** x/y.
+  A genuine `(0, 0)` hazard *is* placed.
+* **Source tags everywhere:** `LIVE` / `SIMULATION` / `UNAVAILABLE`.
+
+### 4. Bugs found and fixed while building C9
+
+1. **`HazardReading` never coerced `location` (pre-existing C5 bug).**
+   `__post_init__` normalised `kind`, `severity` and `metadata` but not
+   `location`, so a dict location survived and later crashed
+   `HazardEvent.to_dict()` with
+   `AttributeError: 'dict' object has no attribute 'to_dict'`. Now routed
+   through the existing `HazardLocation.from_any()` (which already returns
+   `None` for unusable input). C5's own suite still passes unchanged.
+2. **Map keyed hazards off a key the manager does not emit.**
+   `HazardManager.snapshot()` publishes `active_events` but has no `attached`
+   key (that exists only in the C2 web payload), so the first guard silently
+   dropped every real hazard. Now accepts either shape and honours an explicit
+   `attached: false` as "no layer".
+
+Several test-side errors were also caught and corrected against the real API
+(`HazardKind.HUMAN` not `PERSON`; confidence travelling via `metadata`; the
+transform being anchored at the world origin) rather than by weakening tests.
+
+### 5. Safety / read-only
+
+* `amr/map/` imports **no** motor/PWM/serial/GPIO/robot-control module (a test
+  scans the package's imports).
+* The service never calls `tick`/`step`/`go_to`/`dispatch`; a test drives it 20×
+  and asserts the navigator recorded zero movement calls.
+* The dashboard gets the runtime's own navigator and never steps it, so the map
+  cannot move the robot.
+* A test reads `/map` and `/map.svg` 10× and asserts the mock serial transport
+  recorded **zero** writes.
+* Both routes are GET-only; POST returns 404/405.
+
+### 6. Verification
+
+| Check | Result |
+|---|---|
+| `python -m pytest` | **771 passed, 2 skipped, 0 failed** (3 consecutive clean runs) |
+| `tests/test_hazard.py` (C5) | 48 passed, unchanged |
+| `tests/test_web_server.py` | 45 passed, unchanged |
+| `python -m amr.hazard` | exit 0, `steps=4 failures=0` |
+| `python -m amr.hazard.vision` | exit 0 |
+| `python -m amr.warehouse` | exit 0, `completed=3 failed=0` |
+| `python -m amr.hazard.visualisation` | exit 0, valid SVG |
+| `python -m amr.main --mock --demo` | exit 0 |
+| live CLI `/map`, `/map.svg` | 200; waypoints from real config; valid SVG; malformed params → 200 |
+
+### 7. Hardware / firmware
+
+**REAL ROBOT: NOT TESTED. REAL RASPBERRY PI: NOT TESTED. REAL NAVIGATION
+HARDWARE: NOT TESTED. FIRMWARE: NOT TESTED (untouched).** Software-verified
+against mocks only.
+
+### 8. Known limitations
+
+* No shelf/rack/obstacle/boundary geometry exists in the project (see above).
+* Pose is `LocalNavigator` odometry, still unvalidated on hardware
+  (`robot.wheel_track_m` / `wheel_diameter_m` are `null`).
+* Dynamic ultrasonic obstacles are not mapped (C6 `ObstacleProvider` not wired
+  to the map).
+* 1 Hz polling; no WebSocket.
+
+### 9. Files changed
+
+New: `raspberry_pi/amr/map/{__init__,snapshot,transform,service}.py`,
+`raspberry_pi/tests/test_map.py`, `docs/map.md`.
+Modified: `amr/web/server.py`, `amr/main.py`, `amr/hazard/types.py` (the C5
+location-coercion fix), `docs/web_control.md`, `README.md`,
+`AI_CONTEXT/{ARCHITECTURE,CURRENT_STATUS,TASK_BOARD,HANDOFF}.md`.
+
+### 10. Commits
+
+| Commit | Contents |
+|---|---|
+| see §10 below | `feat(map): add live 2D warehouse map` |
+| (this commit) | `docs(ai-context): record C9 commit hash` |
+
+### 11. Next recommended task
+
+**C10 — 3D Digital Twin**, consuming the C9 `MapSnapshot` directly. The map state
+is already presentation-independent precisely so the 3D view does not re-derive
+it.
+
+---
+
 ## Session: C8 — Raspberry Pi camera monitoring abstraction
 
 **Agent:** cline · **Branch:** `main` · **Date:** 2026-09-24 ·
