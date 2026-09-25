@@ -792,3 +792,165 @@ class TestCameraMonitoringRoutes:
             except urllib.error.HTTPError:
                 pass
         assert len(mgr.test_transport.written) == before
+
+
+
+# --------------------------------------------------------------------------- #
+# C10 — 3D digital twin over the same MapSnapshot
+# --------------------------------------------------------------------------- #
+class TestDigitalTwinApi:
+    """``GET /digital-twin`` is read-only and derived from the C9 map state."""
+
+    def test_endpoint_returns_a_stable_schema(self, web):
+        _app, port, _mgr = web
+        status, ctype, raw = _get(port, "/digital-twin")
+        assert status == 200
+        assert "application/json" in ctype
+        body = json.loads(raw.decode("utf-8"))
+        for key in ("schema_version", "source", "coordinate_system",
+                    "geometry_disclaimer", "robot", "route", "path",
+                    "hazards", "unlocated", "zones", "waypoints", "floor",
+                    "safety", "renderer"):
+            assert key in body, f"missing twin key {key}"
+        assert body["schema_version"] == "1.0"
+
+    def test_no_data_is_reported_unavailable_not_simulation(self, web):
+        """This fixture wires no navigator or warehouse, so there is no pose.
+
+        C9's rule is that absent data reports UNAVAILABLE — never SIMULATION,
+        and never a fabricated robot. A mock *runtime* alone does not make
+        absent map data into simulated map data.
+        """
+        _app, port, _mgr = web
+        _s, _c, raw = _get(port, "/digital-twin")
+        body = json.loads(raw.decode("utf-8"))
+        assert body["source"] == "UNAVAILABLE"
+        assert body["robot"] is None
+        assert body["floor"]["available"] is False
+        assert body["renderer"]["library"] is None
+
+    def test_a_wired_runtime_is_labelled_simulation(self, config_dir):
+        """With a real (mock) navigator wired, the twin says SIMULATION."""
+        from amr.navigation import LocalNavigator
+        config = load_config(config_dir)
+        mgr, _transport = RobotManager.create_mock(config)
+        whcfg = config.warehouse
+        wheel_base = config.robot.wheel_track_m or whcfg.wheel_base_m
+        nav = LocalNavigator(
+            command=mgr.move,
+            start_pose=None,
+            wheel_base_m=wheel_base,
+            max_linear_speed=whcfg.task_speed,
+            max_angular_speed=whcfg.turn_speed,
+            max_pwm=mgr.drive.max_speed,
+        )
+        app = AMRWebApp(mgr, tick_hz=10.0, navigator=nav, warehouse=whcfg,
+                        simulated=True)
+        port = app.start(host="127.0.0.1", port=0)
+        mgr.start()
+        try:
+            _s, _c, raw = _get(port, "/digital-twin")
+            body = json.loads(raw.decode("utf-8"))
+            assert body["source"] == "SIMULATION"
+            assert body["robot"] is not None
+            assert body["renderer"]["library"] is None
+            # A robot drawn in the twin is never a real robot: the pose source
+            # tag is reported alongside it.
+            assert body["robot"]["source"] == "SIMULATION"
+        finally:
+            app.stop()
+            mgr.shutdown()
+
+    def test_coordinate_system_is_published(self, web):
+        _app, port, _mgr = web
+        _s, _c, raw = _get(port, "/digital-twin")
+        cs = json.loads(raw.decode("utf-8"))["coordinate_system"]
+        assert cs["units"] == "metres"
+        assert cs["source_yaw_units"] == "radians"
+        assert cs["up_axis"] == "z"
+
+    def test_geometry_is_disclosed_as_schematic(self, web):
+        _app, port, _mgr = web
+        _s, _c, raw = _get(port, "/digital-twin")
+        body = json.loads(raw.decode("utf-8"))
+        assert "no surveyed" in body["geometry_disclaimer"]
+
+    def test_twin_agrees_with_the_2d_map_on_the_robot_pose(self, web):
+        """The twin must be a view of MapSnapshot, not a second pose source."""
+        _app, port, _mgr = web
+        _s, _c, map_raw = _get(port, "/map")
+        _s, _c, twin_raw = _get(port, "/digital-twin")
+        m = json.loads(map_raw.decode("utf-8"))
+        t = json.loads(twin_raw.decode("utf-8"))
+        if m["robot"] is None:
+            assert t["robot"] is None
+        else:
+            # Same pose; the 3D view only applies the documented y negation.
+            assert t["robot"]["position"][0] == pytest.approx(m["robot"]["x"])
+            assert -t["robot"]["position"][1] == pytest.approx(m["robot"]["y"])
+            assert t["robot"]["yaw_rad"] == pytest.approx(m["robot"]["yaw"])
+
+    def test_twin_and_map_report_the_same_waypoints(self, web):
+        _app, port, _mgr = web
+        _s, _c, map_raw = _get(port, "/map")
+        _s, _c, twin_raw = _get(port, "/digital-twin")
+        m = json.loads(map_raw.decode("utf-8"))["warehouse"]["waypoints"]
+        t = json.loads(twin_raw.decode("utf-8"))["waypoints"]
+        assert [w["name"] for w in t] == [w["name"] for w in m]
+
+    def test_twin_shares_the_maps_source_tag(self, web):
+        _app, port, _mgr = web
+        _s, _c, map_raw = _get(port, "/map")
+        _s, _c, twin_raw = _get(port, "/digital-twin")
+        assert (json.loads(map_raw.decode("utf-8"))["source"]
+                == json.loads(twin_raw.decode("utf-8"))["source"])
+
+    def test_works_without_a_camera(self, web_no_camera):
+        """A missing camera must not break the twin."""
+        _app, port, _mgr = web_no_camera
+        status, _c, raw = _get(port, "/digital-twin")
+        assert status == 200
+        assert json.loads(raw.decode("utf-8"))["schema_version"] == "1.0"
+
+    def test_route_is_get_only(self, web):
+        _app, port, _mgr = web
+        # No POST surface can reach the twin, let alone the robot through it.
+        status, _body = _post(port, "/digital-twin", "{}")
+        assert status in (404, 405)
+
+    def test_reading_the_twin_never_writes_to_the_controller(self, web):
+        _app, port, mgr = web
+        before = len(mgr.test_transport.written)
+        for _ in range(5):
+            _get(port, "/digital-twin")
+            _get(port, "/map")
+        # The direct proof the twin has no control path.
+        assert len(mgr.test_transport.written) == before
+
+    def test_c9_endpoints_still_work(self, web):
+        _app, port, _mgr = web
+        for path in ("/telemetry", "/health", "/dashboard", "/map", "/map.svg"):
+            status, _c, _raw = _get(port, path)
+            assert status == 200, path
+
+    def test_dashboard_contains_the_twin_panel(self, web):
+        _app, port, _mgr = web
+        _s, _c, raw = _get(port, "/dashboard")
+        html = raw.decode("utf-8")
+        assert "3D Digital Twin" in html
+        assert 'id="t-canvas"' in html
+        assert 'id="t-src"' in html
+        assert 'id="t-safety"' in html
+        assert 'id="t-mission"' in html
+        # Visualisation-only controls: no actuation buttons.
+        for forbidden in ('id="forward"', 'id="backward"',
+                          'id="t-forward"', 'id="t-stop"'):
+            assert forbidden not in html
+
+    def test_twin_panels_are_fed_by_the_existing_poll(self, web):
+        """No second timer: the twin hooks into the dashboard's 1 Hz poll."""
+        _app, port, _mgr = web
+        _s, _c, raw = _get(port, "/dashboard")
+        html = raw.decode("utf-8")
+        assert "pollTwin" in html
+        assert 'fetch("/digital-twin"' in html

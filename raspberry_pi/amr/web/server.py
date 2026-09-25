@@ -71,7 +71,7 @@ from ..camera import CameraManager
 from ..camera.frame import CameraFrame, CameraStatus
 from ..hazard import HazardSeverity, HazardState
 from ..logging import get_logger
-from ..map import MapService
+from ..map import MapService, build_twin_state
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
 from ..telemetry import TelemetryCollector
@@ -459,6 +459,19 @@ class AMRWebApp:
                 self.log.warning("map render failed: %s", exc)
                 return None, 503
 
+    def digital_twin(self) -> dict:
+        """3D twin scene state for ``GET /digital-twin``.
+
+        Derived from the very same :class:`MapSnapshot` the 2D map renders, so
+        the two views cannot disagree: if ``MapSnapshot.robot`` moves, both the
+        2D marker and the 3D AMR move. Read-only — this builds a *description*
+        of the scene and never touches an actuator.
+        """
+        with self._lock:
+            snap = self.map.snapshot()
+            return build_twin_state(
+                snap, telemetry=self.telemetry, camera=self._camera).to_dict()
+
     # ------------------------------------------------------------------ #
     # C7 — read-only telemetry projection (no motor path whatsoever)
     # ------------------------------------------------------------------ #
@@ -746,6 +759,9 @@ class _Handler(BaseHTTPRequestHandler):
             # C9: the read-only map projection. World coordinates only; the
             # browser renders, it does not compute map semantics.
             self._send_json(self.app.map_snapshot())
+        elif path == "/digital-twin":
+            # C10: the 3D twin, derived from that same MapSnapshot.
+            self._send_json(self.app.digital_twin())
         elif path == "/map.svg":
             params = dict(urllib.parse.parse_qsl(query))
             width = _clamp_int(params.get("width"), 720, 240, 2000)
@@ -1192,6 +1208,15 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
 .map-empty { position: absolute; inset: 0; display: flex; align-items: center;
   justify-content: center; color: var(--dim); font-style: italic; font-size: 12px; }
 .map-note { color: var(--dim); font-size: 11px; margin: 8px 0 0; }
+/* C10 twin panel. The canvas is sized by CSS so the WebGL viewport follows the
+   card; the drawing buffer is resized in JS whenever the CSS size changes. */
+.twin-card { display: flex; flex-direction: column; }
+.twin-view { position: relative; background: #070b12; border: 1px solid var(--line);
+  border-radius: 8px; overflow: hidden; aspect-ratio: 4 / 3; }
+.twin-view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.twin-legend { position: absolute; left: 8px; bottom: 8px; font-size: 10px;
+  color: #94a3b8; background: rgba(7, 11, 18, .72); padding: 6px 8px;
+  border-radius: 6px; line-height: 1.5; pointer-events: none; }
 footer { padding: 10px 20px 24px; color: var(--dim); font-size: 12px; }
 a { color: var(--sim); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
@@ -1301,6 +1326,40 @@ a { color: var(--sim); }
     <p class="map-note" id="m-note"></p>
   </section>
 
+  <section class="card twin-card">
+    <h2>3D Digital Twin</h2>
+    <div class="map-toolbar">
+      <span id="t-src" class="badge b-dim">SOURCE &mdash;</span>
+      <span id="t-safety" class="badge b-dim">SAFETY &mdash;</span>
+      <span id="t-mission" class="badge b-dim">MISSION &mdash;</span>
+      <button type="button" id="t-iso" class="map-btn">Isometric</button>
+      <button type="button" id="t-top" class="map-btn">Top</button>
+      <button type="button" id="t-front" class="map-btn">Front</button>
+      <button type="button" id="t-reset" class="map-btn">Reset view</button>
+      <button type="button" id="t-follow" class="map-btn" aria-pressed="false">Follow</button>
+      <button type="button" id="t-route" class="map-btn" aria-pressed="true">Route</button>
+      <button type="button" id="t-path" class="map-btn" aria-pressed="true">Path</button>
+      <button type="button" id="t-haz" class="map-btn" aria-pressed="true">Hazards</button>
+      <button type="button" id="t-labels" class="map-btn" aria-pressed="true">Labels</button>
+    </div>
+    <div class="twin-view">
+      <canvas id="t-canvas" aria-label="3D digital twin of the AMR"></canvas>
+      <div id="t-fallback" class="map-empty" hidden>
+        3D rendering is unavailable in this browser (WebGL not supported).
+        The 2D map and all telemetry above remain fully functional.
+      </div>
+      <div id="t-legend" class="twin-legend" hidden></div>
+    </div>
+    <dl class="kv">
+      <dt>Robot</dt><dd id="t-robot">&mdash;</dd>
+      <dt>Goal</dt><dd id="t-goal">&mdash;</dd>
+      <dt>Hazards</dt><dd id="t-hazards">&mdash;</dd>
+      <dt>Unplaced</dt><dd id="t-unplaced">&mdash;</dd>
+      <dt>Geometry</dt><dd id="t-geo">&mdash;</dd>
+    </dl>
+    <p class="map-note" id="t-note"></p>
+  </section>
+
   <section class="card">
     <h2>System</h2>
     <dl class="kv">
@@ -1322,6 +1381,577 @@ __DASHBOARD_JS__
 
 DASHBOARD_JS = """<script>
 "use strict";
+// ------------------------------------------------------------------------ //
+// C10 — 3D DIGITAL TWIN. READ-ONLY: this only ever issues GET /digital-twin.
+//
+// Raw WebGL, no Three.js and no build step. That is a deliberate choice: the
+// project ships zero frontend dependencies and must run from one self-contained
+// Python process on a Raspberry Pi with no npm, no CDN and no network. WebGL is
+// built into every browser, so a small hand-written renderer is both lighter
+// and more portable here.
+//
+// The scene arrives already in renderer coordinates. The world -> 3D mapping
+// (three.x = world.x, three.y = -world.y, rotation_z = -yaw) is done ONCE on the
+// server in amr/map/twin.py and unit tested there; this file only consumes it,
+// so the 2D and 3D views can never disagree about where the robot is.
+// ------------------------------------------------------------------------ //
+var TWIN = {
+  state: null, gl: null, canvas: null,
+  yaw: 0.9, pitch: 0.62, dist: 9.0,
+  target: [0, 0, 0],
+  showRoute: true, showPath: true, showHazards: true, showLabels: true,
+  follow: false, dragging: false, lx: 0, ly: 0,
+  ready: false, labelAt: []
+};
+
+// NOTE: the join below uses an escaped backslash-n. This document is a Python
+// string, so a bare one would become a real newline inside the JS string
+// literal and break the entire dashboard script.
+var T_VS = [
+  "attribute vec3 aPos;",
+  "attribute vec3 aCol;",
+  "uniform mat4 uMVP;",
+  "varying vec3 vCol;",
+  "void main(){ vCol = aCol; gl_Position = uMVP * vec4(aPos, 1.0); }"
+].join("\\n");
+
+var T_FS = [
+  "precision mediump float;",
+  "varying vec3 vCol;",
+  "uniform float uAlpha;",
+  "void main(){ gl_FragColor = vec4(vCol, uAlpha); }"
+].join("\\n");
+
+function tCompile(gl, type, src) {
+  var s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    // Surface the real reason rather than rendering a blank canvas silently.
+    console.error("twin shader:", gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+// -- tiny matrix helpers (column-major, WebGL order) --------------------- //
+function tMul(a, b) {
+  var o = new Float32Array(16);
+  for (var c = 0; c < 4; c++) {
+    for (var r = 0; r < 4; r++) {
+      o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] +
+                     a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+    }
+  }
+  return o;
+}
+function tPersp(fovy, aspect, near, far) {
+  var f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+  return new Float32Array([f / aspect,0,0,0, 0,f,0,0,
+                           0,0,(far + near) * nf,-1, 0,0,2 * far * near * nf,0]);
+}
+function tLookAt(eye, at, up) {
+  var z = tNorm(tSub(eye, at));
+  var x = tNorm(tCross(up, z));
+  var y = tCross(z, x);
+  return new Float32Array([
+    x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0,
+    -tDot(x, eye), -tDot(y, eye), -tDot(z, eye), 1]);
+}
+function tSub(a, b) { return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
+function tCross(a, b) {
+  return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+}
+function tDot(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+function tNorm(v) {
+  var l = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0]/l, v[1]/l, v[2]/l];
+}
+function tRotZ(deg) {
+  var a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  // 2D rotation embedded in the z plane, then translated by the caller.
+  return [c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+}
+function tTrans(x, y, z) {
+  return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]);
+}
+function tScale(x, y, z) {
+  return new Float32Array([x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1]);
+}
+
+// -- primitive geometry (position + colour, triangle soup) --------------- //
+function tBox(sx, sy, sz, col, m) {
+  var hx = sx / 2, hy = sy / 2, hz = sz / 2;
+  var v = [[-hx,-hy,-hz],[hx,-hy,-hz],[hx,hy,-hz],[-hx,hy,-hz],
+           [-hx,-hy, hz],[hx,-hy, hz],[hx,hy, hz],[-hx,hy, hz]];
+  var f = [[0,1,2,3],[4,7,6,5],[0,4,5,1],[3,2,6,7],[0,3,7,4],[1,5,6,2]];
+  // A touch of face shading so the chassis reads as a solid, not a silhouette.
+  var shade = [0.78, 0.92, 0.66, 1.0, 0.86, 0.72];
+  var tris = [];
+  for (var i = 0; i < f.length; i++) {
+    var c = f[i], k = shade[i];
+    for (var j = 1; j < 3; j++) {
+      tris.push([tXform(m, v[c[0]]), tXform(m, v[c[j]]), tXform(m, v[c[j + 1]])]);
+    }
+    void k;
+  }
+  return tEmit(tris, col);
+}
+function tCyl(r, h, seg, col, m) {
+  var tris = [];
+  for (var i = 0; i < seg; i++) {
+    var a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
+    var p0 = [Math.cos(a0) * r, Math.sin(a0) * r], p1 = [Math.cos(a1) * r, Math.sin(a1) * r];
+    tris.push([tXform(m, [p0[0], p0[1], 0]), tXform(m, [p0[0], p0[1], h]),
+               tXform(m, [p1[0], p1[1], 0])]);
+    tris.push([tXform(m, [p1[0], p1[1], 0]), tXform(m, [p0[0], p0[1], h]),
+               tXform(m, [p1[0], p1[1], h])]);
+  }
+  return tEmit(tris, col);
+}
+function tQuad(lo, hi, col, m) {
+  var z0 = 0, z1 = (hi && hi[2] !== undefined) ? hi[2] : 0.05;
+  var p = [[lo[0], lo[1], z0], [hi[0], lo[1], z0], [hi[0], hi[1], z0], [lo[0], hi[1], z0],
+           [lo[0], lo[1], z1], [hi[0], lo[1], z1], [hi[0], hi[1], z1], [lo[0], hi[1], z1]];
+  var f = [[0,1,2,3],[4,7,6,5],[0,4,5,1],[3,2,6,7],[0,3,7,4],[1,5,6,2]];
+  var tris = [];
+  for (var i = 0; i < f.length; i++) {
+    var c = f[i];
+    tris.push([tXform(m, p[c[0]]), tXform(m, p[c[j = 1]]), tXform(m, p[c[2]])]);
+    tris.push([tXform(m, p[c[0]]), tXform(m, p[c[2]]), tXform(m, p[c[3]])]);
+  }
+  return tEmit(tris, col);
+}
+function tLine(pts, col, m, w) {
+  // A polyline drawn as a thin ground ribbon: no line-width extension needed.
+  var tris = [], w2 = (w || 0.04) / 2;
+  for (var i = 0; i + 1 < pts.length; i++) {
+    var a = pts[i], b = pts[i + 1];
+    var dx = b[0] - a[0], dy = b[1] - a[1];
+    var len = Math.hypot(dx, dy) || 1;
+    var nx = -dy / len * w2, ny = dx / len * w2;
+    var z = 0.012;
+    var q = [[a[0]+nx,a[1]+ny,z],[a[0]-nx,a[1]-ny,z],[b[0]-nx,b[1]-ny,z],[b[0]+nx,b[1]+ny,z]];
+    tris.push([tXform(m,q[0]), tXform(m,q[1]), tXform(m,q[2])]);
+    tris.push([tXform(m,q[0]), tXform(m,q[2]), tXform(m,q[3])]);
+  }
+  return tEmit(tris, col);
+}
+function tXform(m, v) {
+  if (!m) return [v[0], v[1], v[2] || 0];
+  return [m[0]*v[0] + m[4]*v[1] + m[8]*(v[2]||0) + m[12],
+          m[1]*v[0] + m[5]*v[1] + m[9]*(v[2]||0) + m[13],
+          m[2]*v[0] + m[6]*v[1] + m[10]*(v[2]||0) + m[14]];
+}
+function tEmit(tris, col) {
+  var pos = [], colr = [];
+  for (var i = 0; i < tris.length; i++) {
+    for (var j = 0; j < 3; j++) {
+      pos.push(tris[i][j][0], tris[i][j][1], tris[i][j][2]);
+      colr.push(col[0], col[1], col[2]);
+    }
+  }
+  return { pos: new Float32Array(pos), col: new Float32Array(colr),
+           n: tris.length * 3 };
+}
+function tMesh(parts) {
+  var pos = [], colr = [], n = 0;
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i];
+    if (!p || !p.n) continue;
+    pos = pos.concat(Array.from(p.pos));
+    colr = colr.concat(Array.from(p.col));
+    n += p.n;
+  }
+  return { pos: new Float32Array(pos), col: new Float32Array(colr), n: n };
+}
+
+var T_COL = {
+  floor: [0.09, 0.12, 0.17], grid: [0.16, 0.21, 0.29],
+  chassis: [0.13, 0.77, 0.37], deck: [0.10, 0.55, 0.28],
+  wheel: [0.08, 0.09, 0.12], camera: [0.22, 0.56, 0.98],
+  sensor: [0.85, 0.62, 0.11], mount: [0.45, 0.50, 0.58],
+  waypoint: [0.22, 0.74, 0.97], dock: [0.34, 0.85, 0.55],
+  pickup: [0.56, 0.40, 0.96], drop: [0.96, 0.65, 0.20],
+  route: [0.22, 0.74, 0.97], path: [0.35, 0.40, 0.48],
+  goal: [0.66, 0.33, 0.97], hazard: [0.96, 0.65, 0.15],
+  hazardCrit: [0.94, 0.27, 0.27], zone: [0.96, 0.62, 0.11]
+};
+
+// -- scene assembly from the server's twin state -------------------------- //
+function tBuildScene(s) {
+  var parts = [], labels = [];
+  if (!s) return { mesh: null, labels: labels };
+
+  // Floor: the real data extent, plus a metric grid for scale.
+  if (s.floor && s.floor.available && s.floor.corners.length === 4) {
+    var c = s.floor.corners;
+    parts.push(tQuad(c[0], c[2], T_COL.floor, null));
+    var step = 1.0;
+    for (var x = Math.ceil(Math.min(c[0][0], c[2][0]));
+         x <= Math.max(c[0][0], c[2][0]); x += step) {
+      parts.push(tLine([[x, Math.min(c[0][1], c[2][1])],
+                        [x, Math.max(c[0][1], c[2][1])]], T_COL.grid, null, 0.01));
+    }
+    for (var y = Math.ceil(Math.min(c[0][1], c[2][1]));
+         y <= Math.max(c[0][1], c[2][1]); y += step) {
+      parts.push(tLine([[Math.min(c[0][0], c[2][0]), y],
+                        [Math.max(c[0][0], c[2][0]), y]], T_COL.grid, null, 0.01));
+    }
+  }
+
+  // Restricted / hazard zones as low slabs.
+  for (var z = 0; z < (s.zones || []).length; z++) {
+    var zn = s.zones[z];
+    parts.push(tQuad(zn.min, zn.max, T_COL.zone, null));
+    if (TWIN.showLabels) {
+      labels.push({ p: [zn.min[0], zn.min[1], zn.height_m + 0.10],
+                   text: zn.name + (zn.severity ? " (" + zn.severity + ")" : ""),
+                   col: T_COL.zone });
+    }
+  }
+
+  // Waypoints, coloured by the role the server derived from the name.
+  var roleCol = { dock: T_COL.dock, pickup: T_COL.pickup, drop: T_COL.drop };
+  for (var w = 0; w < (s.waypoints || []).length; w++) {
+    var wp = s.waypoints[w];
+    var col = roleCol[wp.role] || T_COL.waypoint;
+    var m = tTrans(wp.position[0], wp.position[1], 0);
+    parts.push(tCyl(wp.radius, 0.02, 14, col, m));
+    if (TWIN.showLabels) {
+      labels.push({ p: [wp.position[0], wp.position[1], 0.30],
+                   text: wp.name, col: col });
+    }
+  }
+
+  // Route and travelled path (the bounded C9 trail).
+  if (TWIN.showRoute && (s.route || []).length > 1) {
+    parts.push(tLine(s.route, T_COL.route, null, 0.07));
+  }
+  if (TWIN.showPath && (s.path || []).length > 1) {
+    parts.push(tLine(s.path, T_COL.path, null, 0.05));
+  }
+
+  // Goal.
+  if (s.goal) {
+    var gm = tMul(tTrans(s.goal.position[0], s.goal.position[1], 0.0),
+                  tRotZ(s.goal.rotation_z_deg || 0));
+    parts.push(tCyl(s.goal.radius, 0.03, 16, T_COL.goal, gm));
+    if (TWIN.showLabels) {
+      labels.push({ p: [s.goal.position[0], s.goal.position[1], 0.42],
+                   text: "GOAL " + s.goal.name, col: T_COL.goal });
+    }
+  }
+
+  // Hazards -- only those the server placed (real world location).
+  if (TWIN.showHazards) {
+    for (var h = 0; h < (s.hazards || []).length; h++) {
+      var hz = s.hazards[h];
+      var hc = hz.critical ? T_COL.hazardCrit : T_COL.hazard;
+      parts.push(tCyl(hz.radius_m, hz.height_m, 14, hc,
+                      tTrans(hz.position[0], hz.position[1], 0.0)));
+      parts.push(tCyl(hz.radius_m * 0.6, hz.height_m * 0.6, 10,
+                      [1, 1, 1],
+                      tTrans(hz.position[0], hz.position[1], hz.height_m * 0.4)));
+      if (TWIN.showLabels) {
+        var txt = hz.kind + (isNum(hz.confidence)
+          ? " " + hz.confidence.toFixed(2) : "");
+        labels.push({ p: [hz.position[0], hz.position[1], hz.height_m + 0.12],
+                     text: txt, col: hc });
+      }
+    }
+  }
+
+  // The AMR: chassis, deck, four wheels, camera, sensor, mount -- all rotated
+  // by the runtime's real yaw (already converted server-side).
+  if (s.robot) {
+    var rm = tMul(tTrans(s.robot.position[0], s.robot.position[1], 0.0),
+                  tRotZ(s.robot.rotation_z_deg || 0));
+    var mo = s.robot.model || {};
+    var ch = mo.chassis || { size: [0.6, 0.4, 0.28], center_z: 0.22 };
+    var dm = tMul(rm, tTrans(0, 0, ch.center_z));
+    parts.push(tBox(ch.size[0], ch.size[1], ch.size[2], T_COL.chassis, dm));
+    if (mo.deck) {
+      parts.push(tBox(mo.deck.size[0], mo.deck.size[1], mo.deck.size[2],
+                      T_COL.deck, tMul(rm, tTrans(0, 0, mo.deck.center_z))));
+    }
+    var wheels = mo.wheels || [];
+    for (var i = 0; i < wheels.length; i++) {
+      var wpw = wheels[i];
+      parts.push(tCyl(wpw.radius, wpw.width, 12, T_COL.wheel,
+                      tMul(rm, tTrans(wpw.position[0], wpw.position[1],
+                                      wpw.position[2]))));
+    }
+    if (mo.camera) {
+      // A sensor *model*, never live imagery.
+      parts.push(tBox(mo.camera.size[0], mo.camera.size[1], mo.camera.size[2],
+                      T_COL.camera, tMul(rm, tTrans(mo.camera.position[0],
+                                                      mo.camera.position[1],
+                                                      mo.camera.position[2]))));
+    }
+    if (mo.sensor) {
+      parts.push(tCyl(mo.sensor.radius, mo.sensor.height, 10, T_COL.sensor,
+                      tMul(rm, tTrans(mo.sensor.position[0], mo.sensor.position[1],
+                                      mo.sensor.position[2]))));
+    }
+    if (mo.manipulator_mount) {
+      parts.push(tBox(mo.manipulator_mount.size[0],
+                      mo.manipulator_mount.size[1],
+                      mo.manipulator_mount.size[2], T_COL.mount,
+                      tMul(rm, tTrans(mo.manipulator_mount.position[0],
+                                      mo.manipulator_mount.position[1],
+                                      mo.manipulator_mount.position[2]))));
+    }
+    // Forward indicator: proves orientation is visible even from directly above.
+    parts.push(tBox(0.16, 0.05, 0.03, [1, 1, 1],
+                    tMul(rm, tTrans(ch.size[0] / 2 + 0.06, 0, ch.center_z))));
+  }
+  return { mesh: tMesh(parts), labels: labels };
+}
+
+// -- WebGL plumbing ------------------------------------------------------- //
+function tInit() {
+  var canvas = document.getElementById("t-canvas");
+  var fallback = document.getElementById("t-fallback");
+  if (!canvas) return false;
+  var opts = { antialias: true, alpha: false, preserveDrawingBuffer: false };
+  var gl = null;
+  try {
+    gl = canvas.getContext("webgl", opts) || canvas.getContext("experimental-webgl", opts);
+  } catch (e) { gl = null; }
+  if (!gl) {
+    // Honest degradation: say so instead of showing an empty black box.
+    if (fallback) fallback.hidden = false;
+    canvas.style.display = "none";
+    return false;
+  }
+  var vs = tCompile(gl, gl.VERTEX_SHADER, T_VS);
+  var fs = tCompile(gl, gl.FRAGMENT_SHADER, T_FS);
+  if (!vs || !fs) {
+    if (fallback) fallback.hidden = false;
+    return false;
+  }
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error("twin link:", gl.getProgramInfoLog(prog));
+    if (fallback) fallback.hidden = false;
+    return false;
+  }
+  TWIN.gl = gl;
+  TWIN.canvas = canvas;
+  TWIN.prog = prog;
+  TWIN.aPos = gl.getAttribLocation(prog, "aPos");
+  TWIN.aCol = gl.getAttribLocation(prog, "aCol");
+  TWIN.uMVP = gl.getUniformLocation(prog, "uMVP");
+  TWIN.uAlpha = gl.getUniformLocation(prog, "uAlpha");
+  TWIN.bufPos = gl.createBuffer();
+  TWIN.bufCol = gl.createBuffer();
+  gl.enable(gl.DEPTH_TEST);
+  TWIN.ready = true;
+  return true;
+}
+
+function tUpload(mesh) {
+  var gl = TWIN.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER, TWIN.bufPos);
+  gl.bufferData(gl.ARRAY_BUFFER, mesh.pos, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(TWIN.aPos);
+  gl.vertexAttribPointer(TWIN.aPos, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, TWIN.bufCol);
+  gl.bufferData(gl.ARRAY_BUFFER, mesh.col, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(TWIN.aCol);
+  gl.vertexAttribPointer(TWIN.aCol, 3, gl.FLOAT, false, 0, 0);
+}
+
+function tDraw() {
+  var gl = TWIN.gl, canvas = TWIN.canvas;
+  if (!gl || !canvas) return;
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  var w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+  var h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w; canvas.height = h;
+  }
+  gl.viewport(0, 0, w, h);
+  gl.clearColor(0.027, 0.043, 0.071, 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  if (!TWIN.state) return;
+  var scene = tBuildScene(TWIN.state);
+  if (!scene.mesh || !scene.mesh.n) return;
+  tUpload(scene.mesh);
+
+  var t = TWIN.target;
+  var eye = [
+    t[0] + TWIN.dist * Math.cos(TWIN.pitch) * Math.cos(TWIN.yaw),
+    t[1] + TWIN.dist * Math.cos(TWIN.pitch) * Math.sin(TWIN.yaw),
+    t[2] + TWIN.dist * Math.sin(TWIN.pitch)
+  ];
+  var aspect = w / Math.max(1, h);
+  var mvp = tMul(tPersp(50 * Math.PI / 180, aspect, 0.1, 200.0),
+                 tLookAt(eye, t, [0, 0, 1]));
+
+  gl.useProgram(TWIN.prog);
+  gl.uniformMatrix4fv(TWIN.uMVP, false, mvp);
+  gl.uniform1f(TWIN.uAlpha, 1.0);
+  gl.drawArrays(gl.TRIANGLES, 0, scene.mesh.n);
+  TWIN.labelAt = scene.labels;
+  tUpdateLegend();
+}
+
+function tUpdateLegend() {
+  var el = document.getElementById("t-legend");
+  if (!el) return;
+  if (!TWIN.showLabels) { el.hidden = true; return; }
+  var s = TWIN.state;
+  if (!s) { el.hidden = true; return; }
+  var roleName = { dock: "dock / charging", pickup: "pickup", drop: "drop" };
+  var lines = ["<b>legend</b>"];
+  var seen = {};
+  for (var i = 0; i < (s.waypoints || []).length; i++) {
+    var r = s.waypoints[i].role;
+    if (!seen[r]) {
+      seen[r] = 1;
+      lines.push("&#9679; " + (roleName[r] || "waypoint"));
+    }
+  }
+  if ((s.route || []).length > 1) lines.push("&#9472; planned route");
+  if ((s.path || []).length > 1) lines.push("&#183; travelled path");
+  if (s.goal) lines.push("&#9673; goal");
+  if ((s.hazards || []).length) lines.push("&#9679; hazard (placed)");
+  if ((s.unlocated || []).length) {
+    lines.push("&#9679; " + s.unlocated.length + " hazard(s) unlocated");
+  }
+  el.innerHTML = lines.join("<br>");
+  el.hidden = false;
+}
+
+function tResetView() {
+  TWIN.yaw = 0.9;
+  TWIN.pitch = 0.62;
+  TWIN.dist = 9.0;
+  TWIN.target = [0, 0, 0];
+}
+
+function tPoll() {
+  // Read-only: the only request the twin ever makes.
+  fetch("/digital-twin", { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (s) {
+      if (!s) return;
+      TWIN.state = s;
+      // "Follow" keeps the camera locked on the AMR; otherwise frame the data.
+      if (TWIN.follow && s.robot) {
+        TWIN.target = [s.robot.position[0], s.robot.position[1], 0.3];
+        TWIN.dist = 4.0;
+      } else if (s.floor && s.floor.available) {
+        var c = s.floor.corners;
+        if (c.length === 4) {
+          var cx = (c[0][0] + c[2][0]) / 2, cy = (c[0][1] + c[2][1]) / 2;
+          var span = Math.max(
+            Math.abs(c[2][0] - c[0][0]), Math.abs(c[2][1] - c[0][1]), 2.0);
+          TWIN.target = [cx, cy, 0.2];
+          TWIN.dist = Math.max(4.0, span * 1.8);
+        }
+      }
+      tRenderStatus(s);
+      tDraw();
+    })
+    .catch(function () { /* the twin must never break the rest of the panel */ });
+}
+
+function tRenderStatus(s) {
+  txt("t-src", s.source || "UNAVAILABLE");
+  var sf = s.safety || {};
+  var sb = document.getElementById("t-safety");
+  if (sb) {
+    sb.textContent = "SAFETY " + (sf.action || sf.state || "unknown") +
+      (sf.emergency_stop ? " / E-STOP" : "");
+    sb.className = "badge " + (sf.emergency_stop || sf.latched ? "b-crit" : "b-dim");
+  }
+  var m = s.mission || {};
+  txt("t-mission", m.current_task
+    ? (m.current_task + (m.current_task_status ? " (" + m.current_task_status + ")" : ""))
+    : (m.mission_id || "no active mission"));
+  txt("t-robot", s.robot
+    ? "(" + (-s.robot.position[1]).toFixed(2) + ", " + s.robot.position[0].toFixed(2) +
+      ") m  yaw " + s.robot.yaw_rad.toFixed(2) + " rad"
+    : "not available");
+  txt("t-goal", s.goal ? s.goal.name : "none");
+  txt("t-hazards", s.hazards.length ? s.hazards.length + " placed in world" : "none placed");
+  txt("t-unplaced", s.unlocated.length
+    ? s.unlocated.length + " (no world location)" : "none");
+  txt("t-geo", s.floor && s.floor.available
+    ? "schematic - data extent " + s.floor.size_m.map(function (v) {
+        return v.toFixed(1); }).join(" x ") + " m"
+    : "not available");
+  var note = document.getElementById("t-note");
+  if (note) note.textContent = s.geometry_disclaimer || "";
+}
+
+function tInitControls() {
+  var canvas = document.getElementById("t-canvas");
+  if (canvas) {
+    canvas.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      TWIN.dist = Math.max(1.2, Math.min(40, TWIN.dist * (e.deltaY < 0 ? 0.9 : 1.1)));
+      tDraw();
+    }, { passive: false });
+    canvas.addEventListener("pointerdown", function (e) {
+      TWIN.dragging = true; TWIN.lx = e.clientX; TWIN.ly = e.clientY;
+      if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      if (!TWIN.dragging) return;
+      // Orbit: horizontal drag spins the camera, vertical drag changes pitch.
+      TWIN.yaw -= (e.clientX - TWIN.lx) * 0.01;
+      TWIN.pitch = Math.max(0.08, Math.min(1.5,
+        TWIN.pitch + (e.clientY - TWIN.ly) * 0.008));
+      TWIN.lx = e.clientX; TWIN.ly = e.clientY;
+      tDraw();
+    });
+    var stop = function (e) {
+      TWIN.dragging = false;
+      if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId);
+      }
+    };
+    canvas.addEventListener("pointerup", stop);
+    canvas.addEventListener("pointercancel", stop);
+  }
+  function bind(id, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("click", fn);
+  }
+  function toggle(id, key) {
+    bind(id, function () {
+      TWIN[key] = !TWIN[key];
+      var el = document.getElementById(id);
+      if (el) el.setAttribute("aria-pressed", TWIN[key] ? "true" : "false");
+      tDraw();
+    });
+  }
+  bind("t-reset", function () { tResetView(); tDraw(); });
+  bind("t-iso", function () { TWIN.yaw = 0.9; TWIN.pitch = 0.62; tDraw(); });
+  bind("t-top", function () { TWIN.yaw = 0.0; TWIN.pitch = 1.5; tDraw(); });
+  bind("t-front", function () { TWIN.yaw = 0.0; TWIN.pitch = 0.15; tDraw(); });
+  bind("t-follow", function () {
+    TWIN.follow = !TWIN.follow;
+    var el = document.getElementById("t-follow");
+    if (el) el.setAttribute("aria-pressed", TWIN.follow ? "true" : "false");
+    tPoll();
+  });
+  toggle("t-route", "showRoute");
+  toggle("t-path", "showPath");
+  toggle("t-haz", "showHazards");
+  toggle("t-labels", "showLabels");
+}
+
+
+
 // ------------------------------------------------------------------------ //
 // C9 — live 2D map. READ-ONLY: this only ever issues GET /map.
 // ------------------------------------------------------------------------ //
@@ -1715,11 +2345,14 @@ function poll() {
       c.textContent = "NO DATA";
       c.className = "badge b-crit";
     });
-  // The map rides the same 1 Hz tick rather than adding a second timer, which
-  // keeps a Raspberry Pi dashboard to one polling loop.
+  // The map and the 3D twin ride the same 1 Hz tick rather than adding their
+  // own timers, which keeps a Raspberry Pi dashboard to one polling loop.
   pollMap();
+  pollTwin();
 }
 
+tInitControls();
+if (tInit()) { tResetView(); }
 initMapControls();
 poll();
 setInterval(poll, POLL_MS);

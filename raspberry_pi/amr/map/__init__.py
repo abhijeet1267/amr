@@ -50,8 +50,23 @@ from .transform import DEFAULT_PATH_LIMIT, MapTransform, PathHistory
 # Imported last: MapService builds on the two modules above.
 from .service import MapService  # noqa: E402  (circular-import-free by design)
 
+# C10: the 3D twin derives from MapSnapshot, so it must load after it.
+from .twin import (  # noqa: E402
+    GEOMETRY_DISCLAIMER,
+    ROBOT_LENGTH_M,
+    TWIN_COORDINATE_SYSTEM,
+    TWIN_SCHEMA_VERSION,
+    DigitalTwinState,
+    build_twin_state,
+    robot_model,
+    world_to_three,
+    yaw_to_rotation_z,
+)
+
 __all__ = [
     "DEFAULT_PATH_LIMIT",
+    "DigitalTwinState",
+    "GEOMETRY_DISCLAIMER",
     "LIVE",
     "MAP_SCHEMA_VERSION",
     "MapGoal",
@@ -68,17 +83,24 @@ __all__ = [
     "MapService",
     "NO_STATIC_GEOMETRY",
     "PathHistory",
+    "ROBOT_LENGTH_M",
     "SIMULATION",
+    "TWIN_COORDINATE_SYSTEM",
+    "TWIN_SCHEMA_VERSION",
     "UNAVAILABLE",
     "bounds_for",
     "build_map_snapshot",
+    "build_twin_state",
     "enum_str",
     "goal_from",
     "hazards_from",
     "is_num",
     "robot_from",
+    "robot_model",
     "route_from",
     "source_tag",
     "waypoints_from",
+    "world_to_three",
+    "yaw_to_rotation_z",
     "zones_from",
 ]
