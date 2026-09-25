@@ -5,6 +5,106 @@
 
 ---
 
+## Session: C13 — Camera + hazard overlays
+
+**Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
+
+### What C13 implemented
+
+`amr/camera/overlay.py` turns the bbox C5 already stores in hazard metadata into
+`GET /camera/overlay`, which the dashboard draws as SVG rects over the camera
+image (class + confidence label, colour by kind, dashed when partially outside
+the frame).
+
+**The coordinate rule, enforced and tested:** a bbox is image space (pixels) and
+is never a warehouse coordinate. `OverlayBox` reuses the existing validated
+`VisionBoundingBox` (no second box type), has **no world field at all**, and
+serialises the geometry as `image_bbox` with `"space": "image"`. The payload
+publishes `world_transform: null` because the project stores no camera
+calibration. A source-level test fails if an `image_to_world` /
+`metres_per_pixel`-style helper ever appears.
+
+Events sort into four distinct buckets: drawable `boxes`, `world_located`
+(belongs on the C9 map, never on the image), `without_bbox`, `other_source`.
+
+### Two real findings
+
+1. **C5's named scenarios had no bbox at all** — only `without_location`
+   carried one. Four deterministic bbox scenarios were added
+   (`person_bbox`, `bbox_multiple`, `bbox_partially_outside`,
+   `bbox_world_and_image`) without altering the original twelve.
+2. **Pre-existing config bug:** `config/robot.yaml` places `camera:` as a
+   *sibling* of `robot:`, but the loader read only `robot.camera`. Every camera
+   setting in the shipped config had always been silently ignored. Verified
+   against the C7 baseline; fixed with a fallback that accepts both layouts,
+   plus a regression test.
+
+### Camera identity
+
+`CameraFrame.source` is a backend name (`SimulatedCamera`); a detection's
+`source` is a camera identity (`camera_front`). These are different, and
+painting one camera's detections onto another's image would be a lie. The
+overlay takes an explicit `camera_id` (new optional `CameraConfig.camera_id`,
+default `None`) and records a mismatch in `other_source` rather than drawing it.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `amr/camera/overlay.py` | **new** — `OverlayBox`, `CameraOverlay`, `build_camera_overlay` (display-only) |
+| `amr/camera/__init__.py` | overlay exports |
+| `amr/hazard/vision.py` | +4 bbox scenarios (original 12 untouched) |
+| `amr/web/server.py` | `camera_overlay()` + `GET /camera/overlay` + dashboard SVG layer + JS |
+| `amr/utils/config.py` | `CameraConfig.camera_id`; **fixes the ignored-camera-config bug** |
+| `amr/main.py` | passes `camera_id` into `AMRWebApp` |
+| `tests/test_camera_overlay.py` | **new** — 40 tests |
+| `tests/test_web_server.py` | +13 overlay route / read-only tests |
+| `tests/test_vision.py` | scenario-set assertion (documented, see below) |
+| `tests/test_config.py` | +4 camera config tests |
+| `docs/camera_overlay.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+
+### Tests
+
+| Command | Result |
+|---|---|
+| `python -m pytest tests/test_camera_overlay.py` | **40 passed** |
+| `python -m pytest` (full) | **973 passed, 2 skipped, 0 failed** (910 → +63) |
+| `node --check` (C11 guard) | OK |
+| Live HTTP smoke | 3 boxes drawn, confidences 0.90/0.88/0.77 preserved, `world_transform: null` |
+
+**Hardware tested: NO. Firmware touched: NO.**
+
+### Existing test modified (disclosed)
+
+`tests/test_vision.py::test_all_twelve_scenarios_are_available` asserted
+`len(SIMULATED_SCENARIOS) == 12`. C13 adds four scenarios, so it became three
+tests: every original C5 scenario is still present (the original semantic), the
+four C13 ones are present, and the set is *exactly* the documented union of 16.
+The strictness is preserved — nothing can be silently removed.
+
+### Safety
+
+Display-only. No POST route added. A source-level test parses the overlay
+module and fails on `serial` / `RPi` / `gpio` / `smbus` / `socket` / `threading`
+imports or actuator vocabulary. A runtime test asserts repeated overlay reads
+write **zero** bytes to the mock transport.
+
+### Known limitations
+
+- No hardware, no accuracy claim. No camera calibration, so image→world is
+  genuinely absent by design.
+- The legacy `CameraManager` path exposes no `CameraFrame` metadata, so the
+  overlay reports null dimensions rather than guessing.
+- No per-frame tracking or smoothing; multi-camera is modelled, not deployed.
+
+### Next recommended task
+
+**C14 — historical replay** (event/telemetry recording + play/pause/speed
+controls). Everything it needs already exists: hazard events are logged, the
+map has a bounded path history, and the dashboard has a single read-only poll.
+
+---
+
 ## Session: C12 — Mission monitoring
 
 **Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
@@ -61,7 +161,7 @@ On top of the fix:
 | Command | Result |
 |---|---|
 | `python -m pytest tests/test_mission_monitoring.py` | **45 passed** |
-| `python -m pytest` (full) | **910 passed, 2 skipped, 0 failed** (865 → +45) |
+| `python -m pytest` (full) | **973 passed, 2 skipped, 0 failed** (865 → +45) |
 | `node --check` on both served scripts | **OK** (C11 guard re-run) |
 | `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` | all exit 0 |
 | Live `--mock --web --mission-demo` | `NAVIGATE` → `DROP`, dest `station`, 1/3, `mission_id:web-run`; mission no longer degraded; all endpoints 200 |

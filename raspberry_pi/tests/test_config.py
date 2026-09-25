@@ -143,6 +143,7 @@ def test_hazard_custom_values_override(tmp_path):
     [
         "hazard:\n  slow_speed_scale: 0\n",       # must be in (0, 1]
         "hazard:\n  slow_speed_scale: 1.5\n",     # must be in (0, 1]
+
         "hazard:\n  max_events: 0\n",             # must be >= 1
         "hazard:\n  gas_warn_at: -1\n",           # must be >= 0
         "hazard:\n  gas_critical_at: 10\n  gas_warn_at: 300\n",  # critical < warn
@@ -153,3 +154,43 @@ def test_bad_hazard_settings_rejected(tmp_path, body):
     (tmp_path / "hazard.yaml").write_text(body, encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(str(tmp_path))
+
+
+# --------------------------------------------------------------------------- #
+# C13 — camera detection identity
+# --------------------------------------------------------------------------- #
+def test_camera_id_defaults_to_undeclared():
+    from amr.utils.config import CameraConfig
+    assert CameraConfig().camera_id is None
+
+
+def test_camera_id_is_read_from_config(tmp_path, repo_root):
+    import shutil
+    from amr.utils.config import load_config
+    src = repo_root / "config"
+    dst = tmp_path / "config"
+    shutil.copytree(src, dst)
+    (dst / "robot.yaml").write_text(
+        (dst / "robot.yaml").read_text()
+        + '\n  camera_id: "camera_front"   # identity detections are stamped with\n',
+        encoding="utf-8")
+    assert load_config(str(dst)).robot.camera.camera_id == "camera_front"
+
+
+def test_camera_config_still_loads_without_camera_id(config_dir):
+    from amr.utils.config import load_config
+    cfg = load_config(str(config_dir))
+    assert cfg.robot.camera.camera_id is None
+    assert cfg.robot.camera.enabled is True
+
+
+def test_shipped_camera_settings_are_actually_applied(config_dir):
+    """C13 regression guard: `camera:` is a sibling of `robot:` in robot.yaml.
+
+    Reading only ``robot.camera`` silently ignored the shipped config and always
+    used dataclass defaults, so this asserts the real file is honoured.
+    """
+    from amr.utils.config import load_config
+    cfg = load_config(str(config_dir))
+    assert cfg.robot.camera.device == "pi"
+    assert cfg.robot.camera.resolution == "1280x720"

@@ -67,7 +67,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 
-from ..camera import CameraManager
+from ..camera import CameraManager, build_camera_overlay
 from ..camera.frame import CameraFrame, CameraStatus
 from ..hazard import HazardSeverity, HazardState
 from ..logging import get_logger
@@ -217,8 +217,12 @@ class AMRWebApp:
         warehouse: Any = None,
         simulated: bool = False,
         software_version: Optional[str] = None,
+        camera_id: Optional[str] = None,
     ):
         self._mgr = mgr
+        # C13: the detection identity of the camera, used only to pair a frame
+        # with the hazards that came from it. Never a motor/safety input.
+        self._camera_id = camera_id
         self._tick_hz = max(0.5, float(tick_hz))
         self._camera = camera
         self._lock = threading.Lock()
@@ -388,6 +392,30 @@ class AMRWebApp:
                 "running": info.get("running"),
                 "device": info.get("device"),
             }
+
+    def camera_overlay(self) -> dict:
+        """C13 overlay description for ``GET /camera/overlay``.
+
+        Pairs the *same* cached frame that ``GET /camera/frame`` serves with the
+        active hazard events, so the boxes always describe the picture actually
+        on screen. Read-only: it reads a frame description and an event list and
+        returns JSON. It never commands the robot, and it never converts an
+        image-space bbox into a world coordinate.
+        """
+        with self._lock:
+            cam = self._camera
+            frame = _cached_frame(cam) if cam is not None else None
+            events: List[Dict[str, Any]] = []
+            hazard = getattr(self._mgr, "hazard", None)
+            if hazard is not None:
+                try:
+                    snap = hazard.snapshot()
+                    events = list(snap.get("active_events") or ())
+                except Exception:  # noqa: BLE001 - overlays are optional
+                    events = []
+            camera_id = getattr(self, "_camera_id", None)
+            return build_camera_overlay(frame, events,
+                                        camera_id=camera_id).to_dict()
 
     def camera_frame(self) -> Tuple[Optional[bytes], Optional[str], int]:
         """Latest encoded frame for ``GET /camera/frame``.
@@ -774,6 +802,10 @@ class _Handler(BaseHTTPRequestHandler):
                 )
             else:
                 self._send_bytes(data, ctype)
+        elif path == "/camera/overlay":
+            # C13: image-space overlay description. Always 200 with a valid
+            # (possibly empty) schema, so a camera-less dashboard still renders.
+            self._send_json(self.app.camera_overlay())
         elif path == "/hazard":
             self._send_json(self.app.hazard_status())
         elif path == "/telemetry":
@@ -1222,6 +1254,15 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
   overflow: hidden; margin-bottom: 10px; }
 .cam-view img { max-width: 100%; max-height: 100%; width: auto; height: auto;
   display: block; object-fit: contain; }
+/* C13 overlay layer. Positioned over the image with the same box model, so a
+   pixel rectangle from the detector lines up with the picture underneath. */
+.cam-view { position: relative; }
+.cam-ovl { position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; }
+.cam-ovl rect { fill: none; stroke-width: 2; }
+.cam-ovl rect.partial { stroke-dasharray: 6 4; }
+.cam-ovl text { font-size: 12px; font-weight: 600; }
+.cam-view .cam-none { position: relative; }
 .cam-none { color: var(--dim); font-style: italic; font-size: 12px; }
 /* C9 map panel. The SVG scales with preserveAspectRatio, so the viewBox stays
    authoritative and the card never hard-codes pixel geometry. */
@@ -1392,6 +1433,11 @@ a { color: var(--sim); }
     <h2>Camera</h2>
     <div class="cam-view">
       <img id="c-img" alt="Latest camera frame" hidden>
+      <!-- C13: overlay boxes are drawn in IMAGE space (pixels) over this
+           picture. They are never world coordinates, and an event that has a
+           world position is shown on the 2D map instead. -->
+      <svg id="c-ovl" class="cam-ovl" viewBox="0 0 640 480"
+           preserveAspectRatio="none" aria-label="Hazard overlays"></svg>
       <div id="c-none" class="cam-none">no frame available</div>
     </div>
     <dl class="kv">
@@ -1399,7 +1445,9 @@ a { color: var(--sim); }
       <dt>Source</dt><dd id="c-src">&mdash;</dd>
       <dt>Resolution</dt><dd id="c-res">&mdash;</dd>
       <dt>Frame</dt><dd id="c-frame">&mdash;</dd>
+      <dt>Overlays</dt><dd id="c-ovl-n">&mdash;</dd>
     </dl>
+    <p class="map-note" id="c-ovl-note"></p>
   </section>
 
   <section class="card map-card">
@@ -2517,6 +2565,73 @@ function pollFrame() {
     .catch(function () { showNoFrame(); });
 }
 
+// ------------------------------------------------------------------------- //
+// C13 — camera hazard overlays. READ-ONLY: fetches /camera/overlay only.
+//
+// Boxes arrive in IMAGE space (pixels) and are drawn 1:1 over the frame by
+// setting the SVG viewBox to the frame's own dimensions. No scaling maths lives
+// here on purpose: the server already published the pixel box and the image
+// size, and inventing a second transform here is how image space silently
+// turns into world space.
+// ------------------------------------------------------------------------- //
+var OVL = { on: true, data: null };
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+  });
+}
+
+function renderOverlay(o) {
+  OVL.data = o;
+  var svg = document.getElementById("c-ovl");
+  if (!svg) return;
+  if (!o || !OVL.on) { svg.innerHTML = ""; }
+  var n = o && o.box_count ? o.box_count : 0;
+  txt("c-ovl-n", n ? n + " box" + (n === 1 ? "" : "es") + " (image space)" : "none");
+  var note = document.getElementById("c-ovl-note");
+  if (!note) return;
+  var bits = [];
+  if (o && o.world_located && o.world_located.length) {
+    bits.push(o.world_located.length + " hazard(s) world-located: on the 2D map, "
+      + "not on this image");
+  }
+  if (o && o.without_bbox && o.without_bbox.length) {
+    bits.push(o.without_bbox.length + " without an image bbox (cannot be drawn)");
+  }
+  if (o && o.other_source && o.other_source.length) {
+    bits.push(o.other_source.length + " from another camera (not drawn here)");
+  }
+  note.textContent = bits.join(" \u00b7 ") || "Image-space boxes only; never world coordinates.";
+  if (!o || !OVL.on || !o.drawable) { svg.innerHTML = ""; return; }
+  // Match the coordinate system to the image exactly.
+  svg.setAttribute("viewBox", "0 0 " + o.image.width + " " + o.image.height);
+  var out = [];
+  for (var i = 0; i < o.boxes.length; i++) {
+    var b = o.boxes[i], r = b.image_bbox;
+    if (!r) continue;
+    var col = b.color || "#94a3b8";
+    var cls = b.fully_visible ? "" : ' class="partial"';
+    out.push('<rect x="' + r.x + '" y="' + r.y + '" width="' + r.width
+      + '" height="' + r.height + '" stroke="' + esc(col) + '"' + cls + ">");
+    out.push("</rect>");
+    var label = b.label || b.kind;
+    if (typeof b.confidence === "number") {
+      label += " " + b.confidence.toFixed(2);
+    }
+    out.push('<text x="' + (r.x + 3) + '" y="' + Math.max(12, r.y - 4)
+      + '" fill="' + esc(col) + '">' + esc(label) + "</text>");
+  }
+  svg.innerHTML = out.join("");
+}
+
+function pollOverlay() {
+  fetch("/camera/overlay", { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (o) { if (o) renderOverlay(o); })
+    .catch(function () { /* overlays are optional: never break the panel */ });
+}
+
 function apply(t) {
   var sim = !!t.simulated;
   var simB = document.getElementById("sim");
@@ -2579,6 +2694,10 @@ function apply(t) {
   // placeholder, so the panel never implies a picture it does not have.
   var camOk = (t.camera.status === "LIVE" || t.camera.status === "SIMULATION");
   if (camOk) { pollFrame(); } else { showNoFrame(); }
+  // C13: the overlay rides the same 1 Hz tick as everything else — no second
+  // timer. It is fetched even without a frame so the panel can explain *why*
+  // nothing is drawn (no bbox / other camera / world-located).
+  pollOverlay();
 
   txt("y-up", typeof t.system.uptime === "number"
     ? Math.round(t.system.uptime) + " s" : "not available");

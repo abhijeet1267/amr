@@ -527,8 +527,36 @@ class TestWebCompatibility:
 # Simulated detector surface
 # --------------------------------------------------------------------------- #
 class TestSimulatedDetector:
-    def test_all_twelve_scenarios_are_available(self):
-        assert len(SIMULATED_SCENARIOS) == 12
+    #: The C5 baseline scenario set. C13 added image-space (bbox) scenarios
+    #: on top; this list is what the original `== 12` assertion was really
+    #: asserting, and it is now stated explicitly so adding a scenario later
+    #: cannot silently drop one of these.
+    C5_SCENARIOS = (
+        "normal", "person", "fire", "smoke", "obstacle", "low_confidence",
+        "multiple_objects", "with_location", "without_location", "malformed",
+        "unknown_class", "multiple_cameras",
+    )
+    #: Added in C13 for camera overlays. All carry pixel bboxes in a 640x480
+    #: frame and are simulation input only.
+    C13_SCENARIOS = (
+        "person_bbox", "bbox_multiple", "bbox_partially_outside",
+        "bbox_world_and_image",
+    )
+
+    def test_all_baseline_scenarios_are_available(self):
+        """The original C5 contract: all twelve documented scenarios exist."""
+        for name in self.C5_SCENARIOS:
+            assert name in SIMULATED_SCENARIOS, name
+
+    def test_c13_bbox_scenarios_are_available(self):
+        for name in self.C13_SCENARIOS:
+            assert name in SIMULATED_SCENARIOS, name
+
+    def test_scenario_set_is_exactly_the_documented_one(self):
+        """Still an exact set — C13 added four, and no scenario was removed."""
+        assert set(SIMULATED_SCENARIOS) == set(self.C5_SCENARIOS) | \
+            set(self.C13_SCENARIOS)
+        assert len(SIMULATED_SCENARIOS) == 16
 
     def test_normal_scenario_is_empty(self):
         assert SimulatedVisionDetector("normal").detect(None) == ()

@@ -125,6 +125,16 @@ class CameraConfig:
     enabled: bool = True
     device: str = "pi"               # "pi" (raspichill/libcamera) or "v4l2"
     resolution: str = "1280x720"
+    #: C13: the **detection identity** of this camera — the value a vision
+    #: detector stamps onto ``VisionDetection.source`` (e.g. ``camera_front``).
+    #:
+    #: This is deliberately not the same as the frame's ``source``, which names
+    #: the backend ("SimulatedCamera", "RaspberryPiCamera"). Declaring the
+    #: identity is what lets a camera overlay pair a frame with the detections
+    #: that actually came from it. ``None`` means "not declared", and the
+    #: overlay then falls back to the backend name, which is correct only for a
+    #: single-camera deployment.
+    camera_id: Optional[str] = None
 
 
 @dataclass
@@ -349,13 +359,19 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
     )
 
     robot_blob = robot_data.get("robot", robot_data) or {}
+    # C13: `config/robot.yaml` places `camera:` as a *sibling* of `robot:`, not
+    # inside it, so reading only `robot_blob["camera"]` silently ignored every
+    # camera setting in the shipped config and always fell back to the
+    # dataclass defaults. Both layouts are now accepted; the nested one wins if
+    # a deployment provides both.
+    camera_blob = (robot_blob.get("camera") or robot_data.get("camera") or {})
     robot = RobotConfig(
         name=str(robot_blob.get("name", "amr-robot")),
         wheel_track_m=robot_blob.get("wheel_track_m"),
         wheel_diameter_m=robot_blob.get("wheel_diameter_m"),
         motors=_build(MotorConfig, robot_blob.get("motors", {}), "robot.motors"),
         ultrasonic=_build_ultrasonic(robot_blob.get("ultrasonic")),
-        camera=_build(CameraConfig, robot_blob.get("camera", {}), "robot.camera"),
+        camera=_build(CameraConfig, camera_blob, "robot.camera"),
     )
 
     warehouse_blob = warehouse_data.get("warehouse", warehouse_data) or {}

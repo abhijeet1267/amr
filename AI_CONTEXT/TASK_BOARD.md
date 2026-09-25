@@ -229,12 +229,35 @@ by safety: TURN/REPLAN show `AVOID`, STOP/WAIT show `HELD`, E-stop shows
 actuation endpoint, and a test proves mission reads write nothing to the
 transport. See `docs/mission_monitoring.md`.
 
-### C13 — Hazard visualisation in the dashboard `[ ]` (upcoming)
+### C13 — Hazard visualisation in the dashboard `[x]` (complete, C13)
 **Touches:** dashboard frontend, reuses C5/C3 hazard pipeline
 Show PERSON / FIRE / SMOKE / OBSTACLE on the 2D map with class, confidence,
 severity, source, timestamp and location **only when actually supplied**. An
 image-space bbox must NOT be converted to world coordinates — bboxes stay in
 the camera view (with class + confidence overlay), never on the map.
+
+**Delivered:** `amr/camera/overlay.py` (display-only) turns the bbox C5 already
+stores in hazard metadata into `GET /camera/overlay`, which the dashboard draws
+as SVG rects 1:1 over the camera image. It reuses the existing validated
+`VisionBoundingBox` — no second box type — and `OverlayBox` has no world field
+at all. The payload declares `space: "image"`, `units: "pixels"` and
+`world_transform: null`, because the project stores no camera calibration.
+Events sort into four distinct buckets: drawable `boxes`, `world_located` (map,
+never image), `without_bbox`, and `other_source`.
+
+Two real findings: (1) C5's named scenarios had **no bbox at all**, so four
+deterministic bbox scenarios were added without altering the original twelve;
+(2) a **pre-existing config bug** — `config/robot.yaml` puts `camera:` as a
+sibling of `robot:`, but the loader read only `robot.camera`, so every shipped
+camera setting had always been silently ignored. Fixed, with a regression test.
+
+Camera identity is explicit (`CameraConfig.camera_id`) because a frame's
+`source` is a backend name while a detection's `source` is a camera identity;
+painting one camera's detections onto another's image would be a lie, so a
+mismatch is recorded rather than drawn. Read-only: no POST route, and a
+source-level test proves the overlay imports no serial/GPIO/threading code.
+Tests: 973 passed, 2 skipped, 0 failed (910 at C12 + 63). Hardware NOT tested.
+See `docs/camera_overlay.md`.
 
 ### C14 — Historical replay `[ ]` (upcoming)
 **Touches:** new recorder module + dashboard replay controls

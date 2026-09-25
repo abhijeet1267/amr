@@ -250,6 +250,8 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
         # present simulated telemetry as a physical measurement.
         simulated=args.mock,
         software_version=__version__,
+        # C13: let the overlay pair frames with the detections from this camera.
+        camera_id=getattr(config.robot.camera, "camera_id", None),
     )
     port = app.start(host=args.host, port=args.port)
     shown = "localhost" if args.host in ("0.0.0.0", "") else args.host

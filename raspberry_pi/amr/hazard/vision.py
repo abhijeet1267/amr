@@ -397,6 +397,34 @@ SIMULATED_SCENARIOS: Dict[str, Tuple[Dict[str, Any], ...]] = {
         {"class": "PERSON", "confidence": 0.90, "source": "camera_front"},
         {"class": "FIRE", "confidence": 0.88, "source": "camera_rear"},
     ),
+    # --- C13: image-space geometry for camera overlays -------------------- #
+    # Every bbox below is a pixel rectangle in a 640x480 frame. None of them is
+    # a warehouse coordinate, and none may be used as one.
+    "person_bbox": (
+        {"class": "PERSON", "confidence": 0.91, "object_id": "p-1",
+         "bbox": [120, 140, 90, 180], "source": "simulated_camera"},
+    ),
+    "bbox_multiple": (
+        {"class": "PERSON", "confidence": 0.90, "object_id": "p-1",
+         "bbox": [60, 150, 80, 170], "source": "simulated_camera"},
+        {"class": "FIRE", "confidence": 0.88, "object_id": "f-1",
+         "bbox": [380, 120, 120, 150], "source": "simulated_camera"},
+        {"class": "OBSTACLE", "confidence": 0.77, "object_id": "o-1",
+         "bbox": [250, 330, 140, 70], "source": "simulated_camera"},
+    ),
+    "bbox_partially_outside": (
+        # Deliberately overhanging the right edge, so the overlay can report a
+        # partially-visible box instead of silently clipping it.
+        {"class": "PERSON", "confidence": 0.86, "object_id": "p-2",
+         "bbox": [580, 200, 120, 200], "source": "simulated_camera"},
+    ),
+    "bbox_world_and_image": (
+        # Both spaces present at once: an image box AND an explicit world pose.
+        # The image box stays in the overlay; the world pose belongs to the map.
+        {"class": "FIRE", "confidence": 0.94, "object_id": "f-2",
+         "bbox": [300, 100, 100, 120], "source": "simulated_camera",
+         "location": {"x": 12.3, "y": 4.7, "frame": "world"}},
+    ),
 }
 
 

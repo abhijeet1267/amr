@@ -29,6 +29,7 @@ from amr.mocks import MockCamera
 from amr.robot import RobotManager, RobotMode
 from amr.utils.config import CameraConfig, HazardConfig, load_config
 from amr.web import AMRWebApp
+from amr.web.server import DASHBOARD_HTML
 
 
 # --------------------------------------------------------------------------- #
@@ -393,6 +394,49 @@ def test_hazard_endpoint_reports_active_hazard(web_hazard):
     assert j["counts_by_kind"]["HUMAN"] == 1
 
 
+# =========================================================================== #
+# C13 — read-only guarantee
+# =========================================================================== #
+class TestOverlayIsReadOnly:
+    def test_overlay_reads_perform_no_actuator_writes(self, web):
+        """Building and serving an overlay must not touch the robot."""
+        _app, port, mgr = web
+        mgr.test_transport.written.clear()
+        _get(port, "/camera/frame")
+        for _ in range(3):
+            assert _get(port, "/camera/overlay")[0] == 200
+            _get(port, "/camera/status")
+        assert mgr.test_transport.written == []
+
+    def test_overlay_module_imports_no_control_or_hardware_code(self):
+        """Source-level guard: no motor/serial/GPIO path in the overlay."""
+        import ast
+        import inspect
+        import amr.camera.overlay as mod
+        src = inspect.getsource(mod)
+        imported = set()
+        for node in ast.walk(ast.parse(src)):
+            if isinstance(node, ast.Import):
+                imported.update(a.name.split(".")[0] for a in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module.split(".")[0])
+        for forbidden in ("serial", "RPi", "gpio", "smbus", "socket", "threading"):
+            assert forbidden not in imported, forbidden
+        # And no actuator vocabulary anywhere in the executable source.
+        for forbidden in ("MotorDriver", "ArduinoSerial", "dispatch(",
+                          "rotate_left", "estop", "write("):
+            assert forbidden not in src, forbidden
+
+    def test_no_new_write_endpoint_was_added(self):
+        """C13 adds exactly one GET route and no POST route."""
+        import inspect
+        from amr.web.server import _Handler
+        get_src = inspect.getsource(_Handler.do_GET)
+        assert '"/camera/overlay"' in get_src
+        assert "/camera/overlay" not in inspect.getsource(_Handler.do_POST)
+
+
+
 def test_hazard_endpoint_reports_latched_emergency(web_hazard):
     """CRITICAL fire latches EMERGENCY, vetoes motion, forces SAFETY_STOP."""
     _app, port, mgr, src = web_hazard
@@ -407,7 +451,6 @@ def test_hazard_endpoint_reports_latched_emergency(web_hazard):
         )
     )
     _tick(port)
-
     j = _hazard(port)
     assert j["state"] == "EMERGENCY"
     assert j["latched"] is True
@@ -427,6 +470,106 @@ def test_hazard_endpoint_reports_latched_emergency(web_hazard):
     # /status carries the same verdict (additive snapshot key).
     _s, _c, body = _get(port, "/status")
     assert json.loads(body.decode("utf-8"))["hazard"]["state"] == "EMERGENCY"
+
+
+# =========================================================================== #
+# C13 — camera overlay route
+# =========================================================================== #
+class TestCameraOverlayRoute:
+
+    def test_overlay_without_a_camera_is_still_valid(self, web_no_camera):
+        """A camera-less deployment gets a schema, not an error."""
+        _app, port, _mgr = web_no_camera
+        status, ctype, body = _get(port, "/camera/overlay")
+        assert status == 200 and "json" in ctype
+        o = json.loads(body)
+        assert o["space"] == "image" and o["units"] == "pixels"
+        assert o["world_transform"] is None
+        assert o["box_count"] == 0 and o["drawable"] is False
+        assert o["image"]["width"] is None
+
+    def test_overlay_reports_frame_geometry_for_a_c8_source(self, config_dir):
+        """A C8 camera source carries real frame metadata, so the overlay uses it."""
+        from amr.camera import SimulatedCameraSource
+        from amr.robot import RobotManager
+        from amr.web import AMRWebApp
+        mgr, _ = RobotManager.create_mock(load_config(config_dir))
+        cam = SimulatedCameraSource()
+        cam.start()
+        app = AMRWebApp(mgr, tick_hz=10.0, camera=cam, simulated=True)
+        port = app.start(host="127.0.0.1", port=0)
+        try:
+            assert _get(port, "/camera/frame")[0] == 200
+            o = json.loads(_get(port, "/camera/overlay")[2])
+            assert o["image"]["width"] == 640 and o["image"]["height"] == 480
+            assert o["image"]["backend"] == "SimulatedCamera"
+        finally:
+            app.stop()
+            mgr.shutdown()
+
+    def test_legacy_camera_manager_yields_no_invented_geometry(self, web):
+        """The legacy path serves JPEG but no frame metadata, so size stays null."""
+        _app, port, _mgr = web
+        o = json.loads(_get(port, "/camera/overlay")[2])
+        assert o["image"]["width"] is None
+        assert o["drawable"] is False
+
+    def test_overlay_is_empty_before_any_frame_is_captured(self, web):
+        """Honest absence: no frame yet means unknown size, not a guess."""
+        _app, port, _mgr = web
+        o = json.loads(_get(port, "/camera/overlay")[2])
+        assert o["image"]["width"] is None
+        assert o["box_count"] == 0
+
+    def test_overlay_has_no_boxes_when_there_are_no_hazards(self, web):
+        _app, port, _mgr = web
+        o = json.loads(_get(port, "/camera/overlay")[2])
+        assert o["box_count"] == 0
+
+    def test_overlay_never_fails_on_a_broken_hazard_layer(self, web):
+        """A raising hazard manager degrades the overlay, not the dashboard."""
+        _app, port, mgr = web
+
+        class Boom:
+            def snapshot(self):
+                raise RuntimeError("hazard down")
+
+        mgr.hazard = Boom()
+        status, _ctype, body = _get(port, "/camera/overlay")
+        assert status == 200
+        assert json.loads(body)["box_count"] == 0
+        # And the rest of the panel still answers.
+        assert _get(port, "/camera/status")[0] == 200
+        assert _get(port, "/dashboard")[0] == 200
+
+    def test_existing_endpoints_are_unaffected(self, web):
+        _app, port, _mgr = web
+        for path in ("/camera/status", "/camera/frame", "/telemetry",
+                     "/health", "/map", "/digital-twin", "/dashboard",
+                     "/dashboard/state", "/camera/overlay"):
+            assert _get(port, path)[0] == 200, path
+
+    def test_dashboard_contains_the_overlay_layer(self):
+        html = DASHBOARD_HTML
+        for token in ("c-ovl", "c-ovl-n", "c-ovl-note",
+                      "pollOverlay", "/camera/overlay"):
+            assert token in html, token
+
+    def test_dashboard_never_draws_a_world_coordinate(self):
+        """The client must not contain an image->world conversion."""
+        js = DASHBOARD_HTML[DASHBOARD_HTML.index("<script>") + 8:
+                            DASHBOARD_HTML.rindex("</script>")]
+        for forbidden in ("pixelsPerMetre", "pixels_per_metre", "metresPerPixel",
+                          "imageToWorld", "worldFromBbox"):
+            assert forbidden not in js, forbidden
+
+    def test_overlay_polling_rides_the_existing_tick(self):
+        """No second timer: the overlay is fetched from the existing poll."""
+        js = DASHBOARD_HTML[DASHBOARD_HTML.index("<script>") + 8:
+                            DASHBOARD_HTML.rindex("</script>")]
+        assert "setInterval(pollOverlay" not in js
+        assert "pollOverlay();" in js
+
 
 
 def test_hazard_ack_cannot_clear_an_active_hazard(web_hazard):

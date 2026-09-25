@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-910%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-973%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **910 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **973 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -323,6 +323,23 @@ derived from real counters and real goal distance — never invented — and saf
 overrides the phase, so an E-stop shows `EMERGENCY` even mid-mission.
 
 > [`docs/mission_monitoring.md`](docs/mission_monitoring.md).
+
+### C13 — Camera + hazard overlays
+
+Hazard bounding boxes are drawn on the camera image in the dashboard, as SVG
+rects with a class + confidence label, coloured by hazard kind.
+
+The coordinate boundary is explicit and enforced: a detector's bbox is **image
+space** (pixels) and is never treated as a warehouse coordinate. A detection
+with a real world `location` goes to the 2D map instead, and the panel says so.
+The payload publishes `space: "image"` and `world_transform: null`, because the
+project stores no camera calibration — none is invented.
+
+`GET /camera/overlay` is read-only and always returns a valid schema, even with
+no camera attached. Display only: no new write endpoint, and `POST /command`
+remains the only actuator path.
+
+> [`docs/camera_overlay.md`](docs/camera_overlay.md).
 
 ---
 

@@ -26,6 +26,16 @@ from .frame import (
     UnavailableCameraSource,
 )
 
+# C13: the display-only overlay model. It reuses the C5 VisionBoundingBox, so
+# it is imported after .frame to keep the dependency direction obvious.
+from .overlay import (
+    KIND_COLORS,
+    OVERLAY_SCHEMA_VERSION,
+    CameraOverlay,
+    OverlayBox,
+    build_camera_overlay,
+)
+
 __all__ = [
     "CameraBackend",
     "CameraError",

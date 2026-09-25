@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** the C12 working tree — full suite
-**910 passed, 2 skipped, 0 failed** (865 at C11 + 45 mission tests).
+**Last verified:** the C13 working tree — full suite
+**973 passed, 2 skipped, 0 failed** (910 at C12 + 63 overlay tests).
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -40,6 +40,7 @@ test_telemetry.py          52    test_map.py              111
 test_camera_frame.py       49    test_digital_twin.py      37
 test_console.py            35    (new in C11 — operations console)
 test_mission_monitoring.py 45    (new in C12 — mission monitoring)
+test_camera_overlay.py   40    (new in C13 — camera hazard overlays)
 ```
 
 ---
