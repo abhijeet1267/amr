@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** the C14c working tree — full suite
-**1127 passed, 2 skipped, 0 failed** (1100 at C14b + 27 auto-record tests).
+**Last verified:** the C15 working tree — full suite
+**1157 passed, 2 skipped, 0 failed** (1127 at C14c + 30 unified-demo tests).
 Re-verify with the commands below before trusting these numbers.
 
 ---

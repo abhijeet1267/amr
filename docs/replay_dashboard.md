@@ -203,6 +203,136 @@ asserts zero actuator writes across control-loop ticks with recording active.
 Software and mock only. **No hardware or firmware validation was performed** —
 no physical robot, Raspberry Pi, camera, or Arduino was exercised.
 
+## C15 — the unified demo
+
+One deterministic, offline run that exercises the whole stack **through its real
+interfaces** — no subsystem is re-implemented for the demo:
+
+```
+mission (WarehouseTaskManager)
+  -> navigation (LocalNavigator)
+     -> simulated vision (ScriptedVisionDetector -> VisionDetection)
+        -> hazard (HazardManager + VisionHazardSource)
+           -> safety (SafetyManager, then the C6 AvoidancePolicy)
+              -> navigation changes (TURN)
+                 -> mission continues -> completion
+                    -> automatic recording (AutoRecorder)
+                       -> discovery (RecordingStore)
+                          -> replay (ReplayPlayer)
+```
+
+Run it:
+
+```bash
+cd raspberry_pi
+python -m amr.demo                       # temporary recording dir
+python -m amr.demo --recordings-dir /tmp/r
+```
+
+It prints a deterministic report and exits non-zero if any stage did not happen.
+
+### What the scenario actually does
+
+The AMR starts at the dock and runs the standard warehouse mission
+(`pick shelf_a` → `place station` → `return_to_dock`). At step 30 a **simulated**
+detector reports `OBSTACLE` at confidence **0.70** with a **pixel** bounding box
+`[250, 300, 140, 90]` from `camera_front`; it clears at step 42.
+
+The confidence is deliberately inside the WARNING band (0.5–0.8). A CRITICAL
+reading would make the hazard layer *block* motion, and the C6 policy would never
+be consulted — WARNING is exactly the case the avoidance gate exists for.
+
+### Components used
+
+| Concern | Real object |
+|---|---|
+| robot control + safety | `RobotManager` over `MockSerialTransport` |
+| Layer 3.5 hazard layer | `HazardManager` + `VisionHazardSource` |
+| vision evidence | `VisionDetection` (the C5 contract) |
+| C6 avoidance | `AvoidancePolicy` via `LocalNavigator` |
+| mission | `WarehouseTaskManager` |
+| telemetry | `TelemetryCollector` (the C7 collector) |
+| runtime tick + recording | `AMRWebApp._tick_once` / `AutoRecorder` |
+| discovery / replay | `RecordingStore` + `ReplayPlayer` |
+
+Only two things are demo adapters, and both are labelled SIMULATION in the code
+and in the report:
+
+* `ScriptedVisionDetector` — a step-indexed script, because the existing
+  `SimulatedVisionDetector` returns a *fixed* scenario and cannot express "an
+  obstacle appears part-way through a run". It emits the existing C5
+  `VisionDetection` contract; nothing downstream can tell the difference.
+* `SimulatedClearance` — a constant open-side feed, because the project has no
+  calibrated clearance source (a documented C6 gap). Without it the policy would
+  correctly escalate to REPLAN instead of guessing a heading.
+
+### Determinism
+
+The scenario is driven by a **step counter** with a fixed `dt` and a virtual
+clock; there is no randomness. Two runs produce identical timelines, hazard
+event ids, avoidance actions, frame counts and an identical CLI report.
+
+Two things are run-unique by design and are *not* compared: the recording
+filename (wall-clock derived) and `mission.current_task` (its id comes from
+`Task`'s process-global counter, so a second run in the same process gets a
+higher number). The task type, status and completion must still match exactly.
+
+**One loop only.** The demo deliberately does *not* call `app.start()`, because
+that also spawns the background control-loop thread, which would tick the robot
+concurrently and make the run non-deterministic. Instead it drives the very same
+`AMRWebApp._tick_once` that the background thread calls. To make that possible
+the loop body was extracted into `_tick_once`; there is still exactly one
+`_control_loop` and one `_stop_evt.wait(interval)`, and a source-level test
+pins that.
+
+### Coordinate honesty (C13 rule)
+
+The detection carries a pixel bounding box and **no** world pose, so:
+
+* the box survives only as event metadata, and
+* the hazard is **not** placed on the warehouse map.
+
+The report prints both facts explicitly, and a test asserts them.
+
+### Actuation honesty
+
+The mission genuinely drives the mock robot, so the mock transport records wheel
+commands — that is how a simulated mission moves. "0 actuator writes" would be a
+misleading claim, so the report separates the numbers:
+
+| Field | Meaning |
+|---|---|
+| `TRANSPORT WRITES` | all lines to the mock transport |
+| `WHEEL COMMANDS` | lines that were `MOVE`/`D` commands |
+| `VIA MANAGER GATE` | wheel commands, all of which went through `mgr.move` |
+| `PHYSICAL WRITES` | **0** — the demo only ever builds a mock stack |
+| `DEMO DIRECT COMMANDS` | **0** — the scenario code never calls a motor API |
+
+`POST /command` remains the only actuator path, and the demo never touches it.
+
+### A pre-existing bug this milestone found
+
+`TelemetryCollector._hazard()` gated on `snap.get("attached")`, but
+`HazardManager.snapshot()` has never emitted an `attached` key — that is a C2
+*web payload* field. The condition was therefore always false, so the hazard
+section of **every** telemetry snapshot (and of every recording) silently
+reported `UNAVAILABLE`: the hazard was invisible in `/telemetry` and in replay.
+This is the same class of mistake as the C12 mission-section defects. C15 fixed
+it and the demo now proves the hazard reaches telemetry and the recording.
+
+### Limitations
+
+* Simulated detector, simulated clearance, mock transport. No camera, no
+  ultrasonic, no Arduino, no Raspberry Pi.
+* The vision band (0.5 / 0.8) and every avoidance threshold remain **software
+  defaults**; `config/safety.yaml` is still `NOT_VERIFIED`.
+* The route is straight-line waypoint following; there is no path planner, so
+  "REPLAN" means "re-aim at the goal", not "search a new path".
+* The demo does not start the web server, so it is not observable live in a
+  browser; it prints the same values the dashboard panels would show.
+
+**Hardware / firmware: NOT TESTED.**
+
 ## Limitations
 
 - **Hardware tested: no.** Software/mock only.

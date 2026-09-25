@@ -5,7 +5,130 @@
 
 ---
 
+## Session: C15 — Unified deterministic demo
+
+**Date:** 2026-09-26 · **Branch:** `main` · **Status:** complete, tested, committed
+
+### Implementation
+
+One offline, mock-only run exercising the completed stack through its **real**
+interfaces. Entry point `python -m amr.demo`; it exits non-zero if any stage of
+the chain failed and prints a deterministic report.
+
+    mission -> navigation -> simulated vision -> hazard -> safety
+            -> navigation change (TURN) -> mission continues -> completion
+            -> automatic recording -> discovery -> replay
+
+Nothing is re-implemented for the demo: `WarehouseTaskManager`, `LocalNavigator`,
+`HazardManager` + `VisionHazardSource`, `VisionDetection`, `AvoidancePolicy`,
+`TelemetryCollector`, `AMRWebApp._tick_once`, `AutoRecorder`, `RecordingStore`
+and `ReplayPlayer` are all the production objects.
+
+Two demo adapters exist, both labelled SIMULATION:
+`ScriptedVisionDetector` (step-indexed, because the existing
+`SimulatedVisionDetector` returns a fixed scenario) and `SimulatedClearance`
+(a constant open-side feed, for a source the project does not have yet).
+
+### Architecture note — one loop only
+
+The demo does **not** call `app.start()`: that also spawns the background
+control-loop thread, which would tick the robot concurrently and make the run
+non-deterministic (the first version did exactly that, and frame counts varied
+between runs). Instead the loop body was extracted into `AMRWebApp._tick_once`,
+which the background thread *and* the demo both call. There is still exactly one
+`_control_loop` and one `self._stop_evt.wait(interval)`, pinned by a source-level
+test.
+
+`build_navigator` gained an optional `hazard=` argument that wires the existing C6
+gate (opt-in, default off), so the navigator asks the *hazard layer* for evidence
+and `mgr.decision` for the Layer-3 verdict. `RobotManager` gained a read-only
+`decision` property for that: it exposes the existing verdict and never
+recomputes one.
+
+### Three real bugs found
+
+1. **Hazard telemetry was silently always `UNAVAILABLE`.**
+   `TelemetryCollector._hazard()` gated on `snap.get("attached")`, but
+   `HazardManager.snapshot()` has never emitted an `attached` key — that is a C2
+   *web payload* field. The condition was always false, so the hazard section of
+   every telemetry snapshot **and every recording** was UNAVAILABLE: hazards were
+   invisible in `/telemetry` and in replay. Same class of mistake as the C12
+   mission-section defects. No existing test pinned it.
+2. **`build_navigator` called `hazard.status()`**, but `status` is a *property*,
+   so the C6 obstacle provider raised `TypeError` on every call.
+3. **A C14b source test needed updating** — see Tests below.
+
+### Tests
+
+| Command | Result |
+|---|---|
+| `python -m pytest` (full) | **1157 passed, 2 skipped, 0 failed** (1127 → +30) |
+| `python -m pytest tests/test_unified_demo.py` | 30 passed |
+| `python -m amr.demo` (x6) | `Result: PASS`, 479 frames each run, reports byte-identical |
+| `amr.hazard` / `.vision` / `amr.warehouse` / `.visualisation` / `main --mock --demo` | all exit 0 |
+
+The flagship test (`TestUnifiedDemoEndToEnd::test_the_whole_chain_passes`) drives
+the real components end to end and asserts each transition — no stubbing, no
+asserting printed strings, and the recording is produced by the runtime rather
+than hand-written.
+
+**One existing test was modified, with justification.**
+`test_web_app_advances_replay_in_the_existing_loop` asserted the literal
+`"self._replay.tick(interval)"` inside `_control_loop`'s source; the C15 refactor
+moved that line into `_tick_once`. The *invariant* it protects — replay is
+advanced once per iteration of the one existing loop, with no new thread — is
+unchanged, so the test now follows the call path: it still asserts one loop, one
+wait and no `Thread(`, and additionally that `_control_loop` delegates to
+`_tick_once`, that `_tick_once` advances replay exactly once, and that recording
+rides the same iteration. Net coverage is higher.
+
+### Determinism
+
+Step counter, fixed `dt`, virtual clock, no randomness. Two runs produce identical
+timelines, hazard event ids, avoidance actions, frame counts and a byte-identical
+CLI report. Two things are run-unique *by design* and are excluded from
+comparison: the recording filename (wall clock) and `mission.current_task`, whose
+id comes from `Task`'s process-global counter.
+
+### Safety
+
+- `POST /command` untouched and still the only actuator path.
+- **Physical hardware writes: 0** — the demo only ever builds a mock stack.
+- **Demo direct actuator calls: 0** — the scenario code never calls a motor API.
+- The mission *does* drive the mock robot (that is how a simulated mission
+  moves), so the report separates the numbers rather than making a misleading
+  "0 actuator writes" claim: transport writes, wheel commands, and wheel commands
+  via the manager gate are each reported, and a test asserts
+  `via_manager_gate == wheel_commands`.
+- The bbox stays image-space: a test asserts the hazard is **not** placed in
+  world space and that the box is preserved only as event metadata.
+
+### Hardware status
+
+**NOT TESTED.** Software and mock only. No physical robot, Raspberry Pi, camera,
+ultrasonic sensor or Arduino was exercised. No firmware was built or flashed.
+
+### Known limitations
+
+- Simulated detector, simulated clearance, mock transport.
+- Vision band (0.5 / 0.8) and all avoidance thresholds remain unvalidated
+  software defaults; `config/safety.yaml` is still `NOT_VERIFIED`.
+- No path planner: "REPLAN" means re-aim at the goal, not search a new path.
+- The demo does not start the web server, so it is not observable live in a
+  browser — it prints what the dashboard panels would show.
+
+### Next milestone
+
+`TASK_BOARD.md` now lists C16 real manipulator, C17 RFID and C18 ROS 2 bridge,
+all unstarted. For a project review, C16 (manipulator) is the most visible
+missing capability; for research credibility, a real camera backend behind the
+existing `VisionDetector` protocol would replace the two simulation adapters the
+demo currently relies on.
+
+---
+
 ## Session: C14c — Automatic telemetry recording (the C15 brief)
+
 
 **Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
 

@@ -330,11 +330,60 @@ timer, no queue/async pipeline. Source-level tests assert exactly one
 Tests: 1127 passed, 2 skipped, 0 failed (1100 at C14b + 27). Hardware NOT
 tested. See `docs/replay_dashboard.md`.
 
-### C15 — Unified demo `[ ]` (upcoming)
-**Touches:** `amr/main.py` demo mode + dashboard
-One deterministic simulation-mode demo: robot starts → mission begins → moves →
-simulated camera detects obstacle/person/fire → hazard appears → safety reacts →
-navigation reacts → route changes → mission continues, all visualised live.
+### C15 — Unified demo `[x]` (complete)
+**Touches:** `raspberry_pi/amr/demo.py`, `amr/main.py`, `amr/web/server.py`,
+`amr/robot/robot_manager.py`, `amr/telemetry/collector.py`,
+`raspberry_pi/tests/test_unified_demo.py`
+
+One deterministic, offline demonstration that exercises the completed stack
+through its **real** interfaces — nothing is re-implemented for the demo:
+
+    mission -> navigation -> simulated vision -> hazard -> safety
+            -> navigation change (TURN) -> mission continues -> completion
+            -> automatic recording -> discovery -> replay
+
+Entry point: `python -m amr.demo` (exits non-zero if any stage did not happen).
+The existing `--mock` / `--demo` flags of `amr.main` are untouched; the demo is a
+separate module because it owns its recording directory and its own pacing.
+
+**Components:** `WarehouseTaskManager`, `LocalNavigator`, `HazardManager` +
+`VisionHazardSource`, `VisionDetection`, `AvoidancePolicy`, `TelemetryCollector`,
+`AMRWebApp._tick_once`, `AutoRecorder`, `RecordingStore`, `ReplayPlayer`.
+
+**Only two demo adapters** (both labelled SIMULATION): `ScriptedVisionDetector`
+(a step-indexed script, because the existing `SimulatedVisionDetector` returns a
+*fixed* scenario and cannot express "appears part-way through") and
+`SimulatedClearance` (a constant open-side feed, for a source the project does
+not have yet).
+
+**Determinism:** driven by a step counter, fixed `dt` and a virtual clock; no
+randomness. Two runs give identical timelines, hazard event ids, avoidance
+actions, frame counts and a byte-identical CLI report. The demo deliberately does
+*not* call `app.start()` (which would spawn the background loop thread and break
+determinism); it drives the same `AMRWebApp._tick_once` the thread calls, which is
+why the loop body was extracted into that method. Still exactly one
+`_control_loop` and one `_stop_evt.wait(interval)`.
+
+**Coordinates (C13 rule preserved):** the detection carries a pixel bbox and no
+world pose, so the box stays in event metadata and the hazard is never placed on
+the map. Both facts are printed and asserted.
+
+**Actuation:** the mission genuinely drives the *mock* robot, so the transport
+records wheel commands. Rather than claim a misleading "0 writes", the report
+separates: physical writes **0**, demo direct actuator calls **0**, and every
+wheel command through the single `RobotManager` gate. `POST /command` untouched.
+
+### C15 bug found: hazard telemetry was silently always UNAVAILABLE
+`TelemetryCollector._hazard()` gated on `snap.get("attached")`, but
+`HazardManager.snapshot()` has never emitted an `attached` key — that is a C2
+*web payload* field. The condition was always false, so the hazard section of
+every telemetry snapshot **and every recording** reported `UNAVAILABLE`: hazards
+were invisible in `/telemetry` and in replay. Same class of mistake as the C12
+mission-section defects. Fixed; the demo now proves the hazard reaches telemetry
+and the recording. No existing test pinned the buggy behaviour.
+
+Tests: 1157 passed, 2 skipped, 0 failed (1127 at C14c + 30). Hardware and
+firmware NOT tested. See `docs/replay_dashboard.md` (C15 section).
 
 ### C16 — Real manipulator (gripper / arm) `[ ]`
 **Touches:** `raspberry_pi/amr/warehouse/tasks.py` (implement `Manipulator`),
