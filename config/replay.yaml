@@ -1,0 +1,17 @@
+# C14b — historical replay.
+#
+# Where recorded runs (JSONL, written by amr.telemetry.recorder) are kept.
+# `recordings_dir: null` means replay is OFF: the dashboard still shows the
+# replay panel, but reports that no recordings directory is configured rather
+# than pretending the feature is broken. This mirrors hazard.yaml's
+# `event_log_path: null` convention.
+#
+# A relative path is resolved against this config directory, so the same
+# config works in the repo and on a deployed Pi. An absolute path is used as-is.
+#
+# The dashboard NEVER accepts a filesystem path from a client: a request names
+# a recording *id*, which is validated (no separators, no "..", must end in
+# .jsonl) and resolved inside this directory.
+replay:
+  enabled: true
+  recordings_dir: null

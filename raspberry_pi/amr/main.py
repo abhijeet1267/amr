@@ -218,6 +218,12 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
     # step()/go_to(), so it cannot move the robot. `navigator=None` would simply
     # render an "unavailable" pose, so wiring it is what makes the map live.
     nav = build_navigator(mgr, config)
+    # C14b: resolve the recordings directory once, here, so the dashboard only
+    # ever sees a validated directory. It stays None unless config/replay.yaml
+    # points at one.
+    replay_cfg = getattr(config, "replay", None)
+    replay_dir = (replay_cfg.resolved_dir(config.config_dir)
+                  if replay_cfg is not None and replay_cfg.enabled else None)
     # C12: a caller-supplied label for this run, so the dashboard can name the
     # mission it is watching. It is a real label for a real run — not invented
     # inside the telemetry layer.
@@ -252,6 +258,9 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
         software_version=__version__,
         # C13: let the overlay pair frames with the detections from this camera.
         camera_id=getattr(config.robot.camera, "camera_id", None),
+        # C14b: where recorded runs live. None (the default) leaves the replay
+        # panel present but reporting "no recordings configured".
+        recordings_dir=replay_dir,
     )
     port = app.start(host=args.host, port=args.port)
     shown = "localhost" if args.host in ("0.0.0.0", "") else args.host

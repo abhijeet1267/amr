@@ -75,6 +75,7 @@ from ..map import MapService, build_twin_state
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
 from ..telemetry import TelemetryCollector, build_console_state
+from ..telemetry.replay_control import RecordingStore, ReplayController
 from ..telemetry.types import DataSource
 
 #: motion commands accepted by /command and their default speeds
@@ -218,11 +219,15 @@ class AMRWebApp:
         simulated: bool = False,
         software_version: Optional[str] = None,
         camera_id: Optional[str] = None,
+        recordings_dir: Optional[str] = None,
     ):
         self._mgr = mgr
         # C13: the detection identity of the camera, used only to pair a frame
         # with the hazards that came from it. Never a motor/safety input.
         self._camera_id = camera_id
+        # C14b: replay state. The controller holds no clock and no thread; the
+        # control loop below advances it using the interval it already measures.
+        self._replay = ReplayController(RecordingStore(recordings_dir))
         self._tick_hz = max(0.5, float(tick_hz))
         self._camera = camera
         self._lock = threading.Lock()
@@ -301,6 +306,13 @@ class AMRWebApp:
                     self._mgr.tick()
                 except Exception as exc:  # noqa: BLE001 - loop must survive
                     self.log.error("tick failed: %s", exc)
+                # C14b: replay rides the loop that already exists. No second
+                # timer, no thread: the controller is a no-op unless a recording
+                # is loaded and playing, so live behaviour is untouched.
+                try:
+                    self._replay.tick(interval)
+                except Exception as exc:  # noqa: BLE001 - replay is optional
+                    self.log.warning("replay tick failed: %s", exc)
             self._stop_evt.wait(interval)
 
     # ------------------------------------------------------------------ #
@@ -392,6 +404,64 @@ class AMRWebApp:
                 "running": info.get("running"),
                 "device": info.get("device"),
             }
+
+    # ------------------------------------------------------------------ #
+    # C14b — dashboard replay (read-only; no actuator path)
+    # ------------------------------------------------------------------ #
+    def replay_recordings(self) -> dict:
+        """Discoverable recordings, plus the current replay status.
+
+        A cheap directory listing — the dashboard asks for it when the user
+        opens the panel, not on every 1 Hz tick.
+        """
+        with self._lock:
+            return {
+                "recordings": self._replay.recordings(),
+                "status": self._replay.status(),
+            }
+
+    def replay_status(self) -> dict:
+        with self._lock:
+            return {
+                "status": self._replay.status(),
+                "frame": self._replay.current_frame(),
+            }
+
+    def replay_load(self, recording_id: Any) -> dict:
+        """Load a recording by id.
+
+        The id is validated against the configured directory — a client can
+        never supply a filesystem path. Returns 200 for a well-formed request
+        (the payload reports ERROR if the recording is unknown), 400 only for a
+        malformed body.
+        """
+        with self._lock:
+            self._replay.load(recording_id)
+            return {"ok": True, "status": self._replay.status()}
+
+    def replay_control(self, action: str, payload: Dict[str, Any]) -> dict:
+        """PLAY / PAUSE / RESTART / SPEED / UNLOAD.
+
+        These change replay state only. They cannot reach a motor, the serial
+        port or a navigation command, and they are not routed through
+        ``dispatch()`` — the actuator path is untouched.
+        """
+        with self._lock:
+            fn = {
+                "play": self._replay.play,
+                "pause": self._replay.pause,
+                "restart": self._replay.restart,
+                "unload": self._replay.unload,
+            }.get(action)
+            if fn is not None:
+                fn()
+            elif action == "speed":
+                if "speed" not in payload:
+                    return {"ok": False, "error": "speed required"}, 400
+                self._replay.set_speed(payload.get("speed"))
+            else:
+                return {"ok": False, "error": f"unknown replay action: {action}"}, 400
+            return {"ok": True, "status": self._replay.status()}
 
     def camera_overlay(self) -> dict:
         """C13 overlay description for ``GET /camera/overlay``.
@@ -806,6 +876,12 @@ class _Handler(BaseHTTPRequestHandler):
             # C13: image-space overlay description. Always 200 with a valid
             # (possibly empty) schema, so a camera-less dashboard still renders.
             self._send_json(self.app.camera_overlay())
+        elif path == "/replay/recordings":
+            # C14b: directory listing. Cheap, and only fetched when the operator
+            # opens the replay panel — not on every 1 Hz tick.
+            self._send_json(self.app.replay_recordings())
+        elif path == "/replay/status":
+            self._send_json(self.app.replay_status())
         elif path == "/hazard":
             self._send_json(self.app.hazard_status())
         elif path == "/telemetry":
@@ -849,6 +925,33 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = self.path.split("?", 1)[0]
+        # C14b replay control. These change replay state only — they are handled
+        # before the command path and never reach dispatch(), so the actuator
+        # path is untouched.
+        if path in ("/replay/load", "/replay/play", "/replay/pause",
+                     "/replay/restart", "/replay/speed", "/replay/unload"):
+            try:
+                length = int(self.headers.get("Content-Length", 0) or 0)
+                raw = self.rfile.read(length) if length else b""
+                payload = json.loads(raw.decode("utf-8")) if raw else {}
+                if payload is None:
+                    payload = {}
+                if not isinstance(payload, dict):
+                    raise ValueError("payload must be a JSON object")
+            except (ValueError, UnicodeDecodeError) as exc:
+                self._send_json({"ok": False, "error": f"bad JSON: {exc}"}, 400)
+                return
+            if path == "/replay/load":
+                self._send_json(self.app.replay_load(payload.get("recording_id")))
+                return
+            result = self.app.replay_control(
+                path.rsplit("/", 1)[-1], payload)
+            if isinstance(result, tuple):
+                body, code = result
+            else:
+                body, code = result, 200
+            self._send_json(body, code)
+            return
         if path == "/hazard/acknowledge":
             # Body is optional (an empty POST must be allowed for a button);
             # when present it must still be a JSON object, like /command.
@@ -1264,6 +1367,8 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
 .cam-ovl text { font-size: 12px; font-weight: 600; }
 .cam-view .cam-none { position: relative; }
 .cam-none { color: var(--dim); font-style: italic; font-size: 12px; }
+/* C14b replay panel: keep long recording names from blowing out the card. */
+.replay-card select.map-btn { max-width: 220px; text-overflow: ellipsis; }
 /* C9 map panel. The SVG scales with preserveAspectRatio, so the viewBox stays
    authoritative and the card never hard-codes pixel geometry. */
 .map-card { display: flex; flex-direction: column; }
@@ -1396,6 +1501,33 @@ a { color: var(--sim); }
   <section class="card">
     <h2>Hazards</h2>
     <ul id="hazards"><li class="empty">none active</li></ul>
+  </section>
+
+  <section class="card replay-card">
+    <h2>Historical Replay</h2>
+    <!-- C14b: display-only. These buttons change replay state and nothing
+         else — no motor, serial, GPIO or navigation path. -->
+    <div class="map-toolbar">
+      <select id="rp-select" class="map-btn" aria-label="Recording"></select>
+      <button type="button" id="rp-refresh" class="map-btn">Rescan</button>
+      <button type="button" id="rp-load" class="map-btn">Load</button>
+    </div>
+    <div class="map-toolbar">
+      <button type="button" id="rp-play" class="map-btn">Play</button>
+      <button type="button" id="rp-pause" class="map-btn">Pause</button>
+      <button type="button" id="rp-restart" class="map-btn">Restart</button>
+      <button type="button" id="rp-speed" class="map-btn">1x</button>
+      <button type="button" id="rp-live" class="map-btn">Back to live</button>
+    </div>
+    <dl class="kv">
+      <dt>Status</dt><dd id="rp-state">&mdash;</dd>
+      <dt>Recording</dt><dd id="rp-id">&mdash;</dd>
+      <dt>Position</dt><dd id="rp-pos">&mdash;</dd>
+      <dt>Duration</dt><dd id="rp-dur">&mdash;</dd>
+      <dt>Frame</dt><dd id="rp-frame">&mdash;</dd>
+      <dt>Data source</dt><dd id="rp-mode">LIVE</dd>
+    </dl>
+    <p class="map-note" id="rp-note"></p>
   </section>
 
   <section class="card">
@@ -2632,6 +2764,116 @@ function pollOverlay() {
     .catch(function () { /* overlays are optional: never break the panel */ });
 }
 
+// ------------------------------------------------------------------------- //
+// C14b — DASHBOARD REPLAY CONTROLS.
+//
+// Read-only: these requests only change replay state. The buttons never reach
+// the actuator endpoint, and the server advances the recording from its own
+// existing control loop, so this file adds no timer of its own.
+// ------------------------------------------------------------------------- //
+var RP = { list: [], speeds: [0.5, 1, 2], si: 1, loaded: false };
+
+function rpPost(path, payload) {
+  return fetch(path, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload || {}),
+  }).then(function (r) { return r.json(); });
+}
+
+function rpScan() {
+  return fetch("/replay/recordings", { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d) return;
+      RP.list = d.recordings || [];
+      RP.speeds = (d.status && d.status.speeds) || RP.speeds;
+      var sel = document.getElementById("rp-select");
+      if (!sel) return;
+      var keep = sel.value;
+      sel.innerHTML = "";
+      if (!RP.list.length) {
+        var none = document.createElement("option");
+        none.textContent = d.status && d.status.recordings_available
+          ? "no recordings found" : "no recordings directory configured";
+        none.value = "";
+        sel.appendChild(none);
+        sel.disabled = true;
+        return;
+      }
+      sel.disabled = false;
+      RP.list.forEach(function (rec) {
+        var opt = document.createElement("option");
+        opt.value = rec.recording_id;
+        opt.textContent = rec.recording_id
+          + " (" + Math.max(1, Math.round(rec.size_bytes / 1024)) + " kB)";
+        sel.appendChild(opt);
+      });
+      if (keep) sel.value = keep;
+    })
+    .catch(function () { /* replay is optional; never break the panel */ });
+}
+
+function rpStatus(s) {
+  if (!s) return;
+  txt("rp-state", s.state);
+  txt("rp-id", s.recording_id || "none");
+  txt("rp-pos", typeof s.elapsed_s === "number" && s.frames
+    ? s.elapsed_s.toFixed(1) + " s" : "n/a");
+  txt("rp-dur", typeof s.duration_s === "number" && s.frames
+    ? s.duration_s.toFixed(1) + " s" : "n/a");
+  txt("rp-frame", s.frames ? (s.index + 1) + " / " + s.frames : "n/a");
+  var spd = document.getElementById("rp-speed");
+  if (spd) spd.textContent = (s.speed || 1) + "x";
+  // Live / replay separation is explicit, never inferred by the operator.
+  var mode = document.getElementById("rp-mode");
+  if (mode) {
+    var live = !s.active;
+    mode.textContent = live ? "LIVE" : "REPLAY";
+    mode.className = "badge " + (live ? "b-ok" : "b-sim");
+  }
+  var note = document.getElementById("rp-note");
+  if (note) {
+    if (s.error) { note.textContent = s.error; }
+    else if (s.active) {
+      note.textContent = "Showing a recorded run. The live robot is unaffected; "
+        + "use \u201cBack to live\u201d to return.";
+    } else { note.textContent = ""; }
+  }
+}
+
+function rpInitControls() {
+  function on(id, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("click", fn);
+  }
+  function act(path, payload) {
+    return rpPost(path, payload).then(function (d) {
+      if (d && d.status) rpStatus(d.status);
+      return d;
+    });
+  }
+  on("rp-refresh", function () { rpScan(); });
+  on("rp-load", function () {
+    var sel = document.getElementById("rp-select");
+    if (!sel || !sel.value) return;
+    act("/replay/load", { recording_id: sel.value });
+  });
+  on("rp-play", function () { act("/replay/play"); });
+  on("rp-pause", function () { act("/replay/pause"); });
+  on("rp-restart", function () { act("/replay/restart"); });
+  on("rp-live", function () { act("/replay/unload"); });
+  on("rp-speed", function () {
+    // Cycle 0.5x -> 1x -> 2x using the speeds the server advertises.
+    var cur = RP.si;
+    cur = (cur + 1) % RP.speeds.length;
+    RP.si = cur;
+    act("/replay/speed", { speed: RP.speeds[cur] });
+  });
+  rpScan();
+}
+
 function apply(t) {
   var sim = !!t.simulated;
   var simB = document.getElementById("sim");
@@ -2698,6 +2940,12 @@ function apply(t) {
   // timer. It is fetched even without a frame so the panel can explain *why*
   // nothing is drawn (no bbox / other camera / world-located).
   pollOverlay();
+  // C14b: replay status likewise rides this tick. The server advances the
+  // recording in its own control loop; the browser only reads where it is.
+  fetch("/replay/status", { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d) rpStatus(d.status); })
+    .catch(function () { /* replay optional */ });
 
   txt("y-up", typeof t.system.uptime === "number"
     ? Math.round(t.system.uptime) + " s" : "not available");
@@ -2789,6 +3037,7 @@ function poll() {
 tInitControls();
 if (tInit()) { tResetView(); }
 initMapControls();
+rpInitControls();
 poll();
 setInterval(poll, POLL_MS);
 </script>"""

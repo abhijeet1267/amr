@@ -259,40 +259,40 @@ source-level test proves the overlay imports no serial/GPIO/threading code.
 Tests: 973 passed, 2 skipped, 0 failed (910 at C12 + 63). Hardware NOT tested.
 See `docs/camera_overlay.md`.
 
-### C14 — Historical replay `[~]` (in progress, C14 — offline scope)
-**Touches:** new recorder module + dashboard replay controls
+### C14b — Dashboard replay controls `[x]` (complete, C14b)
+**Touches:** dashboard frontend, replay routes, config
 Record timestamp, pose, navigation/safety state, hazards and mission; replay a
 previous run with PLAY / PAUSE / RESTART and 0.5x / 1x / 2x speed. Very useful
 for demonstrations. Playback sequence must be deterministic.
 
-**Scope note (agreed with the user):** this pass delivers the **recorder and
-replay engine plus tests**, offline. The dashboard replay controls are a
-follow-up, so no new route or UI control ships in this pass. The engine is
-caller-driven rather than threaded, which is what makes playback deterministic
-and testable without a real clock.
+**Delivered:** `amr/telemetry/replay_control.py` adds `RecordingStore`
+(read-only discovery + validated loading) and `ReplayController` (replay state:
+NO_RECORDING / READY / PLAYING / PAUSED / FINISHED / ERROR). The C14 engine was
+**not modified** — C14b only consumes `ReplayPlayer`.
 
-**Delivered:** `amr/telemetry/recorder.py` (`TelemetryRecorder`, `ReplayFrame`,
-`frame_from_snapshot`, `read_recording`) and `amr/telemetry/replay.py`
-(`ReplayPlayer`, `ReplayState`). The recorder mirrors the existing
-`HazardEventLog` conventions — bounded ring buffer, JSONL, best-effort
-persistence that never raises — so the project keeps one convention. Honesty
-rules: a frame with no usable timestamp is **skipped** rather than recorded at
-the wrong moment, and an unknown pose stays `None` rather than becoming 0.0.
+**Single tick honoured:** replay is advanced inside the web app's *existing*
+`_control_loop` via `replay.tick(interval)`; the browser only reads where
+playback reached, from the same `poll()` it already used. A test asserts the
+dashboard page still has **exactly one** `setInterval`, and the C14
+no-thread/no-clock rules are untouched.
 
-The player is **caller-driven**: no thread, no `sleep`, no internal clock. You
-pass elapsed time to `advance(dt)` and it reports the frame for that moment, so
-the same call sequence always yields the same frames and the whole engine tests
-in milliseconds. Transport: play / pause / restart / seek / speed, with
-deliberate choices documented (the end stops and holds rather than looping; a
-negative `dt` is ignored; a non-positive speed is refused so `play()` can never
-mean "rewind"; exact tie-breaking at frame timestamps). A source-level test
-fails if `time.time`, `time.sleep` or `Thread` ever reappear.
+**Security:** a client sends a `recording_id`, never a path. Separators, `..`,
+absolute paths, hidden names, NUL and non-strings are refused, and the joined
+path must sit inside the configured directory. New `config/replay.yaml` with
+`recordings_dir: null` mirrors the `event_log_path: null` convention — the panel
+stays visible and reports "no recordings directory configured" instead of
+pretending to be broken.
 
-No new HTTP route and no UI control in this pass. Source-level tests prove
-neither module imports `serial`/`RPi`/`gpio`/`socket`/`threading`, and a test
-records a real mock run and asserts the transport sees no writes.
-Tests: 1032 passed, 2 skipped, 0 failed (973 at C13 + 59). Hardware NOT tested.
-See `docs/replay.md`.
+**A regression this milestone caught:** two pre-existing C9 tests assert the
+dashboard HTML never mentions the actuator endpoint; my first draft broke both
+with the words "never reach /command" in a *comment*. The tests were right, so
+the prose was reworded and the invariant is now asserted a third time.
+
+Routes (all display-only, replay branch returns before `/command`): GET
+`/replay/recordings`, `/replay/status`; POST `/replay/load|play|pause|restart|
+speed|unload`. Zero actuator writes verified end to end over real HTTP.
+Tests: 1100 passed, 2 skipped, 0 failed (1032 at C14 + 68). Hardware NOT
+tested. See `docs/replay_dashboard.md`.
 
 ### C15 — Unified demo `[ ]` (upcoming)
 **Touches:** `amr/main.py` demo mode + dashboard

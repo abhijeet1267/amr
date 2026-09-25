@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1032%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1100%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1032 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **1100 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -357,6 +357,21 @@ follow-up. No new route was added, and `POST /command` remains the only
 actuator path.
 
 > [`docs/replay.md`](docs/replay.md).
+
+### C14b — Dashboard replay controls
+
+The dashboard gained a **Historical Replay** card: a recording list, load, and
+PLAY / PAUSE / RESTART with 0.5x / 1x / 2x speed, plus a LIVE/REPLAY badge so
+the operator always knows which they are looking at.
+
+Replay is advanced inside the web app's **existing** control loop — the page
+still has exactly one timer, and the C14 engine's no-thread / no-clock design is
+untouched. A client names a *recording id*, never a filesystem path; separators,
+`..` and absolute paths are refused. Display-only: the replay branch returns
+before `/command` and never calls `dispatch()`, verified as zero actuator writes
+over real HTTP.
+
+> [`docs/replay_dashboard.md`](docs/replay_dashboard.md).
 
 ---
 

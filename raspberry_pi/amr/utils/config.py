@@ -251,6 +251,35 @@ class HazardConfig:
 
 
 @dataclass
+class ReplayConfig:
+    """C14b — where recorded runs live and whether replay is offered.
+
+    ``recordings_dir`` is ``None`` by default, exactly like
+    :attr:`HazardConfig.event_log_path`: replay is a *reporting* feature, so it
+    stays off until a deployment points it at a real directory. With it unset,
+    the dashboard still shows a replay panel — it simply reports that no
+    recordings are configured, rather than pretending the feature is broken.
+    """
+
+    enabled: bool = True
+    recordings_dir: Optional[str] = None
+
+    def resolved_dir(self, config_dir: Optional[str] = None) -> Optional[str]:
+        """Absolute recordings directory, or ``None`` when unconfigured.
+
+        A relative path is resolved against the config directory so a config
+        can be portable between the repo and a deployed Pi.
+        """
+        if not self.recordings_dir:
+            return None
+        path = os.path.expanduser(str(self.recordings_dir))
+        if os.path.isabs(path):
+            return path
+        base = config_dir or os.getcwd()
+        return os.path.abspath(os.path.join(base, path))
+
+
+@dataclass
 class AppConfig:
     """Aggregated, validated application configuration."""
 
@@ -260,6 +289,7 @@ class AppConfig:
     warehouse: WarehouseConfig
     config_dir: str
     hazard: HazardConfig = field(default_factory=HazardConfig)
+    replay: ReplayConfig = field(default_factory=ReplayConfig)
 
 
 # --------------------------------------------------------------------------- #
@@ -348,7 +378,6 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
     robot_data = _load_yaml(cfg_dir / "robot.yaml")
     warehouse_data = _load_yaml(cfg_dir / "warehouse.yaml")
     hazard_data = _load_yaml(cfg_dir / "hazard.yaml")
-
     serial = _build(SerialConfig, serial_data.get("serial", {}), "serial")
     safety = _build(SafetyConfig, safety_data.get("safety", {}), "safety")
     # `avoidance` is a nested block, so _build() (which only handles flat
@@ -389,6 +418,11 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
     hazard_blob = hazard_data.get("hazard", hazard_data) or {}
     hazard = _build(HazardConfig, hazard_blob, "hazard")
 
+    # C14b: replay is optional and off by default (no directory configured).
+    replay_data = _load_yaml(cfg_dir / "replay.yaml")
+    replay_blob = replay_data.get("replay", replay_data) or {}
+    replay = _build(ReplayConfig, replay_blob, "replay")
+
     # ---- validation (fail fast on nonsense) ----
     _validate_serial(serial)
     _validate_safety(safety)
@@ -399,6 +433,7 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
     return AppConfig(
         serial=serial, safety=safety, robot=robot,
         warehouse=warehouse, config_dir=str(cfg_dir), hazard=hazard,
+        replay=replay,
     )
 
 

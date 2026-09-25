@@ -5,6 +5,103 @@
 
 ---
 
+## Session: C14b — Dashboard replay controls
+
+**Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
+
+### Implementation
+
+* **Recording discovery** — `RecordingStore` lists `*.jsonl` in the configured
+  directory (newest first, deterministic), skipping non-recordings, hidden files
+  and unreadable entries. Fetched when the panel opens, **not** every tick.
+* **Load** — by `recording_id` only. Separators, `..`, absolute paths, hidden
+  names, NUL, over-long names and non-strings are refused; the joined path must
+  sit directly inside the directory.
+* **PLAY / PAUSE / RESTART / UNLOAD** — `ReplayController`, states
+  `NO_RECORDING / READY / PLAYING / PAUSED / FINISHED / ERROR`.
+* **0.5x / 1x / 2x** — delegated to the C14 player; `STANDARD_SPEEDS` reused,
+  not redefined (a test enforces that).
+* **Dashboard integration** — a *Historical Replay* card with a LIVE/REPLAY
+  badge and honest `n/a` for anything the engine does not report.
+* **1 Hz integration** — replay is advanced by the **server's existing**
+  `_control_loop`; the browser only reads. The page still has exactly one
+  `setInterval` (asserted).
+* **Live/replay separation** — `GET /replay/status` carries its own `frame`,
+  separate from live telemetry, so replay data is never written over live data.
+
+### Architecture
+
+```
+existing _control_loop  →  mgr.tick()
+                       →  replay.tick(interval)   ← C14b's only hook
+                                  ↓
+                          ReplayPlayer.advance(dt)
+                                  ↓
+                          ReplayFrame
+                                  ↓
+        GET /replay/status  →  existing 1 Hz poll()  →  replay card
+```
+
+The C14 engine was **not modified**; C14b only consumes it.
+
+### Routes
+
+GET `/replay/recordings`, `/replay/status`; POST
+`/replay/load|play|pause|restart|speed|unload`. The replay branch returns before
+the `/command` path and never calls `dispatch()`.
+
+### Safety
+
+* **Actuator paths unchanged** — `/command` still reaches the robot (asserted).
+* **Transport writes from replay controls = 0**, verified end-to-end over HTTP.
+* **No background replay thread, no second timer** — asserted in both Python
+  (source scan) and JS (`setInterval` count).
+
+### A regression this milestone caught
+
+Two pre-existing C9 tests assert the dashboard HTML never mentions the actuator
+endpoint. My first draft broke both — not with a call, but with the words
+*"never reach /command"* in a comment. The tests were right; the prose was
+reworded, and the invariant is now asserted a third time.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `amr/telemetry/replay_control.py` | **new** — `RecordingStore`, `ReplayController` |
+| `amr/web/server.py` | controller wiring, control-loop tick, routes, replay card + JS |
+| `amr/utils/config.py` | `ReplayConfig`, `AppConfig.replay` |
+| `amr/main.py` | resolves `recordings_dir` |
+| `config/replay.yaml` | **new** — `recordings_dir: null` (off by default) |
+| `tests/test_replay_control.py` | **new** — 68 tests |
+| `docs/replay_dashboard.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+
+### Tests
+
+| Command | Result |
+|---|---|
+| `python -m pytest tests/test_replay_control.py` | **68 passed** |
+| `python -m pytest` (full) | **1100 passed, 2 skipped, 0 failed** (1032 → +68) |
+| `node --check` (dashboard JS) | OK |
+
+**Hardware / firmware: NOT TESTED.** Software/mock only.
+
+### Known limitations
+
+- Only the latest loaded recording is in memory; no playlist.
+- Compact control panel, not a timeline — no scrubbing or editing.
+- The web runtime does **not yet auto-record**; a caller still feeds
+  `TelemetryRecorder` directly.
+- No re-simulation: only captured frames replay.
+
+### Next recommended task
+
+**Auto-recording in the web runtime** — wire `TelemetryRecorder` into the
+existing control loop so a deployment records automatically, closing the loop
+record → discover → replay. Everything downstream already exists.
+
+---
+
 ## Session: C14 — Telemetry recording and replay (offline engine)
 
 **Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
@@ -66,7 +163,7 @@ at frame timestamps is exact, which is what makes playback reproducible.
 | Command | Result |
 |---|---|
 | `python -m pytest tests/test_replay.py` | **59 passed** |
-| `python -m pytest` (full) | **1032 passed, 2 skipped, 0 failed** (973 → +59) |
+| `python -m pytest` (full) | **1100 passed, 2 skipped, 0 failed** (973 → +59) |
 
 **Hardware tested: NO. Firmware touched: NO.** No existing test was modified.
 
@@ -161,7 +258,7 @@ default `None`) and records a mismatch in `other_source` rather than drawing it.
 | Command | Result |
 |---|---|
 | `python -m pytest tests/test_camera_overlay.py` | **40 passed** |
-| `python -m pytest` (full) | **1032 passed, 2 skipped, 0 failed** (910 → +63) |
+| `python -m pytest` (full) | **1100 passed, 2 skipped, 0 failed** (910 → +63) |
 | `node --check` (C11 guard) | OK |
 | Live HTTP smoke | 3 boxes drawn, confidences 0.90/0.88/0.77 preserved, `world_transform: null` |
 
@@ -260,7 +357,7 @@ On top of the fix:
 | Command | Result |
 |---|---|
 | `python -m pytest tests/test_mission_monitoring.py` | **45 passed** |
-| `python -m pytest` (full) | **1032 passed, 2 skipped, 0 failed** (865 → +45) |
+| `python -m pytest` (full) | **1100 passed, 2 skipped, 0 failed** (865 → +45) |
 | `node --check` on both served scripts | **OK** (C11 guard re-run) |
 | `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` | all exit 0 |
 | Live `--mock --web --mission-demo` | `NAVIGATE` → `DROP`, dest `station`, 1/3, `mission_id:web-run`; mission no longer degraded; all endpoints 200 |
