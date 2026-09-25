@@ -134,7 +134,7 @@ the console so the Mission panel shows a real mission instead of "unavailable".
 
 ### 12. Commits
 
-Implementation: `9ff4c86` · context: this commit.
+Implementation: `f4300c5` · context: this commit.
 `TASK_BOARD.md` marks C11 `[x]`. Push with `git push origin main`.
 
 ---
