@@ -274,3 +274,33 @@ MapSnapshot  →  build_twin_state()  →  GET /digital-twin  →  WebGL card
 
 See `docs/digital_twin.md`.
 
+## 13. Operations console layer (C11)
+
+The dashboard console is **another read-only projection**, not a new state
+model. `amr/telemetry/console.py` is a pure function that assembles the
+existing projections into one response:
+
+```text
+TelemetrySnapshot (C7) ─┐
+MapSnapshot (C9)       ─┼─→ build_console_state() ─→ GET /dashboard/state
+DigitalTwinState (C10) ─┤                                  ↓
+health (C7)            ─┘                              Dashboard
+```
+
+* **No new schema.** Every field is copied or derived arithmetically; the
+  `map` and `twin` keys are the untouched C9/C10 payloads, asserted equal to
+  their standalone endpoints so the console cannot become a second state.
+* **One request per tick.** The page fetches `/dashboard/state` instead of
+  telemetry + map + twin + health, still on the existing 1 Hz poll — no second
+  timer, no WebSocket.
+* **Absence stays absence.** `UNAVAILABLE` is never coerced to `0` or "healthy";
+  an unwired mission runtime reports "Mission data unavailable". Route progress
+  is reported with its basis, never recomputed or faked.
+* **Read-only.** GET only, no actuation controls; `POST /command` remains the
+  sole actuator path.
+* **JavaScript is syntax-checked in CI** (`node --check` on the served
+  scripts), permanently closing the C10 gap where a broken dashboard script
+  passed every test. Node is a validation tool only, never a runtime dep.
+
+See `docs/dashboard_console.md`.
+

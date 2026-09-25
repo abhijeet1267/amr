@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **820 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **865 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -155,7 +155,7 @@ into `SAFETY_STOP` are deterministic; the robot never auto-releases itself.
 | `amr/warehouse/` | Task queue + orchestration (Phase 16) | `WarehouseTaskManager`, `WarehouseMap`, `Task` |
 | `amr/camera/` | Camera facade (libcamera / V4L2 / mock) + C8 frame contract | `CameraManager`, `MockCamera`, `CameraSource`, `CameraFrame`, `SimulatedCameraSource`, `RaspberryPiCameraSource` |
 | `amr/web/` | Stdlib HTTP control panel + JSON API | `AMRWebApp` |
-| `amr/telemetry/` | Read-only telemetry contract + collector (C7) | `TelemetrySnapshot`, `TelemetryCollector` |
+| `amr/telemetry/` | Read-only telemetry contract + collector (C7); operations console projection (C11) | `TelemetrySnapshot`, `TelemetryCollector`, `build_console_state` |
 | `amr/map/` | C9 map state + world→screen transform + SVG renderer; C10 3D twin state | `MapSnapshot`, `MapService`, `MapTransform`, `PathHistory`, `build_twin_state`, `DigitalTwinState` |
 | `amr/mocks/` | Hardware-free doubles for tests | `MockSerial`, `MockMotor`, `MockCamera` |
 | `amr/utils/` | Config loading + helpers | `load_config`, `SafetyConfig`, `RobotConfig` |
@@ -287,6 +287,28 @@ when a real world location exists — image-space bounding boxes are reported as
 unlocated, never placed. The twin has no command path of any kind.
 
 > [`docs/digital_twin.md`](docs/digital_twin.md).
+
+### Advanced telemetry & mission monitoring (C11)
+
+`GET /dashboard` is now an **operations console**: a global status strip
+(source · robot · navigation · safety · mission · hazards) above detailed
+robot, goal+route, mission, safety, battery, sensors and system-health panels.
+All of it comes from a single read-only `GET /dashboard/state` that assembles
+the **existing** C7 telemetry, C9 map and C10 twin payloads — the console adds
+no new telemetry schema and no second state engine, and the embedded `map` /
+`twin` objects are byte-identical to their standalone endpoints.
+
+The page now issues **one request per tick instead of four**, still on the
+existing 1 Hz poll. `UNAVAILABLE` is never rendered as `0` or "healthy": a
+missing battery shows `N/A`, and an unwired mission runtime shows
+"Mission data unavailable" rather than a blank-but-healthy mission.
+
+The dashboard remains strictly read-only — GET only, no actuation controls, and
+`POST /command` is still the sole actuator path. The served JavaScript is now
+syntax-checked automatically (`node --check`, a validation tool only; the AMR
+needs no npm) so a broken script can no longer pass the test suite unnoticed.
+
+> [`docs/dashboard_console.md`](docs/dashboard_console.md).
 
 ---
 

@@ -5,6 +5,140 @@
 
 ---
 
+## Session: C11 — Advanced telemetry + mission monitoring console
+
+**Agent:** cline · **Branch:** `main` · **Date:** 2026-09-25 ·
+**Baseline when started:** `27262a1` (clean tree, = `origin/main`) ·
+**Tests:** 820 → **865 passed, 2 skipped, 0 failed** (+45)
+
+### 1. What was completed
+
+The dashboard is now an operations console: a global status strip plus robot,
+goal+route, mission, safety, hazard, battery, sensor, camera and system-health
+panels — all read-only, all assembled from **existing** state.
+
+* **New `raspberry_pi/amr/telemetry/console.py`** — a pure function
+  (`build_console_state`) over the C7 telemetry + C9 map + C10 twin + C7
+  health. No new schema, no second state engine, no hardware access.
+* **New read-only `GET /dashboard/state`.**
+* **Dashboard:** operations status bar + Mission, Goal & route, Battery,
+  System health panels; Safety gained hazard/avoidance/reason rows.
+* **1 request per tick** instead of four, still on the existing 1 Hz poll.
+* **JavaScript syntax checking is now permanent** (see §5).
+
+### 2. Architecture
+
+```
+TelemetrySnapshot (C7) ─┐
+MapSnapshot (C9)       ─┼─→ build_console_state() ─→ GET /dashboard/state
+DigitalTwinState (C10) ─┤                                  ↓
+health (C7)            ─┘                              Dashboard
+```
+
+`map` and `twin` are passed through by reference. Tests assert
+`console["map"] == GET /map` and `console["twin"] == GET /digital-twin`
+exactly, so the console can never become a second map or twin state.
+
+### 3. Honesty contract (enforced by tests)
+
+* `UNAVAILABLE` is never coerced to `0` / "ok" / `100%`. Live smoke shows
+  battery `UNAVAILABLE`, `percentage: null`,
+  `note: "no battery source in this build"`.
+* An unwired mission runtime reports **"Mission data unavailable"**, not a
+  blank-but-healthy mission.
+* Route progress is **reported, never recomputed**, and labelled
+  `straight-line distance to goal (not path-following)`.
+* Hazard placement still comes from the C9 map projection, so image-space
+  detections stay `unlocated` and are never drawn in the world.
+* Mission "state" is described from existing counters — not a new engine.
+
+### 4. Tests
+
+* **New `tests/test_console.py` — 35 tests**: console state, absence/honesty,
+  all four mission states, hazard placement vs unlocated, route progress
+  (incl. clamping and NaN), system health, plus the JavaScript guard.
+* **+10 `TestDashboardStateApi`** in `test_web_server.py`: schema, read-only
+  flag, embedded map/twin equality, agreement with `/telemetry`, GET-only,
+  no actuation, and all prior endpoints still 200.
+* **Full suite: 865 passed, 2 skipped, 0 failed** (two consecutive clean runs,
+  ~52 s).
+* **Live smoke** (`--mock --web`): `/dashboard/state` 200 `read_only:true`,
+  `map`/`twin` byte-identical to their endpoints, `degraded:[hazards, battery,
+  mission]`, all 8 endpoints 200.
+* **Smokes:** `amr.hazard`, `amr.hazard.vision`, `amr.warehouse`,
+  `amr.hazard.visualisation`, `amr.main --mock --demo` — all exit 0.
+
+### 5. JavaScript validation (C11 §24 — mandatory)
+
+`TestDashboardJavaScriptSyntax` extracts the served `<script>` bodies and runs
+**`node --check`**. Node is a validation tool only; the AMR never imports it
+and the project still needs no npm. Without Node the two syntax tests **skip
+with an explicit reason** (never a silent pass) and 4 structural tests still
+run — verified by removing Node from `PATH`: `4 passed, 2 skipped`.
+
+**This guard immediately caught a real bug**: a double-quote-escaping mistake
+in the new progress-bar renderer that would have blanked the entire dashboard
+while every other test still passed. Exactly the C10 failure mode, now caught
+automatically.
+
+### 6. A latent test race found and fixed
+
+Four existing read-only tests (C7 telemetry, C8 camera, C9 map, C10 twin)
+asserted `len(transport.written)` was unchanged across HTTP reads. That is
+inherently racy: the control loop emits periodic `PING`/`VERSION`/`SENSOR`
+polls on a background thread, so the count grows whenever a poll lands inside
+the measurement window. C11's extra load made it fire.
+
+Verified it is **not** a production regression: the C10 baseline full suite
+passes 3/3 in a clean worktree, and the failing assertions contained only
+`SENSOR` lines — the control loop's own traffic, not an actuation.
+
+Fix: `conftest.NoActuation`, which asserts that nothing appended during the
+block is an actuator command (`MOVE`/`STOP`). That is deterministic **and
+stronger** — it still catches a read path that issued `MOVE` even if background
+traffic tripled. All five sites now use it.
+
+### 7. Files
+
+Created: `raspberry_pi/amr/telemetry/console.py`,
+`raspberry_pi/tests/test_console.py`, `docs/dashboard_console.md`.
+Modified: `amr/telemetry/__init__.py`, `amr/web/server.py`,
+`tests/conftest.py`, `tests/{test_web_server,test_telemetry,test_map}.py`,
+`README.md`, `AI_CONTEXT/{ARCHITECTURE,CURRENT_STATUS,TASK_BOARD,HANDOFF}.md`.
+
+### 8. Hardware / firmware status
+
+**HARDWARE TESTED: NO** — no Raspberry Pi, robot, camera, sensors or battery.
+**FIRMWARE TESTED: NO** — firmware untouched.
+
+### 9. Known limitations
+
+* Battery, real sensors, a real mission runtime and a real camera are all
+  **unavailable in this build**; the console reports that rather than filling
+  gaps.
+* The mission runtime is not wired into the mock dashboard, so the panel
+  normally shows "Mission data unavailable".
+* Mission state is derived from counters, not a state machine.
+* No replay, analytics, cloud backend or authentication (out of scope).
+
+### 10. Remaining work
+
+C12 mission monitoring (wire `WarehouseTaskManager` into the console), C13
+hazard overlays on the map, C14 historical replay, C15 unified demonstration.
+Real battery/sensor/camera backends remain hardware-dependent.
+
+### 11. Recommended next task
+
+**C12 — mission monitoring**, wiring the existing `WarehouseTaskManager` into
+the console so the Mission panel shows a real mission instead of "unavailable".
+
+### 12. Commits
+
+Implementation: `9ff4c86` · context: this commit.
+`TASK_BOARD.md` marks C11 `[x]`. Push with `git push origin main`.
+
+---
+
 ## Session: C10 — 3D digital twin
 
 **Agent:** cline · **Branch:** `main` · **Date:** 2026-09-25 ·

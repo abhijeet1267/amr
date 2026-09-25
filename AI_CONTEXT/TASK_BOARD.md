@@ -188,10 +188,20 @@ Read-only: no POST route, no actuation controls, and a source-level test
 proves the twin module references no control or communication code. See
 `docs/digital_twin.md`.
 
-### C11 — Telemetry panel `[ ]` (upcoming)
+### C11 — Telemetry panel `[x]` (complete, C11)
 **Touches:** dashboard frontend
 Robot / navigation / safety / battery / sensor panels. Display only sensors that
 actually exist; show `NOT AVAILABLE` rather than a fabricated value.
+
+**Delivered:** `amr/telemetry/console.py` assembles the existing C7 telemetry +
+C9 map + C10 twin + C7 health into one read-only `GET /dashboard/state`, and the
+dashboard gains a global operations status bar plus robot / mission / goal+route /
+safety / battery / sensors / system-health panels. No new telemetry schema and no
+second state engine: the `map` and `twin` keys are the untouched C9/C10 payloads,
+asserted equal to their standalone endpoints. The 1 Hz poll is preserved and now
+issues one request per tick instead of four. C11 also made the JavaScript syntax
+check permanent (`node --check` on the served scripts) after the C10 dashboard-wide
+break. See `docs/dashboard_console.md`.
 
 ### C12 — Mission monitoring `[ ]` (upcoming)
 **Touches:** dashboard frontend, reuses `WarehouseTaskManager`
