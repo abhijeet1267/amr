@@ -262,6 +262,11 @@ class ReplayConfig:
     """
 
     enabled: bool = True
+    #: C15: record automatically while the web runtime runs. Because it only
+    #: takes effect when ``recordings_dir`` is set, the shipped default
+    #: (``recordings_dir: null``) records nothing — a safe default for a
+    #: reporting feature that must not silently fill a disk.
+    auto_record: bool = True
     recordings_dir: Optional[str] = None
 
     def resolved_dir(self, config_dir: Optional[str] = None) -> Optional[str]:

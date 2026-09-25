@@ -75,6 +75,7 @@ from ..map import MapService, build_twin_state
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
 from ..telemetry import TelemetryCollector, build_console_state
+from ..telemetry.auto_record import AutoRecorder
 from ..telemetry.replay_control import RecordingStore, ReplayController
 from ..telemetry.types import DataSource
 
@@ -220,6 +221,7 @@ class AMRWebApp:
         software_version: Optional[str] = None,
         camera_id: Optional[str] = None,
         recordings_dir: Optional[str] = None,
+        auto_record: bool = True,
     ):
         self._mgr = mgr
         # C13: the detection identity of the camera, used only to pair a frame
@@ -228,6 +230,10 @@ class AMRWebApp:
         # C14b: replay state. The controller holds no clock and no thread; the
         # control loop below advances it using the interval it already measures.
         self._replay = ReplayController(RecordingStore(recordings_dir))
+        # C15: automatic recording. Same directory the store above reads, so a
+        # recording written by the runtime is immediately discoverable by
+        # GET /replay/recordings. No-op unless a directory is configured.
+        self._auto = AutoRecorder(recordings_dir, enabled=auto_record)
         self._tick_hz = max(0.5, float(tick_hz))
         self._camera = camera
         self._lock = threading.Lock()
@@ -278,6 +284,12 @@ class AMRWebApp:
                 super().__init__(request, client_address, server)
 
         self._server = ThreadingHTTPServer((host, port), _BoundHandler)
+        # C15: begin recording before the control loop runs, so the very first
+        # tick is captured. A no-op when no recordings directory is configured.
+        try:
+            self._auto.start()
+        except Exception as exc:  # noqa: BLE001 - recording is optional
+            self.log.warning("auto-recording start failed: %s", exc)
         self._threads = [
             threading.Thread(target=self._server.serve_forever, daemon=True),
             threading.Thread(target=self._control_loop, daemon=True),
@@ -297,6 +309,17 @@ class AMRWebApp:
         for t in self._threads:
             t.join(timeout=2)
         self._threads = []
+        # C15: finish the recording after the loop has stopped, so a late tick
+        # cannot append to a finished run. The C14 recorder holds no open file
+        # handle, so this only finalises the session.
+        try:
+            summary = self._auto.stop()
+        except Exception as exc:  # noqa: BLE001 - recording is optional
+            self.log.warning("auto-recording stop failed: %s", exc)
+            summary = None
+        if summary:
+            self.log.info("recorded %s (%d frames)", summary.get("recording_id"),
+                          int(summary.get("frames") or 0))
 
     def _control_loop(self) -> None:
         interval = 1.0 / self._tick_hz
@@ -313,6 +336,15 @@ class AMRWebApp:
                     self._replay.tick(interval)
                 except Exception as exc:  # noqa: BLE001 - replay is optional
                     self.log.warning("replay tick failed: %s", exc)
+                # C15: record the authoritative telemetry snapshot — the same
+                # TelemetryCollector the dashboard reads. No second collection
+                # path, no second loop: this is the runtime tick that already
+                # happened. record() is throttled, and never raises.
+                if self._auto.active:
+                    try:
+                        self._auto.record(self.telemetry.snapshot())
+                    except Exception as exc:  # noqa: BLE001 - recording optional
+                        self.log.warning("auto-record failed: %s", exc)
             self._stop_evt.wait(interval)
 
     # ------------------------------------------------------------------ #
@@ -418,6 +450,7 @@ class AMRWebApp:
             return {
                 "recordings": self._replay.recordings(),
                 "status": self._replay.status(),
+                "recording": self._auto.status(),
             }
 
     def replay_status(self) -> dict:

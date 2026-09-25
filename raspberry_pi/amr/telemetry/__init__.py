@@ -33,6 +33,7 @@ from .recorder import (
     frame_from_snapshot,
     read_recording,
 )
+from .auto_record import AutoRecorder, recording_name
 from .replay import (
     STANDARD_SPEEDS,
     ReplayPlayer,
@@ -58,6 +59,7 @@ from .types import (
 
 __all__ = [
     "AT_ARRIVAL",
+    "AutoRecorder",
     "CONSOLE_SCHEMA_VERSION",
     "DEFAULT_MIN_INTERVAL_S",
     "DEFAULT_RECORDING_CAPACITY",
@@ -89,6 +91,7 @@ __all__ = [
     "hazard_summary",
     "mission_phase",
     "read_recording",
+    "recording_name",
     "route_progress_points",
     "source_of",
 ]

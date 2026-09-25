@@ -261,6 +261,7 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
         # C14b: where recorded runs live. None (the default) leaves the replay
         # panel present but reporting "no recordings configured".
         recordings_dir=replay_dir,
+        auto_record=bool(getattr(replay_cfg, "auto_record", True)),
     )
     port = app.start(host=args.host, port=args.port)
     shown = "localhost" if args.host in ("0.0.0.0", "") else args.host

@@ -242,9 +242,14 @@ class TelemetryRecorder:
         self._t0: Optional[float] = None
         self._dropped = 0
         self._persist_failures = 0
+        self._closed = False
         self.log = get_logger("telemetry.recorder")
 
     # -- introspection ---------------------------------------------------- #
+    @property
+    def closed(self) -> bool:
+        """True once :meth:`close` was called; a closed recorder records nothing."""
+        return self._closed
     @property
     def capacity(self) -> int:
         return self._capacity
@@ -288,6 +293,9 @@ class TelemetryRecorder:
             snapshot)
         if data is None:
             return None
+        if self._closed:
+            # A finished run stays finished: a late tick must not extend it.
+            return None
         wall = _num(data.get("timestamp")) if timestamp is None else \
             _num(timestamp)
         if wall is None:
@@ -316,6 +324,17 @@ class TelemetryRecorder:
         self._last_wall = None
         self._t0 = None
         self._dropped = 0
+
+    def close(self) -> None:
+        """Finish this recording. Idempotent; never raises.
+
+        C15 added this because a runtime-owned recorder needs a way to say
+        "this run is over". The C14 recorder opens and closes the file on every
+        write, so nothing is buffered and there is nothing to flush — closing
+        simply makes the recorder **inert**, so a late tick cannot append to a
+        finished run. Frames already written stay readable, exactly as before.
+        """
+        self._closed = True
 
     # -- persistence (best effort, never raises) -------------------------- #
     def _persist(self, frame: Mapping[str, Any]) -> None:

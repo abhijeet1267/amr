@@ -14,4 +14,7 @@
 # .jsonl) and resolved inside this directory.
 replay:
   enabled: true
+  # C15: record automatically while `amr.main --web` runs. Only takes effect
+  # when recordings_dir is set, so the shipped default records nothing.
+  auto_record: true
   recordings_dir: null
