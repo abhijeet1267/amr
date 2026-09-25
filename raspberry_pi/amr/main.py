@@ -101,15 +101,38 @@ def build_camera(config: AppConfig, mock: bool) -> Any:
     return RaspberryPiCameraSource(width=width, height=height)
 
 
-def build_navigator(mgr: RobotManager, config: AppConfig) -> Any:
+def build_navigator(mgr: RobotManager, config: AppConfig,
+                    hazard: Any = None) -> Any:
     """The single navigator for this runtime (C9).
 
     The dashboard reads pose/goal/route from this object; it never steps it.
     Motion is only ever driven by the warehouse task manager's own loop or the
     operator command path, both of which go through the safety gate.
+
+    ``hazard`` (C15) is the optional hazard manager. When both it and
+    ``config.safety.avoidance.enabled`` are present, the C6 obstacle-avoidance
+    gate is wired in: the navigator asks the *existing* hazard layer what it is
+    seeing, and the *existing* :class:`AvoidancePolicy` decides. Nothing about
+    the manoeuvre is invented here, and with the flag off (the shipped default)
+    this is byte-identical to before C6.
     """
     whcfg = config.warehouse
     wheel_base = config.robot.wheel_track_m or whcfg.wheel_base_m
+    kwargs: dict = {}
+    if hazard is not None and getattr(config.safety, "avoidance", None) is not None \
+            and config.safety.avoidance.enabled:
+        from .safety.avoidance import AvoidancePolicy, report_from_hazard
+        kwargs.update(
+            avoidance=AvoidancePolicy.from_config(config.safety.avoidance),
+            # The navigator asks the hazard layer; it never re-reads sensors.
+            # ``status`` is a property on HazardManager, so read the attribute.
+            obstacle_provider=lambda: report_from_hazard(hazard.status),
+            # Layer 3 keeps absolute priority: the navigator consults the real
+            # safety verdict before considering any manoeuvre.
+            decision_provider=lambda: mgr.decision,
+        )
+        get_logger("main").info(
+            "C6 obstacle avoidance wired (hazard layer supplies the evidence)")
     return LocalNavigator(
         command=mgr.move,
         start_pose=None,  # starts at the map's dock (0, 0, 0)
@@ -117,6 +140,7 @@ def build_navigator(mgr: RobotManager, config: AppConfig) -> Any:
         max_linear_speed=whcfg.task_speed,
         max_angular_speed=whcfg.turn_speed,
         max_pwm=mgr.drive.max_speed,
+        **kwargs,
     )
 
 

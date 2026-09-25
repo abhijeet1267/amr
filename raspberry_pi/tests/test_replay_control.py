@@ -296,13 +296,33 @@ class TestSingleTickIntegration:
             assert forbidden not in imported, forbidden
 
     def test_web_app_advances_replay_in_the_existing_loop(self):
-        """The tick lives in _control_loop, not in a new timer."""
+        """The tick lives in the existing loop, not in a new timer.
+
+        C15 refactored the loop body into ``_tick_once`` so the demo could drive
+        the *same* per-iteration work deterministically. The invariant this test
+        protects is unchanged — replay is advanced once per iteration of the one
+        existing loop, and no thread is created for it — so the assertions now
+        follow the call path (``_control_loop`` -> ``_tick_once``) instead of
+        requiring the literal to sit inside one specific function body. This is
+        strictly more coverage: it also pins that the loop still delegates to
+        that method and still has exactly one wait.
+        """
         import inspect
         from amr.web.server import AMRWebApp
-        src = inspect.getsource(AMRWebApp._control_loop)
-        assert "self._replay.tick(interval)" in src
-        # And no new thread is created for replay.
-        assert "Thread(" not in src
+        loop_src = inspect.getsource(AMRWebApp._control_loop)
+        tick_src = inspect.getsource(AMRWebApp._tick_once)
+
+        # Still exactly one loop, waiting once per iteration, no new thread.
+        assert loop_src.count("self._stop_evt.wait(interval)") == 1
+        assert "Thread(" not in loop_src
+        assert "Thread(" not in tick_src
+
+        # The loop delegates its body to the per-iteration method...
+        assert "self._tick_once(interval)" in loop_src
+        # ...and that is where replay is advanced, exactly once.
+        assert tick_src.count("self._replay.tick(interval)") == 1
+        # C15's recording rides the same iteration, not a second one.
+        assert tick_src.count("self._auto.record(") == 1
 
     def test_dashboard_still_has_exactly_one_timer(self):
         """A second setInterval would violate the single-tick rule."""

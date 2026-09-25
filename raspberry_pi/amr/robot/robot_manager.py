@@ -89,6 +89,19 @@ class RobotManager:
         self._hazard_pose_provider: Optional[Callable[[], Any]] = None
         self._last_hazard_status: Optional["HazardStatus"] = None
 
+    @property
+    def decision(self) -> Optional[SafetyDecision]:
+        """The most recent Layer-3 safety verdict, or ``None`` before the first
+        ``tick()``.
+
+        C15 added this read-only accessor so the C6 avoidance gate can be wired
+        to the *real* Layer-3 verdict instead of a second, independent safety
+        call — keeping the priority argument (a Layer-3 ``STOP`` outranks every
+        manoeuvre) honest. It exposes the existing verdict; it never recomputes
+        one and never drives an actuator.
+        """
+        return self._last_decision
+
     # ------------------------------------------------------------------ #
     # Factory: full mock stack (no hardware, no pyserial)
     # ------------------------------------------------------------------ #

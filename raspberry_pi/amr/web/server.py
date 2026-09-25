@@ -324,28 +324,40 @@ class AMRWebApp:
     def _control_loop(self) -> None:
         interval = 1.0 / self._tick_hz
         while not self._stop_evt.is_set():
-            with self._lock:
-                try:
-                    self._mgr.tick()
-                except Exception as exc:  # noqa: BLE001 - loop must survive
-                    self.log.error("tick failed: %s", exc)
-                # C14b: replay rides the loop that already exists. No second
-                # timer, no thread: the controller is a no-op unless a recording
-                # is loaded and playing, so live behaviour is untouched.
-                try:
-                    self._replay.tick(interval)
-                except Exception as exc:  # noqa: BLE001 - replay is optional
-                    self.log.warning("replay tick failed: %s", exc)
-                # C15: record the authoritative telemetry snapshot — the same
-                # TelemetryCollector the dashboard reads. No second collection
-                # path, no second loop: this is the runtime tick that already
-                # happened. record() is throttled, and never raises.
-                if self._auto.active:
-                    try:
-                        self._auto.record(self.telemetry.snapshot())
-                    except Exception as exc:  # noqa: BLE001 - recording optional
-                        self.log.warning("auto-record failed: %s", exc)
+            self._tick_once(interval)
             self._stop_evt.wait(interval)
+
+    def _tick_once(self, interval: float) -> None:
+        """One iteration of the control loop, under the app lock.
+
+        C15 split this out of :meth:`_control_loop` so the loop body is a
+        single callable. There is still exactly **one** loop and one timer: the
+        background thread above calls this once per interval, and the C15 demo
+        calls the very same method to step the scenario deterministically. That
+        is what lets the demo prove the real runtime records, instead of
+        re-implementing the tick.
+        """
+        with self._lock:
+            try:
+                self._mgr.tick()
+            except Exception as exc:  # noqa: BLE001 - loop must survive
+                self.log.error("tick failed: %s", exc)
+            # C14b: replay rides the loop that already exists. No second
+            # timer, no thread: the controller is a no-op unless a recording
+            # is loaded and playing, so live behaviour is untouched.
+            try:
+                self._replay.tick(interval)
+            except Exception as exc:  # noqa: BLE001 - replay is optional
+                self.log.warning("replay tick failed: %s", exc)
+            # C15: record the authoritative telemetry snapshot — the same
+            # TelemetryCollector the dashboard reads. No second collection
+            # path, no second loop: this is the runtime tick that already
+            # happened. record() is throttled, and never raises.
+            if self._auto.active:
+                try:
+                    self._auto.record(self.telemetry.snapshot())
+                except Exception as exc:  # noqa: BLE001 - recording optional
+                    self.log.warning("auto-record failed: %s", exc)
 
     # ------------------------------------------------------------------ #
     # Handler-facing API (all serialised by the lock)

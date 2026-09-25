@@ -346,7 +346,20 @@ class TelemetryCollector:
         except Exception as exc:  # noqa: BLE001
             self.log.debug("telemetry: hazard snapshot failed: %s", exc)
             return HazardTelemetry()
-        if not isinstance(snap, dict) or not snap.get("attached"):
+        # C15 fixed a real pre-existing bug here: this test was
+        # ``snap.get("attached")``, but ``HazardManager.snapshot()`` has never
+        # emitted an ``attached`` key — that is a C2 *web payload* field. So the
+        # condition was always false and the hazard section of every telemetry
+        # snapshot (and therefore of every recording) silently reported
+        # UNAVAILABLE, i.e. the hazard was invisible in /telemetry and in replay.
+        #
+        # "A layer is attached" is already established above (``layer is not
+        # None``). The remaining question is whether the layer actually reported
+        # a verdict, so that is what is checked here. The C2 web payload shape
+        # (``attached: true``) is still accepted for a custom layer.
+        if not isinstance(snap, dict):
+            return HazardTelemetry()
+        if not (snap.get("state") or snap.get("attached")):
             return HazardTelemetry()
         active = _dict_tuple(snap.get("active_events"))
         recent = _dict_tuple(snap.get("recent_events"))
