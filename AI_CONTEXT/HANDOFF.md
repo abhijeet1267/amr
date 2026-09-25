@@ -100,6 +100,11 @@ reworded, and the invariant is now asserted a third time.
 existing control loop so a deployment records automatically, closing the loop
 record → discover → replay. Everything downstream already exists.
 
+### Commit
+
+`d73a884` — `feat: add dashboard replay controls` (11 files, +1415 / −38).
+A follow-up commit records this hash in the handoff.
+
 ---
 
 ## Session: C14 — Telemetry recording and replay (offline engine)
