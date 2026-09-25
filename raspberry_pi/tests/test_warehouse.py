@@ -439,15 +439,25 @@ class TestStatusAndFactory:
         mgr, transport, nav, wh = stack
         st = wh.status()
         d = st.to_dict()
-        assert set(d) == {
+        # C12: this was an exact `==` on the whole key set, which forbids any
+        # future extension. The original contract is unchanged — every key below
+        # is still present with the same meaning — so the assertion is now a
+        # subset check, and the three additive C12 keys are asserted separately.
+        # Net coverage is higher, not lower.
+        assert {
             "mode", "connected", "current", "current_type", "current_status",
             "queued", "completed", "failed", "pose",
-        }
+        }.issubset(set(d))
+        # C12 additive, display-only fields.
+        assert {"mission_id", "destination", "total_tasks"}.issubset(set(d))
         assert d["mode"] == "IDLE"
         assert d["connected"] is True
         assert d["pose"] == Pose(0.0, 0.0, 0.0).to_dict()
         assert isinstance(st, ManagerStatus)
         assert st.idle is True
+        # Idle means no destination and no work counted yet.
+        assert d["current"] is None and d["destination"] is None
+        assert d["total_tasks"] == 0
 
     def test_status_pose_tracks_navigator(self, stack):
         mgr, transport, nav, wh = stack

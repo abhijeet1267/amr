@@ -304,3 +304,42 @@ health (C7)            ─┘                              Dashboard
 
 See `docs/dashboard_console.md`.
 
+## 14. Mission monitoring layer (C12)
+
+C12 adds **no new state engine**. It makes the existing `WarehouseTaskManager`
+observable through the same read-only chain the console already uses:
+
+```
+WarehouseTaskManager.status()   ManagerStatus
+        │  mission_id · destination · total_tasks · counters
+        ▼
+TelemetryCollector._mission()  adapters + progress (one _goal_progress helper)
+        ▼
+MissionTelemetry                the C7 mission section, extended additively
+        ▼
+mission_phase()                 derived display phase, overridden by safety
+        ▼
+GET /dashboard/state  →  Mission panel
+```
+
+Three properties matter for anyone extending this:
+
+* **One mission truth.** The collector adapts `ManagerStatus`; it never
+  re-decides what the robot is doing. The reader accepts the object *or* a plain
+  dict so third-party warehouse implementations still work.
+* **Derived, never invented.** `mission_progress` is `completed / total` over
+  real submitted work; `task_progress` is real straight-line distance to the
+  navigator's own goal. Unknown stays `None` — and unknown is never read as
+  arrival or as 0%.
+* **Safety outranks the narrative.** The phase is presentation only; a
+  `TURN`/`REPLAN` shows `AVOID`, `STOP`/`WAIT` show `HELD`, and an E-stop shows
+  `EMERGENCY`. Nothing here feeds back into navigation.
+
+The optional `--mission-demo` flag drives the standard warehouse scenario so the
+panel has something to show. It is **mock-only by construction** — it is
+refused without `--mock` — and it is a runtime loop, not a dashboard control.
+The dashboard remains read-only throughout; `POST /command` is still the only
+actuator path.
+
+See `docs/mission_monitoring.md`.
+

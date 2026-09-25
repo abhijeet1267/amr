@@ -14,11 +14,13 @@ safety-gated ``POST /command`` path.
 """
 from .collector import TelemetryCollector
 from .console import (
+    AT_ARRIVAL,
     CONSOLE_SCHEMA_VERSION,
     NOT_AVAILABLE,
     build_console_state,
     component_health,
     hazard_summary,
+    mission_phase,
     route_progress_points,
     source_of,
 )
@@ -41,6 +43,7 @@ from .types import (
 )
 
 __all__ = [
+    "AT_ARRIVAL",
     "CONSOLE_SCHEMA_VERSION",
     "NOT_AVAILABLE",
     "TELEMETRY_SCHEMA_VERSION",
@@ -61,6 +64,7 @@ __all__ = [
     "build_console_state",
     "component_health",
     "hazard_summary",
+    "mission_phase",
     "route_progress_points",
     "source_of",
 ]

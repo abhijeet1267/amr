@@ -5,6 +5,90 @@
 
 ---
 
+## Session: C12 — Mission monitoring
+
+**Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
+
+### What C12 implemented
+
+The headline is a **bug fix, not a feature**: the mission telemetry section had
+**never reported anything**. Three defects in
+`TelemetryCollector._mission()` each independently forced `UNAVAILABLE`:
+
+1. It tested `isinstance(wh.status(), dict)`, but `status()` returns a
+   `ManagerStatus` **object** → early return.
+2. It read `current_task`; the real key is `current` → task silently dropped.
+3. It read `mission_id`; no runtime ever produced it → always `None`.
+
+Defect 1 masked the others, so the panel looked "empty" rather than broken.
+This was only findable by driving the **real** `WarehouseTaskManager` — a test
+double written from the same wrong assumption would have kept it broken.
+
+On top of the fix:
+
+- `ManagerStatus` gained `mission_id`, `destination`, `total_tasks`
+  (additive, optional, caller-supplied — never invented).
+- `MissionTelemetry` gained `destination`, `total_tasks`,
+  `mission_progress` (`completed / total`), `task_progress` (real straight-line
+  distance, reusing the collector's existing `_goal_progress`).
+- `mission_phase()` derives the roadmap narrative from the real task type and
+  real travel progress, and is **overridden by safety** (`TURN`/`REPLAN` →
+  `AVOID`, `STOP`/`WAIT` → `HELD`, E-stop → `EMERGENCY`).
+- Dashboard Mission panel gained Phase / Destination / Tasks rows and a
+  progress bar driven only by real values.
+- `--mission-demo` (opt-in, **mock-only**) drives the standard scenario so the
+  panel has something to show. It is refused without `--mock`.
+- `_as_int()` hardens count parsing so a bad value from a third-party
+  warehouse implementation cannot take down the whole snapshot.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `amr/telemetry/collector.py` | `_mission()` rewritten; `_mission_task_progress()`; `_as_int()` |
+| `amr/telemetry/types.py` | `MissionTelemetry` +4 additive fields |
+| `amr/telemetry/console.py` | `mission_phase()`, `_arrived()`, `AT_ARRIVAL`, richer mission panel |
+| `amr/telemetry/__init__.py` | exports |
+| `amr/warehouse/task_manager.py` | `ManagerStatus` +3 fields; `mission_id` ctor kwarg; `status()` populated |
+| `amr/web/server.py` | Mission panel rows + `renderMission()` |
+| `amr/main.py` | `build_warehouse(mission_id=...)`, `--mission-demo` flag + gate |
+| `tests/test_mission_monitoring.py` | **new**, 45 tests |
+| `tests/test_warehouse.py` | one assertion: exact key-set → subset + new-key asserts |
+| `docs/mission_monitoring.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+
+### Tests
+
+| Command | Result |
+|---|---|
+| `python -m pytest tests/test_mission_monitoring.py` | **45 passed** |
+| `python -m pytest` (full) | **910 passed, 2 skipped, 0 failed** (865 → +45) |
+| `node --check` on both served scripts | **OK** (C11 guard re-run) |
+| `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` | all exit 0 |
+| Live `--mock --web --mission-demo` | `NAVIGATE` → `DROP`, dest `station`, 1/3, `mission_id:web-run`; mission no longer degraded; all endpoints 200 |
+
+**Hardware tested: NO. Firmware touched: NO.**
+
+### Safety
+
+Display only. No new route; `POST /command` remains the only actuator path. A
+test asserts mission + console reads write **zero** bytes to the mock transport.
+`--mission-demo` is refused without `--mock`.
+
+### Known limitations
+
+- `mission_id` is a caller-supplied label, not a generated run identity.
+- Progress is straight-line distance, not path length (fine for the current
+  waypoint planner; a path-following planner needs a different basis).
+- Hardware untested, as always.
+
+### Next recommended task
+
+**C13 — camera + hazard overlays** (bounding boxes drawn on the camera panel).
+The data is already there: `VisionDetection.bbox` rides in hazard metadata and
+C8 already serves frames. Must respect the world/image-space boundary.
+
+---
+
 ## Session: C11 — Advanced telemetry + mission monitoring console
 
 **Agent:** cline · **Branch:** `main` · **Date:** 2026-09-25 ·

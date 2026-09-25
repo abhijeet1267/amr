@@ -276,7 +276,13 @@ class SensorTelemetry:
 
 @dataclass(frozen=True)
 class MissionTelemetry:
-    """Warehouse task progress, copied from ``WarehouseTaskManager.status()``."""
+    """Warehouse task progress, copied from ``WarehouseTaskManager.status()``.
+
+    The C12 fields (``destination``, ``total_tasks``, ``mission_progress``,
+    ``task_progress``) are optional and appended, so the schema stays backward
+    compatible: a reader that predates C12 ignores them, and a runtime that
+    does not populate them reports ``None`` rather than a guessed value.
+    """
 
     mission_id: Optional[str] = None
     current_task: Optional[str] = None
@@ -286,6 +292,16 @@ class MissionTelemetry:
     completed_tasks: int = 0
     failed_tasks: int = 0
     source: DataSource = DataSource.UNAVAILABLE
+    # --- C12: additive, display-only -------------------------------------
+    #: Named destination of the active task, from the task itself.
+    destination: Optional[str] = None
+    #: Real task count for this run: queued + active + completed + failed.
+    total_tasks: int = 0
+    #: Completed / total, as a 0..1 fraction. ``None`` when no tasks exist yet.
+    mission_progress: Optional[float] = None
+    #: Straight-line progress of the *active task* toward its goal, 0..1.
+    #: ``None`` when there is no active goal — never a fabricated value.
+    task_progress: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -297,6 +313,10 @@ class MissionTelemetry:
             "completed_tasks": self.completed_tasks,
             "failed_tasks": self.failed_tasks,
             "source": self.source.value,
+            "destination": self.destination,
+            "total_tasks": self.total_tasks,
+            "mission_progress": self.mission_progress,
+            "task_progress": self.task_progress,
         }
 
 

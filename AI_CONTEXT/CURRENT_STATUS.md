@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** the C11 working tree — full suite
-**865 passed, 2 skipped, 0 failed** (820 at C10 + 45 console tests).
+**Last verified:** the C12 working tree — full suite
+**910 passed, 2 skipped, 0 failed** (865 at C11 + 45 mission tests).
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -17,7 +17,8 @@ Re-verify with the commands below before trusting these numbers.
 | Live web smoke (C2, `--mock --web` + `hazard.enabled=true`) | `GET /hazard` → `attached:true, state:NORMAL, sources:["zones"]`; `POST /hazard/acknowledge` → `ok:true`; `/status` carries the `hazard` key |
 | Dashboard smoke (C7, `--mock --web`) | `GET /health` → 200 `ok:true, simulated:true, read_only:true`; `GET /telemetry` → 200 valid schema-1.0 JSON with per-section `source` tags; `GET /dashboard` → 200 HTML |
 | 3D twin smoke (C10, `--mock --web`) | `GET /digital-twin` → 200 `source:SIMULATION`, `robot` pose **identical** to `GET /map`, 5 config waypoints, `renderer.library: null`; `GET /dashboard` → 200 containing the 3D card and canvas; `/telemetry`, `/map.svg`, `/camera/status` all 200 |
-| Console smoke (C11, `--mock --web`) | `GET /dashboard/state` → 200 `read_only:true`, `source:SIMULATION`; `console["map"] == GET /map` and `console["twin"] == GET /digital-twin` **exactly**; battery `UNAVAILABLE` with `note: "no battery source in this build"`; mission `Mission data unavailable`; `degraded:[hazards, battery, mission]`; all prior endpoints still 200 |
+| Console smoke (C12, `--mock --web --mission-demo`) | `GET /dashboard/state` → 200 `read_only:true`, `source:SIMULATION`; mission `phase:NAVIGATE` → `DROP`, `destination:station`, `mission_progress:0.33`, `total_tasks:3`, `mission_id:web-run`; `mission` **no longer** in `degraded`; all prior endpoints still 200 |
+| Console smoke (C11, `--mock --web`) | `GET /dashboard/state` → 200 `read_only:true`, `source:SIMULATION`; `console["map"] == GET /map` and `console["twin"] == GET /digital-twin` **exactly**; battery `UNAVAILABLE` with `note: "no battery source in this build"`; mission `Mission data unavailable` when no warehouse runtime is attached; all prior endpoints still 200 |
 
 The 2 skips are the camera tests that need `opencv-python`/`numpy`; they run when
 those are installed and skip gracefully otherwise. They are the only conditional
@@ -38,6 +39,7 @@ test_vision.py             95    test_avoidance.py         76
 test_telemetry.py          52    test_map.py              111
 test_camera_frame.py       49    test_digital_twin.py      37
 test_console.py            35    (new in C11 — operations console)
+test_mission_monitoring.py 45    (new in C12 — mission monitoring)
 ```
 
 ---
@@ -58,7 +60,7 @@ test_console.py            35    (new in C11 — operations console)
 | `telemetry` (C7 read-only contract + collector) | **Implemented, unit-tested** | `test_telemetry.py` (46) |
 | `web` (panel + dashboard + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (69), incl. `GET /hazard` + acknowledge (C2), `/telemetry` `/health` `/dashboard` (C7), `/map` + `/map.svg` (C9), `/digital-twin` (C10) and `/dashboard/state` (C11) |
 | `map` (C9 2D state + SVG, C10 3D twin state) | **Implemented, unit-tested** | `test_map.py` (111), `test_digital_twin.py` (37) |
-| `telemetry` (C7 contract, C11 operations console) | **Implemented, unit-tested** | `test_telemetry.py` (52), `test_console.py` (35) |
+| `telemetry` (C7 contract, C11 console, C12 mission monitoring) | **Implemented, unit-tested** | `test_telemetry.py` (52), `test_console.py` (35), `test_mission_monitoring.py` (45) |
 | `logging` | **Implemented, unit-tested** | `test_logging.py` |
 | `utils/config` | **Implemented, unit-tested** | `test_config.py` (18) |
 | `mocks` | **Implemented**, indirectly covered by every suite | — |

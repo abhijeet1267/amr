@@ -1360,16 +1360,19 @@ a { color: var(--sim); }
   <section class="card">
     <h2>Mission</h2>
     <dl class="kv">
+      <dt>Phase</dt><dd id="m-phase">&mdash;</dd>
       <dt>State</dt><dd id="m-state">&mdash;</dd>
       <dt>Mission</dt><dd id="m-id">&mdash;</dd>
       <dt>Task</dt><dd id="m-task">&mdash;</dd>
       <dt>Task status</dt><dd id="m-status">&mdash;</dd>
+      <dt>Destination</dt><dd id="m-dest">&mdash;</dd>
+      <dt>Tasks</dt><dd id="m-total">&mdash;</dd>
       <dt>Queued</dt><dd id="m-queued">&mdash;</dd>
       <dt>Completed</dt><dd id="m-done">&mdash;</dd>
       <dt>Failed</dt><dd id="m-fail">&mdash;</dd>
     </dl>
-    <!-- Progress is drawn only when the runtime can supply a real value.
-         The bar stays empty (and the caption says so) otherwise. -->
+    <!-- Progress bars are drawn only from real runtime values. The bar stays
+         empty (and the caption says why) when the value is unknown. -->
     <div class="bar" id="m-bar" aria-hidden="true"></div>
     <p class="mini" id="m-note">&mdash;</p>
   </section>
@@ -2370,24 +2373,37 @@ function renderOpsbar(s) {
 }
 
 function renderMission(m, route) {
+  // C12: the derived phase is shown next to the raw task type/status, so the
+  // runtime's own words are never hidden behind the presentation.
+  txt("m-phase", m.phase || "N/A");
   txt("m-state", m.state);
   txt("m-id", m.mission_id || "none");
   txt("m-task", m.current_task || "none");
   txt("m-status", m.current_task_status || "none");
+  txt("m-dest", m.destination || "none");
+  txt("m-total", m.total_tasks === null || m.total_tasks === undefined
+    ? "N/A" : m.total_tasks);
   txt("m-queued", m.queued === null || m.queued === undefined ? "N/A" : m.queued);
   txt("m-done", m.completed_tasks === null ? "N/A" : m.completed_tasks);
   txt("m-fail", m.failed_tasks === null ? "N/A" : m.failed_tasks);
-  // A bar is drawn only when the runtime supplied real progress.
-  var p = route && route.progress_available ? route.progress_pct / 100 : null;
-  bar("m-bar", p, m.state === "FAILED");
-  var note;
+  // Prefer the mission-level fraction (completed / submitted); fall back to the
+  // active task's travel progress. Both are real runtime values.
+  var frac = null, note;
+  if (typeof m.mission_progress === "number" && m.total_tasks > 0) {
+    frac = m.mission_progress;
+    note = "mission " + (m.completed_tasks || 0) + "/" + m.total_tasks
+      + " tasks complete";
+  } else if (typeof m.task_progress === "number") {
+    frac = m.task_progress;
+    note = "current task " + Math.round(m.task_progress * 100)
+      + "% along direct route";
+  } else {
+    note = "No progress available from the runtime.";
+  }
   if (m.availability !== "AVAILABLE") {
     note = "Mission source: " + m.source + " \u2014 no mission runtime attached.";
-  } else if (route && route.progress_available) {
-    note = "progress " + route.progress_pct.toFixed(0) + "% (" + route.progress_basis + ")";
-  } else {
-    note = "No route progress available; showing task counters only.";
   }
+  bar("m-bar", frac, m.state === "FAILED");
   txt("m-note", note);
 }
 

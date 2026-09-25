@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-665%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-910%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **865 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **910 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -310,6 +310,20 @@ needs no npm) so a broken script can no longer pass the test suite unnoticed.
 
 > [`docs/dashboard_console.md`](docs/dashboard_console.md).
 
+### C12 — Mission monitoring
+
+The Mission panel shows the real `WarehouseTaskManager` state: derived phase
+(`NAVIGATE` / `PICKUP` / `AVOID` / `DROP` / `RETURN` / `COMPLETED`), mission id,
+current task and status, destination, task counters and progress.
+
+This milestone fixed a real defect: the mission telemetry section had **never**
+reported anything, because it expected a dict where the runtime returns a
+`ManagerStatus` object (and read two keys that did not exist). Progress is
+derived from real counters and real goal distance — never invented — and safety
+overrides the phase, so an E-stop shows `EMERGENCY` even mid-mission.
+
+> [`docs/mission_monitoring.md`](docs/mission_monitoring.md).
+
 ---
 
 ## Configuration
@@ -356,6 +370,11 @@ pip install -e ".[dev]"        # runtime deps + pytest/ruff
 
 # 3. Run (fully mocked)
 python -m amr.main --mock --web
+
+# 3b. Optional: run the standard warehouse mission so the Mission panel shows
+#     real task progress. Mock-only — it commands autonomous motion and is
+#     refused without --mock.
+python -m amr.main --mock --web --mission-demo
 
 # 4. Flash the firmware
 #    open firmware/arduino/amr_controller with the Arduino IDE and upload to the UNO

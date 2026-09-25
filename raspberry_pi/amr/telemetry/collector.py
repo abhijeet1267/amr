@@ -418,7 +418,21 @@ class TelemetryCollector:
         return SensorTelemetry(source=self._src(bool(values)), **values)
 
     def _mission(self) -> MissionTelemetry:
-        """Mission section from the warehouse manager, or UNAVAILABLE."""
+        """Mission section from the warehouse manager, or UNAVAILABLE.
+
+        C12 fixed three real defects here, which together meant this section had
+        *never* reported anything:
+
+        1. ``WarehouseTaskManager.status()`` returns a ``ManagerStatus``
+           **object**, but this method tested ``isinstance(data, dict)`` and
+           bailed out — so every run reported ``UNAVAILABLE``.
+        2. The dict key is ``current``, not ``current_task``, so even a dict
+           would have dropped the active task on the floor.
+        3. ``mission_id`` was read but no such key ever existed.
+
+        The reader now accepts either the object or a plain dict, and tolerates
+        both spellings, so a hand-rolled test double keeps working.
+        """
         wh = self.warehouse
         if wh is None:
             return MissionTelemetry()
@@ -426,30 +440,87 @@ class TelemetryCollector:
         if not callable(fn):
             return MissionTelemetry()
         try:
-            data = fn()
+            raw = fn()
         except Exception as exc:  # noqa: BLE001
             self.log.debug("telemetry: warehouse.status() failed: %s", exc)
             return MissionTelemetry()
+        # Accept a ManagerStatus (the real return type) or a plain mapping.
+        data = raw.to_dict() if hasattr(raw, "to_dict") else raw
         if not isinstance(data, dict):
             return MissionTelemetry()
-        current = data.get("current_task")
+
+        # The real key is "current"; "current_task" is tolerated for older /
+        # hand-rolled doubles. It may be a task id or a nested task dict.
+        current = data.get("current", data.get("current_task"))
         if isinstance(current, dict):
             task_id = current.get("task_id") or current.get("id")
             task_type = current.get("type")
             task_status = current.get("status")
+            destination = current.get("location")
         else:
             task_id = current if isinstance(current, str) else None
-            task_type = task_status = None
+            # Tolerate both the ManagerStatus spelling ("current_type") and the
+            # older "current_task_type" a hand-rolled double may use.
+            task_type = data.get("current_type",
+                                 data.get("current_task_type"))
+            task_status = data.get("current_status",
+                                   data.get("current_task_status"))
+            destination = data.get("destination")
+
+        completed = _as_int(data.get("completed", data.get("completed_tasks")))
+        failed = _as_int(data.get("failed", data.get("failed_tasks")))
+        total = _as_int(data.get("total_tasks"))
+        if total is None:
+            # Derive the real task count from the queues rather than guessing.
+            total = (_as_int(data.get("queued")) or 0) + (1 if task_id else 0) \
+                + (completed or 0) + (failed or 0)
+        # Mission progress is completed work over real work submitted. Failed
+        # tasks count as "no longer outstanding" but are shown separately, so
+        # the bar tracks completion and the failure count stays visible.
+        progress = None
+        if total and total > 0:
+            progress = max(0.0, min(1.0, (completed or 0) / total))
+
         return MissionTelemetry(
             mission_id=data.get("mission_id"),
             current_task=task_id,
             current_task_type=_enum_str(task_type),
             current_task_status=_enum_str(task_status),
-            queued=int(data.get("queued") or 0),
-            completed_tasks=int(data.get("completed") or 0),
-            failed_tasks=int(data.get("failed") or 0),
+            destination=destination,
+            queued=_as_int(data.get("queued")) or 0,
+            completed_tasks=completed or 0,
+            failed_tasks=failed or 0,
+            total_tasks=total,
+            mission_progress=progress,
+            task_progress=self._mission_task_progress(wh),
             source=self._src(True),
         )
+
+    def _mission_task_progress(self, warehouse: Any) -> Optional[float]:
+        """Progress of the *active task* toward its destination, or ``None``.
+
+        The active task's destination **is** the navigator's current goal in this
+        runtime, so this deliberately reuses the same guarded goal lookup and the
+        same :func:`_goal_progress` helper the navigation section uses — one
+        calculation, one source of truth, and no chance of the two panels
+        disagreeing.
+
+        Returns ``None`` when there is no active goal, rather than a fabricated
+        0 or 100.
+        """
+        nav = self.navigator
+        getter = getattr(nav, "goal", None) if nav is not None else None
+        goal = None
+        if callable(getter):
+            try:
+                goal = getter()
+            except Exception:  # noqa: BLE001
+                goal = None
+        elif getter is not None:
+            goal = getter
+        if goal is None:
+            return None
+        return _goal_progress(self._pose(), goal)
 
     def _camera(self) -> CameraTelemetry:
         """Camera status/metadata — never image bytes.
@@ -607,6 +678,22 @@ def _enum_str(value: Any) -> Optional[str]:
     raw = getattr(value, "value", value)
     text = str(raw).strip()
     return text.upper() if text else None
+
+
+def _as_int(value: Any) -> Optional[int]:
+    """Coerce to a non-negative int, or ``None`` when it is not a real count.
+
+    Added in C12: the mission reader used ``int(...)`` directly, which would
+    raise on a non-numeric value from a third-party warehouse implementation and
+    take the whole telemetry snapshot down with it.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return None
+    return n if n >= 0 else None
 
 
 def _first_str(*values: Any) -> Optional[str]:

@@ -42,7 +42,14 @@ from .tasks import (
 
 @dataclass
 class ManagerStatus:
-    """A point-in-time snapshot of the warehouse manager (for UIs/tests)."""
+    """A point-in-time snapshot of the warehouse manager (for UIs/tests).
+
+    The C12 fields (``mission_id``, ``destination``, ``total_tasks``) are all
+    optional and appended last, so existing positional construction keeps
+    working. They exist so the dashboard can show *which* run it is watching and
+    *where* it is headed without the console having to reach back into the
+    manager.
+    """
 
     mode: str
     connected: bool
@@ -53,6 +60,14 @@ class ManagerStatus:
     completed: int
     failed: int
     pose: dict
+    # --- C12: additive, display-only -------------------------------------
+    #: Caller-supplied label for this run. ``None`` means "no run label was
+    #: configured" — it is never invented, so the UI can say so honestly.
+    mission_id: Optional[str] = None
+    #: Named destination of the active task (``None`` when idle or unknown).
+    destination: Optional[str] = None
+    #: Tasks that exist in this run: queued + active + completed + failed.
+    total_tasks: int = 0
 
     @property
     def idle(self) -> bool:
@@ -69,6 +84,9 @@ class ManagerStatus:
             "completed": self.completed,
             "failed": self.failed,
             "pose": self.pose,
+            "mission_id": self.mission_id,
+            "destination": self.destination,
+            "total_tasks": self.total_tasks,
         }
 
 
@@ -83,6 +101,7 @@ class WarehouseTaskManager:
         warehouse_map: WarehouseMap,
         dock: str = "dock",
         queue_max: int = 16,
+        mission_id: Optional[str] = None,
     ):
         self._robot = robot
         self._nav = navigator
@@ -90,6 +109,10 @@ class WarehouseTaskManager:
         self._map = warehouse_map
         self._dock = dock
         self._queue_max = int(queue_max)
+        # C12: a display label for this run. It is caller-supplied on purpose —
+        # the manager does not invent an identity, so the dashboard can honestly
+        # say "no mission label configured" instead of showing a fake id.
+        self._mission_id = mission_id
 
         self._queue: Deque[Task] = deque()
         self._current: Optional[Task] = None
@@ -107,6 +130,7 @@ class WarehouseTaskManager:
         navigator: Navigator,
         manipulator: Optional[Manipulator] = None,
         warehouse_map: Optional[WarehouseMap] = None,
+        mission_id: Optional[str] = None,
     ) -> "WarehouseTaskManager":
         """Build from an :class:`AppConfig` (reads ``config.warehouse``)."""
         whcfg = config.warehouse
@@ -119,6 +143,7 @@ class WarehouseTaskManager:
             warehouse_map=mapping,
             dock=whcfg.dock,
             queue_max=whcfg.queue_max,
+            mission_id=mission_id,
         )
 
     # -- submission -------------------------------------------------------- #
@@ -274,6 +299,9 @@ class WarehouseTaskManager:
     def status(self) -> ManagerStatus:
         cur = self._current
         pose = self._nav.current_pose()
+        # C12: the destination is the active task's own named location, so the
+        # dashboard shows where the robot is actually headed rather than a
+        # separately-tracked guess.
         return ManagerStatus(
             mode=self._robot.state.mode.value,
             connected=self._robot.state.connected,
@@ -284,4 +312,8 @@ class WarehouseTaskManager:
             completed=len(self._completed),
             failed=len(self._failed),
             pose=pose.to_dict(),
+            mission_id=self._mission_id,
+            destination=cur.location if cur else None,
+            total_tasks=len(self._queue) + (1 if cur else 0)
+            + len(self._completed) + len(self._failed),
         )

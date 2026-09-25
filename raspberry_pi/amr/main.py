@@ -121,16 +121,18 @@ def build_navigator(mgr: RobotManager, config: AppConfig) -> Any:
 
 
 def build_warehouse(mgr: RobotManager, config: AppConfig,
-                    navigator: Any) -> Any:
+                    navigator: Any, mission_id: Optional[str] = None) -> Any:
     """Warehouse task manager, or ``None`` when disabled in config.
 
     Created so the map reads the existing waypoints from the single source of
-    truth (the warehouse config) rather than a copy of it.
+    truth (the warehouse config) rather than a copy of it. ``mission_id`` (C12)
+    is a caller-supplied display label for this run.
     """
     if not getattr(config.warehouse, "enabled", False):
         return None
     try:
-        return WarehouseTaskManager.create(config, mgr, navigator)
+        return WarehouseTaskManager.create(config, mgr, navigator,
+                                           mission_id=mission_id)
     except Exception as exc:  # noqa: BLE001 - monitoring must still come up
         get_logger("main").warning("warehouse unavailable: %s", exc)
         return None
@@ -216,7 +218,28 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
     # step()/go_to(), so it cannot move the robot. `navigator=None` would simply
     # render an "unavailable" pose, so wiring it is what makes the map live.
     nav = build_navigator(mgr, config)
-    wh = build_warehouse(mgr, config, nav)
+    # C12: a caller-supplied label for this run, so the dashboard can name the
+    # mission it is watching. It is a real label for a real run — not invented
+    # inside the telemetry layer.
+    wh = build_warehouse(mgr, config, nav, mission_id="web-run")
+    # C12: optionally drive the standard warehouse mission so the dashboard's
+    # Mission panel shows real task progress. This is opt-in and mock-only: it
+    # commands autonomous motion, so it is refused against real hardware rather
+    # than silently starting a mission nobody asked for.
+    mission = None
+    if getattr(args, "mission_demo", False):
+        if not args.mock:
+            raise SystemExit(
+                "--mission-demo drives the robot autonomously and is mock-only. "
+                "Re-run with --mock, or drop the flag to monitor only."
+            )
+        if wh is None:
+            raise SystemExit("--mission-demo needs the warehouse layer enabled "
+                             "in config/warehouse.yaml")
+        wh.submit_pick("shelf_a", payload_id="SKU-1")
+        wh.submit_place("station", payload_id="SKU-1")
+        wh.submit_return_to_dock()
+        mission = wh
     app = AMRWebApp(
         mgr,
         camera=camera,
@@ -231,10 +254,19 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
     port = app.start(host=args.host, port=args.port)
     shown = "localhost" if args.host in ("0.0.0.0", "") else args.host
     print(f"AMR web control: http://{shown}:{port}  (Ctrl-C to stop)")
+    if mission is not None:
+        print("mission demo: pick shelf_a -> place station -> return to dock "
+              "(mock only)")
     get_logger("main").info("web control listening on %s:%d", args.host, port)
     try:
         while True:
             time.sleep(1.0)
+            # C12: step the mission once per second, using the same manager the
+            # warehouse demo uses. The dashboard itself remains read-only — it
+            # only observes the result of this loop.
+            if mission is not None:
+                mgr.tick()
+                mission.process(dt=1.0)
     except KeyboardInterrupt:
         pass
     finally:
@@ -341,6 +373,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--web",
         action="store_true",
         help="run the web control panel instead of the REPL (Ctrl-C to stop)",
+    )
+    parser.add_argument(
+        "--mission-demo",
+        action="store_true",
+        help=("C12: run the standard warehouse pick/place/return mission while the "
+              "web panel is up, so the Mission panel shows real task progress. "
+              "Requires --mock: it drives the robot autonomously, so it is "
+              "refused against real hardware."),
     )
     parser.add_argument(
         "--host",

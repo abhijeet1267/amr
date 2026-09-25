@@ -35,6 +35,10 @@ SOURCE_TAGS = ("LIVE", "SIMULATION", "UNAVAILABLE", "ERROR")
 #: Sentinel returned when a field has no value. Distinct from any real number.
 NOT_AVAILABLE = "N/A"
 
+#: Display-only: task progress at/above this counts as "arrived" for the mission
+#: phase. It affects presentation only and is never fed back into navigation.
+AT_ARRIVAL = 0.9
+
 
 def _value(v: Any, fmt: str = "", unit: str = "") -> str:
     """Format one value for display, preserving absence.
@@ -178,7 +182,73 @@ def component_health(telemetry: Any, health: Any) -> List[Dict[str, Any]]:
     return rows
 
 
-def _mission_panel(t: Dict[str, Any]) -> Dict[str, Any]:
+def mission_phase(mission: Dict[str, Any], *,
+                  safety: Optional[Dict[str, Any]] = None) -> str:
+    """Derive the operator-facing mission phase from **real** task state.
+
+    The roadmap phrases the mission as
+    ``PICKUP → NAVIGATE → AVOID → ARRIVE → DROP → RETURN``. This function maps
+    that narrative onto what the runtime actually knows, and nothing more:
+
+    * the active :class:`~amr.warehouse.tasks.TaskType` (``pick`` / ``place`` /
+      ``move`` / ``return_to_dock``), and
+    * how far along the *travel* to that task's location is
+      (``task_progress``, straight-line to goal).
+
+    So ``NAVIGATE`` is shown while the robot is still travelling and the
+    manipulation phase (``PICKUP`` / ``DROP`` / ``ARRIVE``) only once it has
+    effectively arrived. ``AVOID`` is shown when the safety layer reports a
+    blocking action, not merely because the robot is moving slowly.
+
+    The threshold is a **display** convention, not a planner input: navigation
+    is unaffected by it. ``AT_ARRIVAL = 0.9`` means "within 10% of the direct
+    distance to the goal", and the underlying task type and status are always
+    reported alongside, so the UI never hides what the runtime actually said.
+    """
+    if not isinstance(mission, dict):
+        return "UNAVAILABLE"
+    source = mission.get("source")
+    if source in ("UNAVAILABLE", "ERROR"):
+        return "UNAVAILABLE"
+
+    blocked = None
+    if isinstance(safety, dict):
+        action = str(safety.get("action") or safety.get("state") or "").upper()
+        if safety.get("emergency_stop"):
+            blocked = "EMERGENCY"
+        elif action in ("STOP", "WAIT", "TURN", "REPLAN"):
+            # TURN/REPLAN are the C6 avoidance outcomes; STOP/WAIT are holds.
+            blocked = "AVOID" if action in ("TURN", "REPLAN") else "HELD"
+    if blocked:
+        return blocked
+
+    task_type = str(mission.get("current_task_type") or "").upper()
+    if not task_type:
+        # No active task: a finished run reads COMPLETED, otherwise IDLE.
+        return "COMPLETED" if (mission.get("completed_tasks") or 0) else "IDLE"
+
+    if task_type == "RETURN_TO_DOCK":
+        return "RETURN"
+    if task_type == "MOVE":
+        return "ARRIVE" if _arrived(mission) else "NAVIGATE"
+    if task_type == "PICK":
+        return "PICKUP" if _arrived(mission) else "NAVIGATE"
+    if task_type == "PLACE":
+        return "DROP" if _arrived(mission) else "NAVIGATE"
+    return task_type or "UNKNOWN"
+
+
+def _arrived(mission: Dict[str, Any]) -> bool:
+    """Has the active task effectively reached its location?
+
+    ``True`` only on a known, high progress value. Unknown progress is *not*
+    treated as arrival — a missing measurement must never be read as success.
+    """
+    progress = _num(mission.get("task_progress"))
+    return progress is not None and progress >= AT_ARRIVAL
+
+
+def _mission_panel(t: Dict[str, Any], *, safety: Any = None) -> Dict[str, Any]:
     """Mission display state, built only from the C7 mission section.
 
     There is no mission engine here: status is *described* from the existing
@@ -191,6 +261,7 @@ def _mission_panel(t: Dict[str, Any]) -> Dict[str, Any]:
     status = m.get("current_task_status")
     completed = m.get("completed_tasks")
     failed = m.get("failed_tasks")
+    phase = mission_phase(m, safety=safety)
     if source in ("UNAVAILABLE", "ERROR") and not active_task:
         state = "Mission data unavailable"
     elif failed:
@@ -206,12 +277,19 @@ def _mission_panel(t: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "mission_id": m.get("mission_id"),
         "state": state,
+        # C12: the derived operator phase, alongside the raw task fields so the
+        # runtime's own words are never hidden behind the presentation.
+        "phase": phase,
         "current_task": active_task,
         "current_task_type": m.get("current_task_type"),
         "current_task_status": status,
+        "destination": m.get("destination"),
         "queued": m.get("queued"),
         "completed_tasks": completed,
         "failed_tasks": failed,
+        "total_tasks": m.get("total_tasks"),
+        "mission_progress": m.get("mission_progress"),
+        "task_progress": m.get("task_progress"),
         "source": source,
         "availability": _availability(source),
     }
@@ -344,7 +422,7 @@ def build_console_state(
     m = map_snapshot if isinstance(map_snapshot, dict) else {}
     tw = twin if isinstance(twin, dict) else {}
 
-    mission = _mission_panel(t)
+    mission = _mission_panel(t, safety=t.get("safety"))
     hz = t.get("hazards") if isinstance(t.get("hazards"), dict) else {}
     hazards = hazard_summary(t, m)
     safety = _safety_panel(t, hazards)

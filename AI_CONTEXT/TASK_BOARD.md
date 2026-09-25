@@ -203,11 +203,31 @@ issues one request per tick instead of four. C11 also made the JavaScript syntax
 check permanent (`node --check` on the served scripts) after the C10 dashboard-wide
 break. See `docs/dashboard_console.md`.
 
-### C12 — Mission monitoring `[ ]` (upcoming)
-**Touches:** dashboard frontend, reuses `WarehouseTaskManager`
+### C12 — Mission monitoring `[x]` (complete, C12)
+**Touches:** telemetry collector, `ManagerStatus`, dashboard mission panel
 Mission → PICKUP → NAVIGATE → AVOID → ARRIVE → DROP → RETURN, with mission id,
 current task, destination, progress, completed and failed counts. Integrates
 with the existing warehouse simulation.
+
+**Delivered:** the headline finding is that the mission telemetry section had
+**never worked**. Three defects in `TelemetryCollector._mission()` meant it
+always reported `UNAVAILABLE`: it tested `isinstance(status(), dict)` while
+`WarehouseTaskManager.status()` returns a `ManagerStatus` object; it read
+`current_task` when the real key is `current`; and it read a `mission_id` that
+no runtime produced. All three are fixed, and the reader accepts either an
+object or a plain dict so hand-rolled doubles keep working.
+
+`ManagerStatus` gained three additive, display-only fields (`mission_id`,
+`destination`, `total_tasks`) supplied by the caller — never invented — and
+`MissionTelemetry` gained `destination`, `total_tasks`, `mission_progress`
+(completed/submitted) and `task_progress` (reusing the single existing
+`_goal_progress` helper). `mission_phase()` derives the roadmap's phase
+narrative from the real task type plus real travel progress, and is overridden
+by safety: TURN/REPLAN show `AVOID`, STOP/WAIT show `HELD`, E-stop shows
+`EMERGENCY`. Unknown progress is never read as arrival. A mock-only
+`--mission-demo` flag lets the panel show a live mission. Display only: no
+actuation endpoint, and a test proves mission reads write nothing to the
+transport. See `docs/mission_monitoring.md`.
 
 ### C13 — Hazard visualisation in the dashboard `[ ]` (upcoming)
 **Touches:** dashboard frontend, reuses C5/C3 hazard pipeline
