@@ -87,6 +87,12 @@ test asserts mission + console reads write **zero** bytes to the mock transport.
 The data is already there: `VisionDetection.bbox` rides in hazard metadata and
 C8 already serves frames. Must respect the world/image-space boundary.
 
+### Commit
+
+`25ef875` — `feat(telemetry): add mission monitoring to the dashboard`
+(15 files, +1032 / −35). A second follow-up commit records this hash in the
+handoff, following the repository's established convention.
+
 ---
 
 ## Session: C11 — Advanced telemetry + mission monitoring console
