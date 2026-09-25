@@ -1,8 +1,8 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** the C9 working tree — full suite
-**771 passed, 2 skipped, 0 failed** (660 at C8 + 111 map tests). Re-verify with
-the commands below before trusting these numbers.
+**Last verified:** the C10 working tree — full suite
+**820 passed, 2 skipped, 0 failed** (771 at C9 + 49 digital-twin tests).
+Re-verify with the commands below before trusting these numbers.
 
 ---
 
@@ -11,11 +11,12 @@ the commands below before trusting these numbers.
 | Check | Result |
 |---|---|
 | `cd raspberry_pi && python -m pytest` | **592 passed, 2 skipped, 0 failed** |
-| Test files | 19 (`tests/test_*.py`) |
+| Test files | 22 (`tests/test_*.py`) |
 | CI | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff` |
 | Hardware required | **None.** Everything runs on `amr/mocks/` |
 | Live web smoke (C2, `--mock --web` + `hazard.enabled=true`) | `GET /hazard` → `attached:true, state:NORMAL, sources:["zones"]`; `POST /hazard/acknowledge` → `ok:true`; `/status` carries the `hazard` key |
 | Dashboard smoke (C7, `--mock --web`) | `GET /health` → 200 `ok:true, simulated:true, read_only:true`; `GET /telemetry` → 200 valid schema-1.0 JSON with per-section `source` tags; `GET /dashboard` → 200 HTML |
+| 3D twin smoke (C10, `--mock --web`) | `GET /digital-twin` → 200 `source:SIMULATION`, `robot` pose **identical** to `GET /map`, 5 config waypoints, `renderer.library: null`; `GET /dashboard` → 200 containing the 3D card and canvas; `/telemetry`, `/map.svg`, `/camera/status` all 200 |
 
 The 2 skips are the camera tests that need `opencv-python`/`numpy`; they run when
 those are installed and skip gracefully otherwise. They are the only conditional
@@ -31,9 +32,10 @@ test_hazard.py             48    test_robot_manager.py     20
 test_hazard_visualisation.py 23  test_robot_state.py        5
 test_logging.py            12    test_safety_manager.py    14
 test_mode_controller.py    13    test_ultrasonic.py         9
-test_warehouse.py          39    test_web_server.py        34
+test_warehouse.py          39    test_web_server.py        59
 test_vision.py             95    test_avoidance.py         76
-test_telemetry.py          46    (new in C7 — read-only telemetry contract)
+test_telemetry.py          52    test_map.py              111
+test_camera_frame.py       49    test_digital_twin.py      37
 ```
 
 ---
@@ -52,7 +54,8 @@ test_telemetry.py          46    (new in C7 — read-only telemetry contract)
 | `navigation` (incl. C6 avoidance gate) | **Implemented, unit-tested** | `test_navigation.py` (50), `test_avoidance.py` (76) |
 | `warehouse` (tasks, map, manipulator) | **Implemented, unit-tested** | `test_warehouse.py` (39) |
 | `telemetry` (C7 read-only contract + collector) | **Implemented, unit-tested** | `test_telemetry.py` (46) |
-| `web` (panel + dashboard + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (34), incl. `GET /hazard` + acknowledge (C2) and `GET /telemetry` / `/health` / `/dashboard` (C7) |
+| `web` (panel + dashboard + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (59), incl. `GET /hazard` + acknowledge (C2), `GET /telemetry` / `/health` / `/dashboard` (C7), `GET /map` + `/map.svg` (C9) and `GET /digital-twin` (C10) |
+| `map` (C9 2D state + SVG, C10 3D twin state) | **Implemented, unit-tested** | `test_map.py` (111), `test_digital_twin.py` (37) |
 | `logging` | **Implemented, unit-tested** | `test_logging.py` |
 | `utils/config` | **Implemented, unit-tested** | `test_config.py` (18) |
 | `mocks` | **Implemented**, indirectly covered by every suite | — |

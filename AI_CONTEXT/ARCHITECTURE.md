@@ -228,7 +228,7 @@ WarehouseMap · HazardZone · Navigator · HazardManager · TelemetryCollector
 MapSnapshot  →  GET /map          (JSON, presentation-independent)
             →  GET /map.svg      (server-rendered SVG)
             →  dashboard panel   (interactive SVG, same data)
-            →  C10 3D twin       (future)
+            →  C10 3D twin       (GET /digital-twin, same snapshot)
 ```
 
 * **One** coordinate conversion lives in `amr/map/transform.py`
@@ -245,4 +245,32 @@ MapSnapshot  →  GET /map          (JSON, presentation-independent)
   navigator, and a test proves map reads write nothing to the serial transport.
 
 See `docs/map.md`.
+
+## 12. Digital twin layer (C10)
+
+The 3D twin is **another view of the C9 `MapSnapshot`**, not a new state model
+and not a second robot. It adds exactly two things the 2D view does not need: the
+world→3D conversion (centralised in Python, `amr/map/twin.py`, unit tested) and
+scene assembly for a procedural AMR.
+
+```
+MapSnapshot  →  build_twin_state()  →  GET /digital-twin  →  WebGL card
+```
+
+* **Coordinate system:** the repository frame is unchanged — metres, y-up, yaw in
+  radians. A z-up renderer needs `three.x = world.x`, `three.y = -world.y`,
+  `rotation_z_deg = -degrees(yaw)`. One conversion, one place, tested at 0,
+  ±π/2 and π. The browser never re-derives it.
+* **Renderer:** raw **WebGL, no Three.js** — the project keeps zero frontend
+  dependencies, so it stays one self-contained Python process with no npm, CDN
+  or build step. `renderer.library` is `null` in the payload.
+* **No command path:** GET only, no actuation controls, and the twin module
+  references no `RobotManager`/`Navigator`/`SafetyManager`/serial/GPIO/PWM.
+  Safety state is read and displayed, never acted on.
+* **Honesty:** `source` is inherited from the map; the scene is labelled
+  schematic because the project has no surveyed geometry; a missing camera or
+  pose degrades to `UNAVAILABLE` rather than being faked.
+* Uses the dashboard's existing 1 Hz poll — no second timer.
+
+See `docs/digital_twin.md`.
 

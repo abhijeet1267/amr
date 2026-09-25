@@ -5,6 +5,139 @@
 
 ---
 
+## Session: C10 — 3D digital twin
+
+**Agent:** cline · **Branch:** `main` · **Date:** 2026-09-25 ·
+**Baseline when started:** `e3abbbf` (clean tree, = `origin/main`) ·
+**Tests:** 771 → **820 passed, 2 skipped, 0 failed** (+49)
+
+### 1. What was completed
+
+A browser-based 3D digital twin of the AMR and warehouse, rendered from the
+**same C9 `MapSnapshot`** the 2D map uses. It is a view, not a second runtime.
+
+* **New `raspberry_pi/amr/map/twin.py`** — `DigitalTwinState`,
+  `build_twin_state()`, `world_to_three()`, `yaw_to_rotation_z()`,
+  `robot_model()`.
+* **New route `GET /digital-twin`** (read-only) and a **3D Digital Twin** card on
+  the existing `GET /dashboard`.
+* **Renderer: raw WebGL, no Three.js.** The repo has no npm, no `package.json`,
+  no CDN and no build step; a vendored 3D library would break that. WebGL is in
+  every browser, so a small hand-written renderer keeps it one self-contained
+  Python process.
+* Exported from `amr.map` so the next milestone imports one package.
+
+### 2. Architecture
+
+```
+AMR Runtime → MapSnapshot (C9) → build_twin_state() → GET /digital-twin → WebGL
+```
+
+Both views consume the identical snapshot object, so they cannot disagree. The
+browser renders and applies only the camera transform; it computes no robot
+state. Uses the existing 1 Hz poll (`pollTwin()` inside `poll()`) — no second
+timer, no server render loop.
+
+### 3. Coordinate system
+
+The repository frame is authoritative and unchanged: **metres, y-up, yaw CCW from
++x in radians**. The z-up renderer needs one conversion, done once in Python:
+
+```
+three.x = world.x     three.y = -world.y     three.z = height
+rotation_z_deg = -degrees(world_yaw)
+```
+
+`yaw = 0` points the AMR along world +x; `+π/2` → `-90°` about renderer z —
+the same axis swap the 2D SVG view applies. Tested at 0, ±π/2, π, with
+determinism and NaN-refusal checks. The response republishes the rule in
+`coordinate_system`.
+
+### 4. Safety verification
+
+* `amr/map/twin.py` imports only `math`, `dataclasses`, `typing`, `.snapshot`.
+  A test greps its source for `RobotManager`, `Navigator`, `SafetyManager`,
+  `serial`, `gpio`, `pwm`, `dispatch(`, `MotorDriver`, `set_speed` and fails if
+  any appears.
+* 10× `GET /digital-twin` + `GET /map` wrote **0 bytes** to the mock transport.
+* `POST /digital-twin` → 404/405. No actuation buttons exist in the markup.
+* `SafetyManager`, `Navigator`, `RobotManager` and all drivers are **unmodified**.
+
+### 5. Tests
+
+* **New `tests/test_digital_twin.py` — 37 tests**: coordinate conversion (origin,
+  ±, determinism, NaN), state conversion (full/empty/missing robot/goal/route/
+  path/source), robot model, hazard placement incl. the image-space rule,
+  safety pass-through, renderer declaration, schematic labelling.
+* **+14 `TestDigitalTwinApi` in `tests/test_web_server.py`**: schema, simulation
+  labelling, pose **consistency with `GET /map`**, waypoint equality, works
+  without a camera, GET-only, zero serial writes, C9 endpoints unaffected,
+  dashboard markup, single-poll wiring.
+* **Full suite: 820 passed, 2 skipped, 0 failed** (44.97s). C1–C9 all green.
+* **Live smoke** (`--mock --web`): `/digital-twin` 200 `SIMULATION`, pose equal
+  to `/map`, 5 config waypoints, `renderer.library: null`; `/dashboard`,
+  `/telemetry`, `/map.svg`, `/camera/status` all 200.
+* **Smokes:** `amr.hazard`, `amr.hazard.vision`, `amr.warehouse`,
+  `amr.hazard.visualisation`, `amr.main --mock --demo` — all exit 0.
+* Served JavaScript syntax-checked with `node --check` (see §7).
+
+### 6. Files
+
+Created: `raspberry_pi/amr/map/twin.py`,
+`raspberry_pi/tests/test_digital_twin.py`, `docs/digital_twin.md`.
+Modified: `amr/map/__init__.py`, `amr/web/server.py`,
+`tests/test_web_server.py`, `README.md`,
+`AI_CONTEXT/{ARCHITECTURE,CURRENT_STATUS,TASK_BOARD,HANDOFF}.md`.
+
+### 7. Two real bugs caught during this session
+
+1. **Dashboard-wide JavaScript syntax error.** The GLSL sources were joined with
+   `"\n"` inside a *Python* string, so Python expanded it to a literal newline
+   inside a JS string literal — which broke the **entire** dashboard script, not
+   just the twin. Every pytest test would still have passed, because they assert
+   on HTML text, not on executed JavaScript. Found by extracting the served
+   script and running `node --check`; fixed by escaping the backslash. **Lesson:
+   JS embedded in Python needs a real syntax check, and that check is worth
+   keeping as a script.**
+2. **Two wrong test assumptions of mine**, corrected against the real code
+   rather than by weakening assertions: `MapStatic.bounds` is computed by C9's
+   builder (my fixture omitted it), and the `web` fixture wires no navigator, so
+   `source` is correctly `UNAVAILABLE` rather than `SIMULATION` — a mock *runtime*
+   does not make absent map data into simulated map data.
+
+### 8. Hardware / firmware status
+
+**HARDWARE TESTED: NO** — no Raspberry Pi, robot, camera or GPU. WebGL was not
+exercised in a real browser in this session.
+**FIRMWARE TESTED: NO** — firmware untouched.
+
+### 9. Known limitations
+
+* No text geometry in 3D; labels are an HTML legend.
+* Flat shading, no lighting/shadows/textures.
+* No shelf/rack/obstacle meshes — **none exist in the project**, and inventing
+  them was explicitly out of scope. The scene is labelled schematic on its face.
+* The manipulator mount is drawn with `implemented: false`; no arm exists.
+* Robot dimensions are nominal and unmeasured.
+
+### 10. Remaining work
+
+C11 telemetry/mission panels, C12 mission monitoring, C13 camera+hazard
+overlays, C14 historical replay, C15 unified demonstration. Real surveyed
+warehouse geometry and a real camera/ML backend remain hardware-dependent.
+
+### 11. Recommended next task
+
+**C11 — advanced telemetry dashboard**, reusing the twin's status plumbing
+(source/safety/mission badges) and the existing C7 schema.
+
+### 12. Commits
+
+Implementation: `577e6a7` · context: this commit.
+`TASK_BOARD.md` marks C10 `[x]`. Push with `git push origin main`.
+
+---
+
 ## Session: C9 — Live 2D warehouse map
 
 **Agent:** cline · **Branch:** `main` · **Date:** 2026-09-25 ·

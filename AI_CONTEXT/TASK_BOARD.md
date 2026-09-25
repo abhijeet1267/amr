@@ -172,13 +172,21 @@ data instead of drawing an invented floor plan.
 **REAL ROBOT / RASPBERRY PI / NAVIGATION HARDWARE: NOT TESTED** — software only.
 See `docs/map.md`.
 
-### C10 — 3D Digital Twin `[ ]` (upcoming)
+### C10 — 3D Digital Twin `[x]` (complete, C10)
 **Touches:** new browser-based 3D view, reuses the C9 `MapSnapshot`
 Browser 3D of the warehouse + AMR (chassis, wheels, sensors, camera). Robot
 transform derives from `telemetry.position` / `telemetry.orientation`. **Purely
 a visualisation layer — the 3D model must never control the robot.** C9's
 `MapSnapshot` is presentation-independent precisely so this can consume it
 directly instead of re-deriving map state.
+
+**Delivered:** `amr/map/twin.py` derives `DigitalTwinState` from the C9
+`MapSnapshot`; `GET /digital-twin` and a "3D Digital Twin" dashboard card
+render it with raw WebGL (no Three.js, no npm, no build step, no new
+dependency). World→3D conversion is centralised in Python and unit tested.
+Read-only: no POST route, no actuation controls, and a source-level test
+proves the twin module references no control or communication code. See
+`docs/digital_twin.md`.
 
 ### C11 — Telemetry panel `[ ]` (upcoming)
 **Touches:** dashboard frontend
