@@ -25,6 +25,8 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+from conftest import NoActuation
+
 from amr.map import (
     MAP_SCHEMA_VERSION,
     MapPoint,
@@ -834,11 +836,13 @@ class TestMapHTTP:
 
     def test_reading_the_map_never_writes_to_the_controller(self, web_map):
         _app, port, mgr = web_map
-        before = len(mgr.test_transport.written)
-        for _ in range(10):
-            _get(port, "/map")
-            _get(port, "/map.svg")
-        assert len(mgr.test_transport.written) == before
+        # Asserted on actuator verbs (MOVE/STOP), not on the total line count:
+        # the control loop's own PING/VERSION/SENSOR polls run on a background
+        # thread and make a total-count assertion racy under load.
+        with NoActuation(mgr.test_transport):
+            for _ in range(10):
+                _get(port, "/map")
+                _get(port, "/map.svg")
 
     def test_map_is_unavailable_but_serving_without_a_warehouse(self, config_dir):
         mgr, _t = RobotManager.create_mock(load_config(config_dir))
@@ -880,7 +884,13 @@ class TestMapHTTP:
         assert "layer-route" in body or "m.route" in body    # route layer
         assert "layer-hazards" in body or "m.hazards" in body  # hazard layer
         assert 'id="m-src"' in body   # simulation/live status is visible
-        assert '"/map"' in body
+        # C11: the page no longer fetches /map separately — the map payload
+        # arrives inside the single consolidated /dashboard/state response and
+        # is handed to the same renderer. The panel and all of its layers above
+        # are unchanged, and GET /map is still served (covered by its own API
+        # tests); this assertion keeps its original intent: the map is fed from
+        # a live read-only endpoint.
+        assert '"/dashboard/state"' in body or '"/map"' in body
 
     def test_dashboard_ships_no_command_endpoint(self, web_map):
         _app, port, _mgr = web_map

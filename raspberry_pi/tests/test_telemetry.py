@@ -20,6 +20,8 @@ import json
 
 import pytest
 
+from conftest import NoActuation
+
 from amr.camera.frame import CameraStatus, SimulatedCameraSource
 from amr.navigation.navigator import LocalNavigator
 from amr.navigation.types import Goal, Pose
@@ -150,11 +152,13 @@ class TestReadOnly:
         assert calls == []
 
     def test_snapshot_writes_nothing_to_the_controller(self, manager):
-        # The decisive proof: a telemetry read emits no serial command at all.
-        written = list(manager.test_transport.written)
-        TelemetryCollector(manager).snapshot()
-        TelemetryCollector(manager).snapshot()
-        assert manager.test_transport.written == written
+        # The decisive proof: a telemetry read emits no actuator command.
+        # Checked on actuator verbs (MOVE/STOP) rather than the raw line count,
+        # because the control loop's own PING/VERSION/SENSOR polls run on a
+        # background thread — see conftest.NoActuation.
+        with NoActuation(manager.test_transport):
+            TelemetryCollector(manager).snapshot()
+            TelemetryCollector(manager).snapshot()
 
     def test_snapshot_never_changes_robot_mode(self, manager):
         manager.request_mode(RobotMode.MANUAL)

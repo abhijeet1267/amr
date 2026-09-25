@@ -13,6 +13,15 @@ hardware. All motion continues to flow exclusively through the existing,
 safety-gated ``POST /command`` path.
 """
 from .collector import TelemetryCollector
+from .console import (
+    CONSOLE_SCHEMA_VERSION,
+    NOT_AVAILABLE,
+    build_console_state,
+    component_health,
+    hazard_summary,
+    route_progress_points,
+    source_of,
+)
 from .types import (
     TELEMETRY_SCHEMA_VERSION,
     BatteryTelemetry,
@@ -32,6 +41,8 @@ from .types import (
 )
 
 __all__ = [
+    "CONSOLE_SCHEMA_VERSION",
+    "NOT_AVAILABLE",
     "TELEMETRY_SCHEMA_VERSION",
     "BatteryTelemetry",
     "CameraTelemetry",
@@ -47,4 +58,9 @@ __all__ = [
     "TelemetrySnapshot",
     "Vector3",
     "Velocity",
+    "build_console_state",
+    "component_health",
+    "hazard_summary",
+    "route_progress_points",
+    "source_of",
 ]

@@ -74,7 +74,7 @@ from ..logging import get_logger
 from ..map import MapService, build_twin_state
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
-from ..telemetry import TelemetryCollector
+from ..telemetry import TelemetryCollector, build_console_state
 from ..telemetry.types import DataSource
 
 #: motion commands accepted by /command and their default speeds
@@ -485,6 +485,29 @@ class AMRWebApp:
         with self._lock:
             return self.telemetry.snapshot()
 
+    def console_state(self) -> dict:
+        """Consolidated read-only operations payload for ``GET /dashboard/state``.
+
+        One request instead of four: the C7 telemetry snapshot, the C7 health
+        summary, and the C9 map + C10 twin projections, assembled by
+        :func:`amr.telemetry.console.build_console_state`.
+
+        Like every other handler here it only *reads* — it never calls
+        ``tick()``, dispatches a command, or touches an actuator. The map and
+        twin payloads are included unmodified, so the 2D and 3D views keep
+        consuming exactly what they consumed before C11.
+        """
+        with self._lock:
+            return build_console_state(
+                self.telemetry.snapshot(),
+                health=self.telemetry.health(),
+                map_snapshot=self.map.snapshot().to_dict(),
+                twin=build_twin_state(
+                    self.map.snapshot(),
+                    telemetry=self.telemetry,
+                    camera=self._camera).to_dict(),
+            )
+
     def health(self) -> Tuple[dict, int]:
         """Liveness/readiness probe for ``GET /health``.
 
@@ -762,6 +785,12 @@ class _Handler(BaseHTTPRequestHandler):
         elif path == "/digital-twin":
             # C10: the 3D twin, derived from that same MapSnapshot.
             self._send_json(self.app.digital_twin())
+        elif path == "/dashboard/state":
+            # C11: one read-only fetch carrying telemetry + health + the C9 map
+            # and C10 twin payloads, so the 1 Hz page load drops from four
+            # requests to one. No new state model: every section is the existing
+            # projection, and `map` / `twin` are the untouched C9/C10 payloads.
+            self._send_json(self.app.console_state())
         elif path == "/map.svg":
             params = dict(urllib.parse.parse_qsl(query))
             width = _clamp_int(params.get("width"), 720, 240, 2000)
@@ -1208,6 +1237,28 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
 .map-empty { position: absolute; inset: 0; display: flex; align-items: center;
   justify-content: center; color: var(--dim); font-style: italic; font-size: 12px; }
 .map-note { color: var(--dim); font-size: 11px; margin: 8px 0 0; }
+/* C11 operations console. A dense, scannable status strip plus panel groups;
+   deliberately no framework and no animation beyond the existing hazard blink. */
+.opsbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.ops-item { flex: 1 1 130px; display: flex; flex-direction: column;
+  gap: 2px; background: var(--card, #11161f); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 10px; min-width: 0; }
+.ops-k { font-size: 10px; letter-spacing: .08em; color: var(--dim); }
+.ops-v { font-size: 14px; font-weight: 600; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.ops-v.b-crit { color: #f87171; } .ops-v.b-warn { color: #fbbf24; }
+.ops-v.b-ok { color: #4ade80; } .ops-v.b-sim { color: #38bdf8; }
+.ops-v.b-dim { color: var(--dim); }
+.group-title { grid-column: 1 / -1; font-size: 11px; letter-spacing: .08em;
+  color: var(--dim); margin: 6px 0 -4px; }
+.bar { display: flex; gap: 2px; margin-top: 4px; }
+.bar i { flex: 1; height: 6px; border-radius: 2px; background: #223; }
+.bar i.on { background: #38bdf8; }
+.bar i.crit { background: #f87171; }
+.mini { font-size: 11px; color: var(--dim); margin-top: 4px; }
+.health-row { display: flex; justify-content: space-between; gap: 8px;
+  font-size: 12px; padding: 2px 0; }
+.health-row .h-name { color: var(--dim); }
 /* C10 twin panel. The canvas is sized by CSS so the WebGL viewport follows the
    card; the drawing buffer is resized in JS whenever the CSS size changes. */
 .twin-card { display: flex; flex-direction: column; }
@@ -1229,6 +1280,24 @@ a { color: var(--sim); }
   <span id="sim" class="badge b-dim">SOURCE &mdash;</span>
   <span id="conn" class="badge b-dim">CONNECTING</span>
 </header>
+
+<!-- C11: global operations status bar. One glance: source, robot, navigation,
+     safety, mission. Every value is bound to a span and refreshed from the
+     console payload; nothing here is hard-coded. -->
+<div class="opsbar" role="group" aria-label="Operations status">
+  <div class="ops-item"><span class="ops-k">SOURCE</span>
+    <span class="ops-v" id="o-source">&mdash;</span></div>
+  <div class="ops-item"><span class="ops-k">ROBOT</span>
+    <span class="ops-v" id="o-robot">&mdash;</span></div>
+  <div class="ops-item"><span class="ops-k">NAVIGATION</span>
+    <span class="ops-v" id="o-nav">&mdash;</span></div>
+  <div class="ops-item"><span class="ops-k">SAFETY</span>
+    <span class="ops-v" id="o-safety">&mdash;</span></div>
+  <div class="ops-item"><span class="ops-k">MISSION</span>
+    <span class="ops-v" id="o-mission">&mdash;</span></div>
+  <div class="ops-item"><span class="ops-k">HAZARDS</span>
+    <span class="ops-v" id="o-hazards">&mdash;</span></div>
+</div>
 
 <main>
   <section class="card">
@@ -1258,6 +1327,7 @@ a { color: var(--sim); }
       <dt>Action</dt><dd id="s-action">&mdash;</dd>
       <dt>E-STOP</dt><dd id="s-estop">&mdash;</dd>
     </dl>
+    <div id="s-extra"></div>
   </section>
 
   <section class="card">
@@ -1266,12 +1336,20 @@ a { color: var(--sim); }
       <dt>Status</dt><dd id="b-state">&mdash;</dd>
       <dt>Percentage</dt><dd id="b-pct">&mdash;</dd>
       <dt>Voltage</dt><dd id="b-volt">&mdash;</dd>
+      <dt>Charging</dt><dd id="b-chg">&mdash;</dd>
     </dl>
+    <p class="mini" id="b-note">&mdash;</p>
   </section>
 
   <section class="card">
     <h2>Sensors</h2>
     <ul id="sensors"><li class="empty">none reported</li></ul>
+  </section>
+
+  <section class="card">
+    <h2>System health</h2>
+    <div id="health"><p class="empty">not reported</p></div>
+    <p class="mini" id="y-note">&mdash;</p>
   </section>
 
   <section class="card">
@@ -1282,10 +1360,29 @@ a { color: var(--sim); }
   <section class="card">
     <h2>Mission</h2>
     <dl class="kv">
+      <dt>State</dt><dd id="m-state">&mdash;</dd>
       <dt>Mission</dt><dd id="m-id">&mdash;</dd>
       <dt>Task</dt><dd id="m-task">&mdash;</dd>
+      <dt>Task status</dt><dd id="m-status">&mdash;</dd>
+      <dt>Queued</dt><dd id="m-queued">&mdash;</dd>
       <dt>Completed</dt><dd id="m-done">&mdash;</dd>
+      <dt>Failed</dt><dd id="m-fail">&mdash;</dd>
     </dl>
+    <!-- Progress is drawn only when the runtime can supply a real value.
+         The bar stays empty (and the caption says so) otherwise. -->
+    <div class="bar" id="m-bar" aria-hidden="true"></div>
+    <p class="mini" id="m-note">&mdash;</p>
+  </section>
+
+  <section class="card">
+    <h2>Goal &amp; route</h2>
+    <dl class="kv">
+      <dt>Goal</dt><dd id="g-name">&mdash;</dd>
+      <dt>State</dt><dd id="g-state">&mdash;</dd>
+      <dt>Route points</dt><dd id="g-points">&mdash;</dd>
+      <dt>Progress</dt><dd id="g-prog">&mdash;</dd>
+    </dl>
+    <p class="mini" id="g-note">&mdash;</p>
   </section>
 
   <section class="card cam-card">
@@ -1837,31 +1934,39 @@ function tResetView() {
 }
 
 function tPoll() {
-  // Read-only: the only request the twin ever makes.
+  // Read-only. C11 routes the twin through the consolidated console payload, so
+  // the page issues one request per tick; this direct fetch remains for the
+  // "follow" button, which needs a fresh sample immediately.
   fetch("/digital-twin", { cache: "no-store" })
     .then(function (r) { return r.json(); })
-    .then(function (s) {
-      if (!s) return;
-      TWIN.state = s;
-      // "Follow" keeps the camera locked on the AMR; otherwise frame the data.
-      if (TWIN.follow && s.robot) {
-        TWIN.target = [s.robot.position[0], s.robot.position[1], 0.3];
-        TWIN.dist = 4.0;
-      } else if (s.floor && s.floor.available) {
-        var c = s.floor.corners;
-        if (c.length === 4) {
-          var cx = (c[0][0] + c[2][0]) / 2, cy = (c[0][1] + c[2][1]) / 2;
-          var span = Math.max(
-            Math.abs(c[2][0] - c[0][0]), Math.abs(c[2][1] - c[0][1]), 2.0);
-          TWIN.target = [cx, cy, 0.2];
-          TWIN.dist = Math.max(4.0, span * 1.8);
-        }
-      }
-      tRenderStatus(s);
-      tDraw();
-    })
+    .then(function (s) { tApplyState(s); })
     .catch(function () { /* the twin must never break the rest of the panel */ });
 }
+
+// C11: apply a twin payload that arrived inside /dashboard/state. Identical to
+// what tPoll does after its fetch, so the 3D view is unchanged by C11.
+function tApplyState(s) {
+  if (!s) return;
+  TWIN.state = s;
+  // "Follow" keeps the camera locked on the AMR; otherwise frame the data.
+  if (TWIN.follow && s.robot) {
+    TWIN.target = [s.robot.position[0], s.robot.position[1], 0.3];
+    TWIN.dist = 4.0;
+  } else if (s.floor && s.floor.available) {
+    var c = s.floor.corners;
+    if (c.length === 4) {
+      var cx = (c[0][0] + c[2][0]) / 2, cy = (c[0][1] + c[2][1]) / 2;
+      var span = Math.max(
+        Math.abs(c[2][0] - c[0][0]), Math.abs(c[2][1] - c[0][1]), 2.0);
+      TWIN.target = [cx, cy, 0.2];
+      TWIN.dist = Math.max(4.0, span * 1.8);
+    }
+  }
+  tRenderStatus(s);
+  tDraw();
+}
+
+function pollTwinWith(s) { tApplyState(s); }
 
 function tRenderStatus(s) {
   txt("t-src", s.source || "UNAVAILABLE");
@@ -2122,14 +2227,11 @@ function renderMap(m) {
 
 function mapReset() { mapZoom = 1.0; mapPanX = 0; mapPanY = 0; }
 
-function pollMap() {
-  fetch("/map", { cache: "no-store" })
-    .then(function (r) { return r.json(); })
-    .then(function (m) {
-      if (m && m.robot && mapFollow) mapReset();
-      renderMap(m);
-    })
-    .catch(function () { /* the map must never break the rest of the panel */ });
+function pollMapWith(m) {
+  // C11: the map payload now arrives inside the console response.
+  if (!m) return;
+  if (m.robot && mapFollow) mapReset();
+  renderMap(m);
 }
 
 function initMapControls() {
@@ -2224,7 +2326,147 @@ function renderHazards(h) {
   ul.innerHTML = out.length ? out.join("") : '<li class="empty">none active</li>';
 }
 
-// C8: single-frame retrieval, not a continuous media stream. The image is
+// ------------------------------------------------------------------------ //
+// C11 — operations console rendering. Everything here reads the single
+// /dashboard/state payload; no panel computes robot state of its own.
+// ------------------------------------------------------------------------ //
+function bar(id, frac, crit) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  // 10 segments, filled only up to a real, known fraction.
+  var cells = "";
+  var lit = (typeof frac === "number" && isFinite(frac))
+    ? Math.round(Math.max(0, Math.min(1, frac)) * 10) : 0;
+  for (var i = 0; i < 10; i++) {
+    cells += '<i class="' + (i < lit ? (crit ? "crit" : "on") : "") + '"></i>';
+  }
+  el.innerHTML = cells;
+}
+
+function renderOpsbar(s) {
+  function set(id, value, cls) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = value;
+    el.className = "ops-v " + (cls || "b-dim");
+  }
+  // Source first: every other value is read under this light.
+  set("o-source", s.source + (s.simulated ? " (mock runtime)" : ""),
+      s.simulated ? "b-sim" : "b-ok");
+  set("o-robot", s.summary.robot, s.robot.connected ? "b-ok" : "b-crit");
+  var navOk = s.navigation.availability === "AVAILABLE";
+  set("o-nav", s.summary.navigation, navOk ? "b-ok" : "b-dim");
+  var safetyTxt = s.summary.safety;
+  var safetyCls = "b-ok";
+  if (s.safety.emergency_stop) { safetyTxt = "E-STOP"; safetyCls = "b-crit"; }
+  else if (safetyTxt === "STOP" || safetyTxt === "WAIT") { safetyCls = "b-warn"; }
+  set("o-safety", safetyTxt, safetyCls);
+  set("o-mission", s.mission.state,
+      s.mission.availability === "AVAILABLE" ? "b-ok" : "b-dim");
+  var hzTxt = s.hazards.active + " active";
+  if (s.hazards.unlocated) { hzTxt += " / " + s.hazards.unlocated + " unlocated"; }
+  set("o-hazards", hzTxt, s.hazards.critical ? "b-crit"
+      : (s.hazards.active ? "b-warn" : "b-dim"));
+}
+
+function renderMission(m, route) {
+  txt("m-state", m.state);
+  txt("m-id", m.mission_id || "none");
+  txt("m-task", m.current_task || "none");
+  txt("m-status", m.current_task_status || "none");
+  txt("m-queued", m.queued === null || m.queued === undefined ? "N/A" : m.queued);
+  txt("m-done", m.completed_tasks === null ? "N/A" : m.completed_tasks);
+  txt("m-fail", m.failed_tasks === null ? "N/A" : m.failed_tasks);
+  // A bar is drawn only when the runtime supplied real progress.
+  var p = route && route.progress_available ? route.progress_pct / 100 : null;
+  bar("m-bar", p, m.state === "FAILED");
+  var note;
+  if (m.availability !== "AVAILABLE") {
+    note = "Mission source: " + m.source + " \u2014 no mission runtime attached.";
+  } else if (route && route.progress_available) {
+    note = "progress " + route.progress_pct.toFixed(0) + "% (" + route.progress_basis + ")";
+  } else {
+    note = "No route progress available; showing task counters only.";
+  }
+  txt("m-note", note);
+}
+
+function renderGoal(nav) {
+  txt("g-name", nav.current_goal || "none");
+  txt("g-state", nav.state || "N/A");
+  var r = nav.route;
+  txt("g-points", r ? r.waypoints : "no route");
+  if (r && r.progress_available) {
+    txt("g-prog", r.progress_pct.toFixed(0) + " %");
+    txt("g-note", r.progress_basis + " \u2014 display only, never a planner input.");
+  } else {
+    txt("g-prog", "N/A");
+    txt("g-note", "Progress unavailable: no goal/pose pair in the runtime.");
+  }
+}
+
+function renderSafety(s, hz) {
+  txt("s-state", s.state || "N/A");
+  txt("s-action", s.action || "N/A");
+  txt("s-estop", s.emergency_stop ? "ACTIVE" : "clear");
+  // Extra C11 rows reuse the same elements the map/twin badges already show.
+  var extra = document.getElementById("s-extra");
+  if (extra) {
+    extra.innerHTML = [
+      row("Active hazards", hz.active),
+      row("Critical", hz.critical),
+      row("Latched", hz.latched ? "yes" : "no"),
+      row("Avoidance", s.avoidance || "inactive"),
+      row("Reasons", s.reasons.length ? s.reasons.join("; ") : "none")
+    ].join("");
+  }
+  function row(k, v) {
+    return '<div class="health-row"><span class="h-name">' + k
+      + '</span><span>' + v + "</span></div>";
+  }
+}
+
+function renderBattery(b) {
+  txt("b-state", b.source);
+  txt("b-pct", b.percentage === null ? "N/A" : b.percentage + " %");
+  txt("b-volt", b.voltage === null ? "N/A" : b.voltage + " V");
+  txt("b-chg", b.charging === null || b.charging === undefined
+    ? "N/A" : (b.charging ? "yes" : "no"));
+  txt("b-note", b.note || ("source: " + b.source));
+}
+
+function renderSensors(s) {
+  var ul = document.getElementById("sensors");
+  var out = [];
+  for (var i = 0; i < s.rows.length; i++) {
+    var r = s.rows[i];
+    var v = (r.value === null || r.value === undefined) ? "no reading" : r.value + " " + r.unit;
+    out.push("<li>" + r.sensor + " &middot; " + v + " " + src(r.source) + "</li>");
+  }
+  ul.innerHTML = out.length ? out.join("")
+    : '<li class="empty">no sensor readings (source: ' + s.source + ")</li>";
+}
+
+function renderHealth(sys) {
+  var el = document.getElementById("health");
+  if (!el) return;
+  var out = [];
+  for (var i = 0; i < sys.components.length; i++) {
+    var c = sys.components[i];
+    var cls = c.availability === "AVAILABLE" ? "b-ok" : "b-dim";
+    out.push('<div class="health-row"><span class="h-name">' + c.component
+      + '</span><span class="badge ' + cls + '">' + c.source + "</span></div>");
+  }
+  el.innerHTML = out.join("");
+  var note = document.getElementById("y-note");
+  if (note) {
+    var degraded = sys.degraded.length ? sys.degraded.join(", ") : "none";
+    note.textContent = "status " + (sys.status || "N/A")
+      + (sys.last_error ? " \u00b7 last error: " + sys.last_error : "")
+      + " \u00b7 degraded: " + degraded;
+  }
+}
+
 // fetched as a blob and swapped via object URL so the page never re-downloads
 // identical bytes every tick; the previous URL is revoked to avoid leaking.
 var FRAME_MS = 1000;
@@ -2328,14 +2570,76 @@ function apply(t) {
   txt("y-schema", t.schema_version);
 }
 
+// C11: one entry point for the operations console. The existing apply() logic
+// is preserved by mapping the console payload back onto the C7 field names it
+// already reads, so C7-C10 rendering code is untouched.
+function applyConsole(s) {
+  var route = s.navigation.route;
+  var t = {
+    schema_version: s.telemetry_schema_version,
+    timestamp: s.timestamp,
+    simulated: s.simulated,
+    position: s.robot.position,
+    orientation: s.robot.orientation,
+    velocity: s.robot.velocity,
+    navigation: {
+      state: s.navigation.state,
+      current_goal: s.navigation.current_goal,
+      // The C7 renderer only counts route points; a route with no known
+      // progress is reported as empty rather than as a zero-length route.
+      route: route ? [0] : [],
+      progress: route ? route.progress : null,
+      avoidance: s.navigation.avoidance,
+      source: s.navigation.source
+    },
+    safety: {
+      state: s.safety.state,
+      action: s.safety.action,
+      emergency_stop: s.safety.emergency_stop,
+      reasons: s.safety.reasons,
+      hazard_state: s.safety.hazard_state,
+      latched: s.safety.hazard_latched,
+      source: s.safety.source
+    },
+    hazards: s.hazard_list,
+    battery: s.battery,
+    sensors: { ultrasonic: s.sensors.rows, source: s.sensors.source },
+    mission: s.mission,
+    camera: s.camera,
+    system: {
+      uptime: s.system.uptime,
+      software_version: s.system.software_version,
+      connected: s.robot.connected,
+      mode: s.robot.mode,
+      last_error: s.system.last_error,
+      source: s.system.source
+    }
+  };
+  apply(t);
+  // C11-only panels.
+  renderOpsbar(s);
+  renderMission(s.mission, route);
+  renderGoal(s.navigation);
+  renderSafety(s.safety, s.hazards);
+  renderBattery(s.battery);
+  renderSensors(s.sensors);
+  renderHealth(s.system);
+}
+
 function poll() {
-  fetch("/telemetry", { cache: "no-store" })
+  // C11: one request per tick instead of four. /dashboard/state carries the
+  // telemetry, health, map and twin projections; the map and twin renderers
+  // are handed their existing payloads unchanged.
+  fetch("/dashboard/state", { cache: "no-store" })
     .then(function (r) {
       if (!r.ok) { throw new Error("HTTP " + r.status); }
       return r.json();
     })
-    .then(function (t) {
-      apply(t);
+    .then(function (s) {
+      // Hand the untouched C9/C10 payloads to the existing renderers.
+      pollMapWith(s.map);
+      pollTwinWith(s.twin);
+      applyConsole(s);
       var c = document.getElementById("conn");
       c.textContent = "LIVE FEED";
       c.className = "badge b-ok";
@@ -2345,10 +2649,6 @@ function poll() {
       c.textContent = "NO DATA";
       c.className = "badge b-crit";
     });
-  // The map and the 3D twin ride the same 1 Hz tick rather than adding their
-  // own timers, which keeps a Raspberry Pi dashboard to one polling loop.
-  pollMap();
-  pollTwin();
 }
 
 tInitControls();

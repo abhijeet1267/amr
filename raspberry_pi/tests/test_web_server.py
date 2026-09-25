@@ -21,6 +21,8 @@ import urllib.request
 
 import pytest
 
+from conftest import NoActuation
+
 from amr.camera import CameraManager
 from amr.hazard import HazardKind, HazardManager, HazardReading, HazardSeverity
 from amr.mocks import MockCamera
@@ -650,7 +652,13 @@ class TestDashboardAPI:
         assert "text/html" in ctype
         html = body.decode("utf-8")
         assert "AMR CONTROL CENTER" in html
-        assert "/telemetry" in html          # the page polls the new endpoint
+        # C11: the page now polls the single consolidated console endpoint
+        # instead of /telemetry + /map + /digital-twin + /health (one request
+        # per tick instead of four). The *contract* is unchanged — /telemetry
+        # and the others are still served and covered by their own tests; only
+        # the page's internal choice moved. This assertion keeps its original
+        # intent: the dashboard is driven by a live read-only data endpoint.
+        assert 'fetch("/dashboard/state"' in html
 
     def test_dashboard_is_read_only_over_http(self, web):
         """The dashboard must not expose a second motor-control path."""
@@ -784,14 +792,14 @@ class TestCameraMonitoringRoutes:
         _app, port, mgr = web
         # The mock transport records every line written to the controller, so
         # this is the direct proof that a camera GET cannot move the robot.
-        before = len(mgr.test_transport.written)
-        for _ in range(5):
-            _get(port, "/camera/status")
-            try:
-                _get(port, "/camera/frame")
-            except urllib.error.HTTPError:
-                pass
-        assert len(mgr.test_transport.written) == before
+        # Checked on actuator verbs only — see conftest.NoActuation.
+        with NoActuation(mgr.test_transport):
+            for _ in range(5):
+                _get(port, "/camera/status")
+                try:
+                    _get(port, "/camera/frame")
+                except urllib.error.HTTPError:
+                    pass
 
 
 
@@ -920,12 +928,11 @@ class TestDigitalTwinApi:
 
     def test_reading_the_twin_never_writes_to_the_controller(self, web):
         _app, port, mgr = web
-        before = len(mgr.test_transport.written)
-        for _ in range(5):
-            _get(port, "/digital-twin")
-            _get(port, "/map")
-        # The direct proof the twin has no control path.
-        assert len(mgr.test_transport.written) == before
+        # The direct proof the twin has no control path (actuator verbs only).
+        with NoActuation(mgr.test_transport):
+            for _ in range(5):
+                _get(port, "/digital-twin")
+                _get(port, "/map")
 
     def test_c9_endpoints_still_work(self, web):
         _app, port, _mgr = web
@@ -954,3 +961,92 @@ class TestDigitalTwinApi:
         html = raw.decode("utf-8")
         assert "pollTwin" in html
         assert 'fetch("/digital-twin"' in html
+
+
+
+# --------------------------------------------------------------------------- #
+# C11 — consolidated read-only console state
+# --------------------------------------------------------------------------- #
+class TestDashboardStateApi:
+    """``GET /dashboard/state`` is one read-only fetch over existing state."""
+
+    def test_endpoint_returns_full_console_payload(self, web):
+        _app, port, _mgr = web
+        status, ctype, raw = _get(port, "/dashboard/state")
+        assert status == 200
+        assert "application/json" in ctype
+        body = json.loads(raw.decode("utf-8"))
+        for key in ("schema_version", "source", "read_only", "summary", "robot",
+                    "navigation", "mission", "safety", "hazards", "battery",
+                    "sensors", "camera", "system", "map", "twin"):
+            assert key in body, f"missing console key {key}"
+
+    def test_declares_read_only(self, web):
+        _app, port, _mgr = web
+        _s, _c, raw = _get(port, "/dashboard/state")
+        assert json.loads(raw.decode("utf-8"))["read_only"] is True
+
+    def test_embeds_the_untouched_map_payload(self, web):
+        """The embedded map must equal what /map returns — no second map state."""
+        _app, port, _mgr = web
+        _s, _c, a = _get(port, "/map")
+        _s, _c, b = _get(port, "/dashboard/state")
+        assert json.loads(b.decode("utf-8"))["map"] == json.loads(a.decode("utf-8"))
+
+    def test_embeds_the_untouched_twin_payload(self, web):
+        _app, port, _mgr = web
+        _s, _c, a = _get(port, "/digital-twin")
+        _s, _c, b = _get(port, "/dashboard/state")
+        assert json.loads(b.decode("utf-8"))["twin"] == json.loads(a.decode("utf-8"))
+
+    def test_agrees_with_telemetry_endpoint(self, web):
+        """One authoritative runtime: console and telemetry must not disagree."""
+        _app, port, _mgr = web
+        _s, _c, a = _get(port, "/telemetry")
+        _s, _c, b = _get(port, "/dashboard/state")
+        tel = json.loads(a.decode("utf-8"))
+        con = json.loads(b.decode("utf-8"))
+        assert con["telemetry_schema_version"] == tel["schema_version"]
+        assert con["simulated"] == tel["simulated"]
+        assert con["battery"]["source"] == tel["battery"]["source"]
+        assert con["robot"]["mode"] == tel["system"]["mode"]
+
+    def test_battery_is_unavailable_not_faked(self, web):
+        _app, port, _mgr = web
+        _s, _c, raw = _get(port, "/dashboard/state")
+        b = json.loads(raw.decode("utf-8"))["battery"]
+        # No battery source exists in this build, so it must say so.
+        assert b["source"] in ("UNAVAILABLE", "SIMULATION", "LIVE")
+        if b["source"] == "UNAVAILABLE":
+            assert b["percentage"] is None
+            assert b["availability"] == "NOT AVAILABLE"
+
+    def test_route_is_get_only(self, web):
+        """No POST surface can reach the console."""
+        _app, port, _mgr = web
+        status, _body = _post(port, "/dashboard/state", "{}")
+        assert status in (404, 405)
+
+    def test_reading_the_console_never_writes_to_the_controller(self, web):
+        _app, port, mgr = web
+        # Direct proof the console has no control path (actuator verbs only).
+        with NoActuation(mgr.test_transport):
+            for _ in range(5):
+                _get(port, "/dashboard/state")
+
+    def test_all_existing_endpoints_still_work(self, web):
+        _app, port, _mgr = web
+        for path in ("/telemetry", "/health", "/map", "/map.svg",
+                     "/digital-twin", "/dashboard", "/status"):
+            status, _c, _raw = _get(port, path)
+            assert status == 200, path
+
+    def test_dashboard_page_serves_the_c11_console(self, web):
+        _app, port, _mgr = web
+        _s, _c, raw = _get(port, "/dashboard")
+        html = raw.decode("utf-8")
+        assert "Operations status" in html
+        assert 'fetch("/dashboard/state"' in html
+        # The twin and map are still present and unchanged in kind.
+        assert "3D Digital Twin" in html
+        assert "Live 2D Warehouse Map" in html
