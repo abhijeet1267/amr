@@ -91,6 +91,11 @@ list, PLAY/PAUSE/RESTART and 0.5x/1x/2x buttons driving the existing
 `ReplayPlayer` from the dashboard's single 1 Hz tick, plus a read-only route to
 load a recording. The engine is ready and needs no changes.
 
+### Commit
+
+`5596fc3` — `feat(telemetry): add recording and deterministic replay engine`
+(9 files, +1429 / −7). A follow-up commit records this hash in the handoff.
+
 ---
 
 ## Session: C13 — Camera + hazard overlays
