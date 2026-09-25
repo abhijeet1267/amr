@@ -35,8 +35,10 @@ from .communication.arduino_serial import ArduinoSerial, ArduinoSerialTransport
 from .control import ArduinoMotorDriver
 from .hazard import HazardManager
 from .logging import get_logger, setup_logging
+from .navigation import LocalNavigator
 from .robot import RobotCommandError, RobotManager, RobotMode
 from .utils.config import AppConfig, ConfigError, load_config
+from .warehouse import WarehouseTaskManager
 from .web import AMRWebApp
 
 MODES = {m.value: m for m in RobotMode}
@@ -97,6 +99,41 @@ def build_camera(config: AppConfig, mock: bool) -> Any:
     if mock:
         return SimulatedCameraSource(width=width, height=height)
     return RaspberryPiCameraSource(width=width, height=height)
+
+
+def build_navigator(mgr: RobotManager, config: AppConfig) -> Any:
+    """The single navigator for this runtime (C9).
+
+    The dashboard reads pose/goal/route from this object; it never steps it.
+    Motion is only ever driven by the warehouse task manager's own loop or the
+    operator command path, both of which go through the safety gate.
+    """
+    whcfg = config.warehouse
+    wheel_base = config.robot.wheel_track_m or whcfg.wheel_base_m
+    return LocalNavigator(
+        command=mgr.move,
+        start_pose=None,  # starts at the map's dock (0, 0, 0)
+        wheel_base_m=wheel_base,
+        max_linear_speed=whcfg.task_speed,
+        max_angular_speed=whcfg.turn_speed,
+        max_pwm=mgr.drive.max_speed,
+    )
+
+
+def build_warehouse(mgr: RobotManager, config: AppConfig,
+                    navigator: Any) -> Any:
+    """Warehouse task manager, or ``None`` when disabled in config.
+
+    Created so the map reads the existing waypoints from the single source of
+    truth (the warehouse config) rather than a copy of it.
+    """
+    if not getattr(config.warehouse, "enabled", False):
+        return None
+    try:
+        return WarehouseTaskManager.create(config, mgr, navigator)
+    except Exception as exc:  # noqa: BLE001 - monitoring must still come up
+        get_logger("main").warning("warehouse unavailable: %s", exc)
+        return None
 
 
 def attach_hazard_layer(mgr: RobotManager, config: AppConfig) -> bool:
@@ -174,9 +211,17 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
     start = getattr(camera, "start", None)
     if callable(start):
         start()
+    # C9: the map needs the same navigator the runtime uses. It is created once
+    # here and handed to the dashboard read-only: the web layer never calls
+    # step()/go_to(), so it cannot move the robot. `navigator=None` would simply
+    # render an "unavailable" pose, so wiring it is what makes the map live.
+    nav = build_navigator(mgr, config)
+    wh = build_warehouse(mgr, config, nav)
     app = AMRWebApp(
         mgr,
         camera=camera,
+        navigator=nav,
+        warehouse=wh,
         # C7: the dashboard is told the truth about where its numbers come
         # from. A mock run is tagged SIMULATION everywhere, so the UI can never
         # present simulated telemetry as a physical measurement.

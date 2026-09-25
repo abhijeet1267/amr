@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **660 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **771 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -156,6 +156,7 @@ into `SAFETY_STOP` are deterministic; the robot never auto-releases itself.
 | `amr/camera/` | Camera facade (libcamera / V4L2 / mock) + C8 frame contract | `CameraManager`, `MockCamera`, `CameraSource`, `CameraFrame`, `SimulatedCameraSource`, `RaspberryPiCameraSource` |
 | `amr/web/` | Stdlib HTTP control panel + JSON API | `AMRWebApp` |
 | `amr/telemetry/` | Read-only telemetry contract + collector (C7) | `TelemetrySnapshot`, `TelemetryCollector` |
+| `amr/map/` | C9 map state + world→screen transform + SVG renderer | `MapSnapshot`, `MapService`, `MapTransform`, `PathHistory` |
 | `amr/mocks/` | Hardware-free doubles for tests | `MockSerial`, `MockMotor`, `MockCamera` |
 | `amr/utils/` | Config loading + helpers | `load_config`, `SafetyConfig`, `RobotConfig` |
 | `config/` | YAML: `robot`, `safety`, `serial`, `warehouse` | — |
@@ -252,7 +253,9 @@ veto, illegal mode transition, or a dropped link all surface as `HTTP 400`.
 | GET | `/hazard` | Hazard layer status (JSON; `attached: false` when not wired) |
 | GET | `/telemetry` | Full read-only telemetry snapshot (C7) |
 | GET | `/health` | Liveness / degradation report (C7) |
-| GET | `/dashboard` | Monitoring dashboard page (C7) |
+| GET | `/map` | C9 map state: warehouse, robot, goal, route, path, hazards, safety (JSON) |
+| GET | `/map.svg` | C9 server-rendered 2D map (`image/svg+xml`; `?width=&height=&zoom=`) |
+| GET | `/dashboard` | Monitoring dashboard page (C7 + C9 live 2D map) |
 | POST | `/command` | Execute one command (JSON in/out) |
 | POST | `/hazard/acknowledge` | Release a latched hazard `EMERGENCY` (step 1 of the two-step release; never resets the robot mode) |
 

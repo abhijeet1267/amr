@@ -287,6 +287,14 @@ class HazardReading:
         # Coerce tolerantly: readings may originate from external detectors.
         object.__setattr__(self, "kind", HazardKind.parse(self.kind))
         object.__setattr__(self, "severity", HazardSeverity.parse(self.severity))
+        # `location` may arrive as a plain mapping (a detector backend, YAML, or
+        # JSON). HazardLocation.from_any() already handles every shape and
+        # returns None when the coordinates are unusable, so a dict must not
+        # survive to crash HazardEvent.to_dict() later.
+        if self.location is not None and not isinstance(
+                self.location, HazardLocation):
+            object.__setattr__(self, "location",
+                               HazardLocation.from_any(self.location))
         if not isinstance(self.metadata, Mapping):
             object.__setattr__(self, "metadata", {})
 

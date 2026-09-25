@@ -63,6 +63,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 
@@ -70,6 +71,7 @@ from ..camera import CameraManager
 from ..camera.frame import CameraFrame, CameraStatus
 from ..hazard import HazardSeverity, HazardState
 from ..logging import get_logger
+from ..map import MapService
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
 from ..telemetry import TelemetryCollector
@@ -137,6 +139,71 @@ def _image_content_type(fmt: Optional[str]) -> str:
     return _IMAGE_CONTENT_TYPES.get((fmt or "").lower(), "image/png")
 
 
+def _clamp_int(value: Any, default: int, low: int, high: int) -> int:
+    """Parse a bounded int query parameter, ignoring anything malformed.
+
+    A browser (or a curious operator) sending ``?width=abc`` must not 500 the
+    dashboard, so bad input falls back to the default and is then clamped.
+    """
+    try:
+        return max(low, min(high, int(float(value))))
+    except (TypeError, ValueError):
+        return default
+
+
+def _clamp_float(value: Any, default: float, low: float, high: float) -> float:
+    """Parse a bounded float query parameter; see :func:`_clamp_int`."""
+    try:
+        return max(low, min(high, float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+# --------------------------------------------------------------------------- #
+# C9 helpers — read geometry from the EXISTING runtime, never a second source
+# --------------------------------------------------------------------------- #
+def _warehouse_locations(warehouse: Any) -> Dict[str, Any]:
+    """Warehouse waypoints from the existing warehouse object/config.
+
+    Accepts a ``WarehouseTaskManager`` (which owns a ``WarehouseMap``), a
+    ``WarehouseMap``, or the raw ``locations`` mapping. Returns ``{}`` when no
+    warehouse is attached, which the map reports as UNAVAILABLE rather than
+    inventing a floor plan.
+    """
+    if warehouse is None:
+        return {}
+    for attr in ("map", "warehouse_map", "_map"):
+        mapping = getattr(warehouse, attr, None)
+        if mapping is not None and hasattr(mapping, "names"):
+            return {name: mapping.pose(name) for name in mapping.names()}
+    locations = getattr(warehouse, "locations", None)
+    return dict(locations) if isinstance(locations, dict) else {}
+
+
+def _hazard_zones(mgr: RobotManager) -> Tuple[Any, ...]:
+    """Hazard-zone rectangles from the attached hazard layer (C5).
+
+    The zones are the only *rectangular* world geometry the project actually
+    models, so they are the only static shapes the map can honestly draw.
+    """
+    layer = getattr(mgr, "hazard", None)
+    if layer is None:
+        return ()
+    try:
+        # `HazardManager.sources` is a property, but other managers expose a
+        # method; accept both shapes like the telemetry collector does.
+        sources = getattr(layer, "sources", None)
+        sources = sources() if callable(sources) else (sources or ())
+        for source in sources:
+            getter = getattr(source, "zones", None)
+            zones = getter() if callable(getter) else getter
+            if zones:
+                return tuple(zones)
+    except Exception:  # noqa: BLE001 - a zone lookup failure just means no zones
+        return ()
+    return ()
+
+
 class AMRWebApp:
     """Binds a :class:`RobotManager` to an HTTP server + control loop."""
 
@@ -170,6 +237,19 @@ class AMRWebApp:
             camera=camera,
             simulated=simulated,
             software_version=software_version,
+        )
+        # C9 map: a read-only projection of the SAME runtime. It is built from
+        # this app's own collaborators so the map can never be wired to a
+        # different robot than the one the panel is describing. Static geometry
+        # is taken from the existing warehouse config; hazard zones from the
+        # attached hazard layer. Both are optional and degrade to UNAVAILABLE.
+        self.map = MapService(
+            locations=_warehouse_locations(warehouse),
+            zones=_hazard_zones(mgr),
+            navigator=navigator,
+            hazard_layer=getattr(mgr, "hazard", None),
+            telemetry=self.telemetry,
+            simulated=simulated,
         )
 
     # ------------------------------------------------------------------ #
@@ -349,6 +429,35 @@ class AMRWebApp:
                 if jpeg:
                     return jpeg, "image/jpeg", 200
             return None, None, 503
+
+    # ------------------------------------------------------------------ #
+    # C9 — 2D warehouse map (read-only)
+    # ------------------------------------------------------------------ #
+    def map_snapshot(self) -> dict:
+        """Current map state for ``GET /map``.
+
+        A pure projection of the existing warehouse/navigator/hazard/telemetry
+        state. The browser is never asked to derive map semantics: it receives
+        world coordinates and renders them. The bounded path history lives in the
+        :class:`MapService`, so repeated polling cannot grow memory.
+        """
+        with self._lock:
+            return self.map.as_dict()
+
+    def map_svg(self, width: int = 720, height: int = 460,
+                zoom: float = 1.0) -> Tuple[Optional[str], int]:
+        """Server-rendered SVG for ``GET /map.svg``.
+
+        Returns ``(svg, http_status)``. A runtime with no placeable geometry
+        still yields a valid SVG carrying an explicit "no map data" message
+        rather than an error.
+        """
+        with self._lock:
+            try:
+                return self.map.svg(int(width), int(height), zoom=zoom), 200
+            except Exception as exc:  # noqa: BLE001 - map must not kill the panel
+                self.log.warning("map render failed: %s", exc)
+                return None, 503
 
     # ------------------------------------------------------------------ #
     # C7 — read-only telemetry projection (no motor path whatsoever)
@@ -610,6 +719,7 @@ class _Handler(BaseHTTPRequestHandler):
     # -- routes ------------------------------------------------------------ #
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.split("?", 1)[0]
+        query = self.path.split("?", 1)[1] if "?" in self.path else ""
         if path == "/":
             self._send_html(INDEX_HTML)
         elif path == "/status":
@@ -632,6 +742,20 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(self.app.hazard_status())
         elif path == "/telemetry":
             self._send_json(self.app.telemetry_snapshot())
+        elif path == "/map":
+            # C9: the read-only map projection. World coordinates only; the
+            # browser renders, it does not compute map semantics.
+            self._send_json(self.app.map_snapshot())
+        elif path == "/map.svg":
+            params = dict(urllib.parse.parse_qsl(query))
+            width = _clamp_int(params.get("width"), 720, 240, 2000)
+            height = _clamp_int(params.get("height"), 460, 200, 1600)
+            zoom = _clamp_float(params.get("zoom"), 1.0, 0.1, 10.0)
+            svg, code = self.app.map_svg(width, height, zoom)
+            if svg is None:
+                self._send_json({"error": "map unavailable"}, code)
+            else:
+                self._send_bytes(svg.encode("utf-8"), "image/svg+xml")
         elif path == "/health":
             body, code = self.app.health()
             self._send_json(body, code)
@@ -1054,6 +1178,20 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
 .cam-view img { max-width: 100%; max-height: 100%; width: auto; height: auto;
   display: block; object-fit: contain; }
 .cam-none { color: var(--dim); font-style: italic; font-size: 12px; }
+/* C9 map panel. The SVG scales with preserveAspectRatio, so the viewBox stays
+   authoritative and the card never hard-codes pixel geometry. */
+.map-card { display: flex; flex-direction: column; }
+.map-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  margin-bottom: 8px; }
+.map-btn { background: #16202f; color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; font-size: 11px; padding: 4px 8px; cursor: pointer; }
+.map-btn[aria-pressed="true"] { border-color: var(--ok); color: var(--ok); }
+.map-view { position: relative; background: #0b101a; border: 1px solid var(--line);
+  border-radius: 8px; overflow: hidden; aspect-ratio: 720 / 460; }
+.map-view svg { display: block; width: 100%; height: 100%; }
+.map-empty { position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; color: var(--dim); font-style: italic; font-size: 12px; }
+.map-note { color: var(--dim); font-size: 11px; margin: 8px 0 0; }
 footer { padding: 10px 20px 24px; color: var(--dim); font-size: 12px; }
 a { color: var(--sim); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
@@ -1139,6 +1277,30 @@ a { color: var(--sim); }
     </dl>
   </section>
 
+  <section class="card map-card">
+    <h2>Live 2D Warehouse Map</h2>
+    <div class="map-toolbar">
+      <span id="m-src" class="badge b-dim">SOURCE &mdash;</span>
+      <span id="m-safety" class="badge b-dim">SAFETY &mdash;</span>
+      <button type="button" id="m-follow" class="map-btn" aria-pressed="false">Follow</button>
+      <button type="button" id="m-fit" class="map-btn">Reset view</button>
+      <button type="button" id="m-toggle" class="map-btn" aria-pressed="true">Labels</button>
+    </div>
+    <div class="map-view">
+      <svg id="m-svg" viewBox="0 0 720 460" preserveAspectRatio="xMidYMid meet"
+           role="img" aria-label="Warehouse map"></svg>
+      <div id="m-empty" class="map-empty" hidden>no map data available</div>
+    </div>
+    <dl class="kv">
+      <dt>Robot</dt><dd id="m-robot">&mdash;</dd>
+      <dt>Goal</dt><dd id="m-goal">&mdash;</dd>
+      <dt>Route</dt><dd id="m-route">&mdash;</dd>
+      <dt>Hazards</dt><dd id="m-hazards">&mdash;</dd>
+      <dt>Unplaced</dt><dd id="m-unplaced">&mdash;</dd>
+    </dl>
+    <p class="map-note" id="m-note"></p>
+  </section>
+
   <section class="card">
     <h2>System</h2>
     <dl class="kv">
@@ -1160,6 +1322,244 @@ __DASHBOARD_JS__
 
 DASHBOARD_JS = """<script>
 "use strict";
+// ------------------------------------------------------------------------ //
+// C9 — live 2D map. READ-ONLY: this only ever issues GET /map.
+// ------------------------------------------------------------------------ //
+// The world->screen transform lives here for *interactive* controls (zoom/pan),
+// but it is the same formula the server uses in amr.map.transform: one uniform
+// scale with y flipped, because the warehouse frame is y-up and SVG y grows
+// downward. Semantic decisions (which hazards are placeable, what is real) are
+// made server-side and arrive already resolved.
+var MAP_W = 720, MAP_H = 460, MAP_PAD = 24;
+var mapZoom = 1.0, mapPanX = 0, mapPanY = 0, mapFollow = false, mapLabels = true;
+var mapData = null;
+
+function mapScale(b) {
+  var uw = Math.max(1, MAP_W - 2 * MAP_PAD);
+  var uh = Math.max(1, MAP_H - 2 * MAP_PAD);
+  var sx = uw / Math.max(1e-6, b.x_max - b.x_min);
+  var sy = uh / Math.max(1e-6, b.y_max - b.y_min);
+  return Math.min(sx, sy) * mapZoom;
+}
+function mapToScreen(x, y, b) {
+  var s = mapScale(b);
+  return [x * s + (MAP_PAD - b.x_min * s + mapPanX * s),
+          (MAP_PAD + b.y_max * s - mapPanY * s) - y * s];
+}
+function esc(v) {
+  return String(v === null || v === undefined ? "" : v)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+function isNum(v) { return typeof v === "number" && isFinite(v); }
+
+function drawGrid(b) {
+  var out = "", cands = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02], step = 1.0;
+  var s = mapScale(b);
+  for (var i = 0; i < cands.length; i++) {
+    if (cands[i] * s >= 28) { step = cands[i]; break; }
+  }
+  for (var x = Math.floor(b.x_min / step) * step; x <= b.x_max + step * 0.5; x += step) {
+    var p = mapToScreen(x, 0, b);
+    out += '<line x1="' + p[0].toFixed(2) + '" y1="0" x2="' + p[0].toFixed(2) +
+           '" y2="' + MAP_H + '" stroke="' + (Math.abs(x) < 1e-9 ? "#33415c" : "#1b2433") +
+           '" stroke-width="1"/>';
+  }
+  for (var y = Math.floor(b.y_min / step) * step; y <= b.y_max + step * 0.5; y += step) {
+    var q = mapToScreen(0, y, b);
+    out += '<line x1="0" y1="' + q[1].toFixed(2) + '" x2="' + MAP_W + '" y2="' +
+           q[1].toFixed(2) + '" stroke="' + (Math.abs(y) < 1e-9 ? "#33415c" : "#1b2433") +
+           '" stroke-width="1"/>';
+  }
+  return out;
+}
+
+function renderMap(m) {
+  mapData = m;
+  var svg = document.getElementById("m-svg");
+  var empty = document.getElementById("m-empty");
+  if (!svg) return;
+  var b = m.warehouse && m.warehouse.bounds;
+  if (!b) {
+    svg.innerHTML = "";
+    if (empty) empty.hidden = false;
+  } else {
+    if (empty) empty.hidden = true;
+    var g = drawGrid(b), i, p, q, a, c;
+    for (i = 0; i < m.zones.length; i++) {
+      var z = m.zones[i];
+      a = mapToScreen(z.x_min, z.y_min, b);
+      c = mapToScreen(z.x_max, z.y_max, b);
+      g += '<rect x="' + Math.min(a[0], c[0]).toFixed(2) + '" y="' +
+           Math.min(a[1], c[1]).toFixed(2) + '" width="' +
+           Math.abs(c[0] - a[0]).toFixed(2) + '" height="' +
+           Math.abs(c[1] - a[1]).toFixed(2) + '" fill="#f59e0b" fill-opacity="0.10" ' +
+           'stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="6 4"><title>' +
+           esc(z.name) + " (" + esc(z.severity) + ")</title></rect>";
+      if (mapLabels) {
+        g += '<text x="' + (Math.min(a[0], c[0]) + 5).toFixed(2) + '" y="' +
+             (Math.min(a[1], c[1]) + 14).toFixed(2) +
+             '" fill="#f59e0b" font-size="10">' + esc(z.name) + "</text>";
+      }
+    }
+    if (m.path.length > 1) {
+      var pp = m.path.map(function (pt) {
+        var r = mapToScreen(pt.x, pt.y, b);
+        return r[0].toFixed(2) + "," + r[1].toFixed(2);
+      });
+      g += '<polyline points="' + pp.join(" ") + '" fill="none" stroke="#475569" ' +
+           'stroke-width="1.5" stroke-dasharray="3 3"/>';
+    }
+    if (m.route.length > 1) {
+      var rp = m.route.map(function (pt) {
+        var r = mapToScreen(pt.x, pt.y, b);
+        return r[0].toFixed(2) + "," + r[1].toFixed(2);
+      });
+      g += '<polyline points="' + rp.join(" ") + '" fill="none" stroke="#38bdf8" ' +
+           'stroke-width="2"/>';
+    }
+    var wps = (m.warehouse && m.warehouse.waypoints) || [];
+    for (i = 0; i < wps.length; i++) {
+      var w = wps[i];
+      if (!isNum(w.x) || !isNum(w.y)) continue;
+      p = mapToScreen(w.x, w.y, b);
+      g += '<circle cx="' + p[0].toFixed(2) + '" cy="' + p[1].toFixed(2) +
+           '" r="4" fill="none" stroke="#38bdf8" stroke-width="1.5"><title>' +
+           esc(w.name) + " (" + w.x.toFixed(2) + ", " + w.y.toFixed(2) +
+           ") m</title></circle>";
+      if (mapLabels) {
+        g += '<text x="' + (p[0] + 8).toFixed(2) + '" y="' + (p[1] + 4).toFixed(2) +
+             '" fill="#94a3b8" font-size="10">' + esc(w.name) + "</text>";
+      }
+    }
+    if (m.goal && isNum(m.goal.x)) {
+      p = mapToScreen(m.goal.x, m.goal.y, b);
+      var gd = -((m.goal.theta || 0) * 180 / Math.PI);
+      g += '<g class="layer-goal" transform="translate(' + p[0].toFixed(2) + "," +
+           p[1].toFixed(2) + ") rotate(" + gd.toFixed(2) + ')"><circle r="7" ' +
+           'fill="none" stroke="#a855f7" stroke-width="2"/><circle r="2" ' +
+           'fill="#a855f7"><title>goal ' + esc(m.goal.name) + "</title></circle></g>";
+    }
+    for (i = 0; i < m.hazards.length; i++) {
+      var h = m.hazards[i];
+      if (!isNum(h.x) || !isNum(h.y)) continue;
+      p = mapToScreen(h.x, h.y, b);
+      var sev = String(h.severity || "").toUpperCase();
+      var crit = (sev === "EMERGENCY" || sev === "STOP" || sev === "CRITICAL");
+      var col = crit ? "#ef4444" : "#f59e0b", rad = crit ? 9 : 7;
+      var conf = isNum(h.confidence) ? ", confidence " + h.confidence.toFixed(2) : "";
+      g += '<circle class="hazard" cx="' + p[0].toFixed(2) + '" cy="' +
+           p[1].toFixed(2) + '" r="' + rad + '" fill="' + col +
+           '" fill-opacity="0.75" stroke="' + col + '" stroke-width="2"><title>' +
+           esc(h.kind) + " (" + esc(h.severity) + ")" + conf + ", source " +
+           esc(h.source) + "</title></circle>";
+      if (mapLabels) {
+        g += '<text x="' + (p[0] + rad + 3).toFixed(2) + '" y="' +
+             (p[1] + 4).toFixed(2) + '" fill="' + col + '" font-size="10">' +
+             esc(h.kind) + "</text>";
+      }
+    }
+    if (m.robot && isNum(m.robot.x)) {
+      p = mapToScreen(m.robot.x, m.robot.y, b);
+      var deg = -((m.robot.yaw || 0) * 180 / Math.PI);
+      g += '<g class="layer-robot" data-layer="robot" transform="translate(' +
+           p[0].toFixed(2) + "," + p[1].toFixed(2) + ") rotate(" + deg.toFixed(2) +
+           ')"><polygon points="0,-11 8,8 0,4 -8,8" fill="#22c55e" stroke="#0b101a" ' +
+           'stroke-width="1"><title>AMR (' + m.robot.x.toFixed(2) + ", " +
+           m.robot.y.toFixed(2) + ") m, yaw " + (m.robot.yaw || 0).toFixed(2) +
+           " rad</title></polygon></g>";
+    }
+    svg.innerHTML = g;
+  }
+  txt("m-src", m.source || "UNAVAILABLE");
+  var sf = m.safety || {};
+  var badge = document.getElementById("m-safety");
+  if (badge) {
+    badge.textContent = "SAFETY " + (sf.action || sf.state || "unknown") +
+      (sf.emergency_stop ? " / E-STOP" : "");
+    badge.className = "badge " + (sf.emergency_stop || sf.latched ? "b-crit" : "b-dim");
+  }
+  txt("m-robot", m.robot ? "(" + m.robot.x.toFixed(2) + ", " + m.robot.y.toFixed(2) +
+      ") m  yaw " + (m.robot.yaw || 0).toFixed(2) + " rad" : "not available");
+  txt("m-goal", m.goal ? m.goal.name : "none");
+  txt("m-route", m.route.length ? m.route.length + " waypoints" : "no route");
+  txt("m-hazards", m.hazards.length ? m.hazards.length + " placed" : "none placed");
+  txt("m-unplaced", m.unlocated.length
+      ? m.unlocated.length + " (no world location)" : "none");
+  var note = document.getElementById("m-note");
+  if (note) note.textContent = m.warehouse ? m.warehouse.note : "";
+}
+
+function mapReset() { mapZoom = 1.0; mapPanX = 0; mapPanY = 0; }
+
+function pollMap() {
+  fetch("/map", { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (m) {
+      if (m && m.robot && mapFollow) mapReset();
+      renderMap(m);
+    })
+    .catch(function () { /* the map must never break the rest of the panel */ });
+}
+
+function initMapControls() {
+  var svg = document.getElementById("m-svg");
+  if (svg) {
+    svg.addEventListener("wheel", function (e) {
+      if (!mapData || !mapData.warehouse || !mapData.warehouse.bounds) return;
+      e.preventDefault();
+      mapZoom = Math.max(0.2, Math.min(10, mapZoom * (e.deltaY < 0 ? 1.15 : 0.87)));
+      renderMap(mapData);
+    }, { passive: false });
+    var dragging = false, lastX = 0, lastY = 0;
+    svg.addEventListener("pointerdown", function (e) {
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      if (svg.setPointerCapture) svg.setPointerCapture(e.pointerId);
+    });
+    svg.addEventListener("pointermove", function (e) {
+      if (!dragging || !mapData || !mapData.warehouse || !mapData.warehouse.bounds) return;
+      var b = mapData.warehouse.bounds, s = mapScale(b);
+      // Drag right -> the content follows the cursor, so the world pans the
+      // opposite way; the y sign is inverted to match the flipped axis.
+      mapPanX -= (e.clientX - lastX) / s;
+      mapPanY += (e.clientY - lastY) / s;
+      lastX = e.clientX; lastY = e.clientY;
+      renderMap(mapData);
+    });
+    var endDrag = function (e) {
+      dragging = false;
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId);
+      }
+    };
+    svg.addEventListener("pointerup", endDrag);
+    svg.addEventListener("pointercancel", endDrag);
+  }
+  var follow = document.getElementById("m-follow");
+  if (follow) {
+    follow.addEventListener("click", function () {
+      mapFollow = !mapFollow;
+      follow.setAttribute("aria-pressed", mapFollow ? "true" : "false");
+      if (mapFollow) mapReset();
+    });
+  }
+  var fit = document.getElementById("m-fit");
+  if (fit) {
+    fit.addEventListener("click", function () {
+      mapReset();
+      if (mapData) renderMap(mapData);
+    });
+  }
+  var toggle = document.getElementById("m-toggle");
+  if (toggle) {
+    toggle.addEventListener("click", function () {
+      mapLabels = !mapLabels;
+      toggle.setAttribute("aria-pressed", mapLabels ? "true" : "false");
+      if (mapData) renderMap(mapData);
+    });
+  }
+}
+
 // Read-only: this file only ever calls GET. No POST, no command endpoint.
 var POLL_MS = 1000;
 
@@ -1315,8 +1715,12 @@ function poll() {
       c.textContent = "NO DATA";
       c.className = "badge b-crit";
     });
+  // The map rides the same 1 Hz tick rather than adding a second timer, which
+  // keeps a Raspberry Pi dashboard to one polling loop.
+  pollMap();
 }
 
+initMapControls();
 poll();
 setInterval(poll, POLL_MS);
 </script>"""

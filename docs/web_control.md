@@ -146,6 +146,8 @@ HTTP server was created:
 | `GET /telemetry` | a full `TelemetrySnapshot` (position, navigation, safety, hazards, battery, sensors, mission, camera, system) |
 | `GET /health` | a liveness report — `OK` / `DEGRADED` / `OFFLINE` plus per-subsystem detail |
 | `GET /dashboard` | a self-contained monitoring page (stdlib only, no external assets) |
+| `GET /map` | the C9 `MapSnapshot`: warehouse waypoints/zones, robot pose, goal, route, travelled path, hazards, safety — world coordinates only |
+| `GET /map.svg` | the same state rendered server-side as SVG (`?width=&height=&zoom=`, all clamped) |
 
 **These cannot move the robot.** The collector behind them performs reads only:
 it never calls `tick()`, `request_mode()` or any write method, and a test
