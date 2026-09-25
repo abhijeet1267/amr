@@ -103,6 +103,12 @@ write **zero** bytes to the mock transport.
 controls). Everything it needs already exists: hazard events are logged, the
 map has a bounded path history, and the dashboard has a single read-only poll.
 
+### Commit
+
+`301cb53` — `feat: add camera hazard overlays` (15 files, +1400 / −11).
+A follow-up commit records this hash in the handoff, following the repository
+convention.
+
 ---
 
 ## Session: C12 — Mission monitoring
