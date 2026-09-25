@@ -5,6 +5,85 @@
 
 ---
 
+## Session: C8 — Raspberry Pi camera monitoring abstraction
+
+**Agent:** cline · **Branch:** `main` · **Date:** 2026-09-24 ·
+**Baseline when started:** `0442010` (clean tree, = `origin/main`) ·
+**Tests:** 592 → **660 passed, 2 skipped, 0 failed** (+68)
+
+### 1. What was completed
+
+**C8 — Raspberry Pi camera monitoring abstraction.** A stable camera layer that
+feeds frames to the AMR runtime and dashboard, supporting both a deterministic
+simulated camera and a real Raspberry Pi camera behind one interface.
+
+The work **extends** the existing `amr/camera/camera_manager.py` rather than
+replacing it, and reuses the C7 telemetry snapshot and `AMRWebApp` — no second
+runtime, no second web server, no duplicate vision logic.
+
+* **New `raspberry_pi/amr/camera/frame.py` (626 lines)** — frozen `CameraFrame`
+  contract, `CameraStatus` (`LIVE`/`SIMULATION`/`UNAVAILABLE`/`ERROR`), a
+  `CameraSource` protocol, deterministic `SimulatedCameraSource`, and a
+  lazy-import `RaspberryPiCameraSource`.
+* **Simulation** generates a real, correctly-sized PNG using only the standard
+  library (`zlib` + `struct`) — no OpenCV, no NumPy, no Pillow. Deterministic:
+  identical bytes every run, so tests never flake.
+* **Real backend** probes `picamera2` → `libcamera-still` → V4L2, each behind a
+  guarded lazy import. Missing package, missing device, or init error degrades
+  to `UNAVAILABLE`/`ERROR` with a reason; the runtime keeps running.
+* **Lifecycle** `start()` / `read()` / `stop()`, idempotent, no background
+  thread, nothing initialised at import time.
+* **API:** `GET /camera/status` (metadata only, never pixels) and
+  `GET /camera/frame` (latest encoded frame, `503` when unavailable), plus a
+  camera panel on `GET /dashboard`.
+* **68 new tests**: 49 in `tests/test_camera_frame.py` (including runtime-wiring
+  coverage for `amr.main.build_camera`), plus camera cases in `test_telemetry.py`
+  and `test_web_server.py`.
+
+### 1a. Bugs found and fixed while building C8
+
+Two genuine defects surfaced during integration; neither was hidden by editing
+an existing test:
+
+1. **Pre-existing C7 bug — `uptime` reported the wall clock.**
+   `SystemTelemetry.to_dict()` re-derived `uptime` from `time.time()` instead of
+   serialising the already-computed field, so every `/telemetry` response carried
+   the current epoch (~1.79e9 s) as "uptime" and two snapshots taken microseconds
+   apart never compared equal. This made the C7 test
+   `test_collection_is_deterministic_under_a_fixed_clock` intermittently fail —
+   reproduced **1 in 15 runs on the committed C7 baseline** (verified in a clean
+   `git worktree` at `0442010`), so it was pre-existing rather than C8-induced.
+   Fixed in `types.py`; `tests/test_telemetry.py` then ran 20/20 clean and the
+   full suite 4/4 clean. Live check now reports a real elapsed `14.379 s`.
+
+2. **`amr.main.build_camera` crashed the real CLI.** It passed a `name=` keyword
+   that neither camera source accepts (`name` is a class attribute), so
+   `python -m amr.main --mock --web` died with `TypeError` at startup while every
+   unit test still passed — they constructed the sources directly and never went
+   through the factory. Fixed, and `TestBuildCameraWiring` now exercises the
+   factory exactly as the CLI does so this cannot regress silently.
+
+Also fixed during C8: `run_web` never called the camera's `start()`, so
+`/camera/frame` would have returned `503` for the whole session (a frame read
+before `start()` carries no pixels). `run_web` now owns the camera lifecycle and
+releases the device in its `finally` block. Verified end-to-end against the real
+CLI: `GET /camera/frame` → `200 image/png`, 2366 bytes, `PNG image data 640x480`.
+
+**Pre-existing, not a C8 regression:** `python -m amr.main --demo` (without
+`--mock`) exits 1 because it tries to open `/dev/ttyACM0`. Confirmed identical on
+the committed C7 baseline. `--mock --demo` exits 0.
+
+### 1b. Commits
+
+| Commit | Contents |
+|---|---|
+| `e322227` | `feat(camera): add Raspberry Pi camera monitoring` — implementation, tests, and reference docs |
+| (this commit) | `docs(ai-context): record C8 commit hash` — the `AI_CONTEXT/` files |
+
+Resolve the live hash with `git rev-parse HEAD` (also mirrored in
+`AI_CONTEXT/CURRENT_STATUS.md`). A file cannot contain its own hash.
+
+
 ## Session: C7 — dashboard foundation (read-only telemetry + monitoring API)
 
 **Agent:** cline · **Branch:** `main` ·

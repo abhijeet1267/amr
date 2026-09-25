@@ -1,9 +1,9 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** commit `3870c8a` (C7) — full suite
-**592 passed, 2 skipped, 0 failed** (537 at C6 + 46 new telemetry tests + 9 new
-dashboard HTTP tests). Re-verify with the commands below before trusting these
-numbers.
+**Last verified:** the C8 working tree — full suite
+**660 passed, 2 skipped, 0 failed** (592 at C7 + 46 camera-contract tests + 3
+runtime-wiring tests + 8 telemetry camera tests + 11 camera dashboard HTTP
+tests). Re-verify with the commands below before trusting these numbers.
 
 ---
 

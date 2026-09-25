@@ -136,7 +136,16 @@ collector never calls `tick()` or any write method (asserted by tests spying on
 `tick()` and the serial writes), and `POST /command` remains the sole control
 path. +55 tests (592 total). All values simulated; no hardware used.
 
-### C8 — Raspberry Pi camera monitor `[ ]` (upcoming)
+### C8 — Raspberry Pi camera monitor `[x]` complete (2026-09-24)
+**Outcome:** camera abstraction shipped in `raspberry_pi/amr/camera/frame.py` —
+frozen `CameraFrame` contract, `CameraStatus` (`LIVE` / `SIMULATION` /
+`UNAVAILABLE` / `ERROR`), deterministic stdlib-PNG `SimulatedCameraSource`, and
+a lazy-import `RaspberryPiCameraSource` (picamera2 → libcamera-still → V4L2).
+Wired into C7 telemetry (`GET /camera/status`, `GET /camera/frame`) plus a
+dashboard camera panel. **68 new tests; full suite 660 passed, 2 skipped.**
+Also fixed a C7 honesty bug: a `MockCamera` was reported as `source: LIVE`.
+**REAL CAMERA HARDWARE TESTED: NO** — no Pi camera was available; all coverage
+is simulated or fault-injected. See `docs/camera.md`.
 **Touches:** `amr/camera/`, `amr/web/server.py`, new streaming route, tests
 A `CameraSource` → `CameraFrame` abstraction supporting both the SIMULATED and
 REAL Pi camera without changing the dashboard. Show status/timestamp/source/
