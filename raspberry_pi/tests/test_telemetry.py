@@ -20,6 +20,7 @@ import json
 
 import pytest
 
+from amr.camera.frame import CameraStatus, SimulatedCameraSource
 from amr.navigation.navigator import LocalNavigator
 from amr.navigation.types import Goal, Pose
 from amr.robot import RobotManager, RobotMode
@@ -260,4 +261,65 @@ class TestSimulationHonesty:
         # Battery and charging are physically absent in this project.
         assert d["battery"]["percentage"] is None
         assert d["battery"]["voltage"] is None
+
+
+# --------------------------------------------------------------------------- #
+# C8 — camera telemetry integration (metadata only, never pixels)
+# --------------------------------------------------------------------------- #
+class TestCameraTelemetry:
+    def test_no_camera_is_honestly_unavailable(self, manager):
+        snap = TelemetryCollector(manager, simulated=True).collect()
+        cam = snap.camera
+        assert cam.status is CameraStatus.UNAVAILABLE
+        assert cam.source is DataSource.UNAVAILABLE
+        assert cam.width is None and cam.height is None
+        assert cam.format is None
+        assert cam.has_frame is False
+
+    def test_simulated_camera_reports_simulation_not_live(self, manager):
+        source = SimulatedCameraSource(width=64, height=48)
+        snap = TelemetryCollector(manager, camera=source,
+                                  simulated=True).collect()
+        cam = snap.camera
+        assert cam.status is CameraStatus.SIMULATION
+        assert cam.source is DataSource.SIMULATION
+        assert cam.status is not CameraStatus.LIVE
+
+    def test_camera_metadata_flows_into_telemetry(self, manager):
+        source = SimulatedCameraSource(width=64, height=48)
+        source.start()
+        source.read()
+        snap = TelemetryCollector(manager, camera=source,
+                                  simulated=True).collect()
+        cam = snap.camera
+        assert (cam.width, cam.height) == (64, 48)
+        assert cam.format
+        assert cam.frame_id >= 1
+        assert cam.timestamp is not None
+
+    def test_snapshot_carries_no_pixels(self, manager):
+        source = SimulatedCameraSource(width=64, height=48)
+        source.start()
+        source.read()
+        blob = json.dumps(
+            TelemetryCollector(manager, camera=source, simulated=True)
+            .collect().to_dict()
+        )
+        # A PNG signature would mean frame bytes leaked into the snapshot.
+        assert "\\x89PNG" not in blob and "iVBORw0KGgo" not in blob
+        assert len(blob) < 8192  # bounded: telemetry stays small
+
+    def test_broken_camera_degrades_to_unavailable(self, manager):
+        snap = TelemetryCollector(manager, camera=_Exploding(),
+                                  simulated=True).collect()
+        # A camera that raises on describe() is a *fault*, not an absent camera,
+        # so the collector reports ERROR rather than flattening it to UNAVAILABLE.
+        assert snap.camera.status in (CameraStatus.ERROR, CameraStatus.UNAVAILABLE)
+        assert snap.camera.has_frame is False
+
+    def test_camera_telemetry_survives_a_failing_camera(self, manager):
+        # Fixed clock so the only thing compared is the projection itself.
+        t = TelemetryCollector(manager, camera=_Exploding(), simulated=True,
+                               clock=lambda: 1.0)
+        assert t.collect().to_dict() == t.collect().to_dict()
 

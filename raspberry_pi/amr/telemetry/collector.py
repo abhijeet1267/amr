@@ -18,6 +18,7 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
 
+from ..camera.frame import CameraFrame, CameraStatus
 from ..logging import get_logger
 from .types import (
     BatteryTelemetry,
@@ -34,6 +35,17 @@ from .types import (
     Vector3,
     Velocity,
 )
+
+#: Maps an honest camera status onto the telemetry source tag. ``ERROR`` and
+#: ``UNAVAILABLE`` are both ``UNAVAILABLE`` from a consumer's point of view: no
+#: trustworthy image is coming. ``SIMULATION`` is its own tag so the UI can
+#: never present a placeholder as live footage.
+_SOURCE_FOR_STATUS = {
+    CameraStatus.LIVE: DataSource.LIVE,
+    CameraStatus.SIMULATION: DataSource.SIMULATION,
+    CameraStatus.UNAVAILABLE: DataSource.UNAVAILABLE,
+    CameraStatus.ERROR: DataSource.UNAVAILABLE,
+}
 
 
 class TelemetryCollector:
@@ -440,7 +452,19 @@ class TelemetryCollector:
         )
 
     def _camera(self) -> CameraTelemetry:
-        """Camera metadata from ``CameraManager.describe()``, if attached."""
+        """Camera status/metadata — never image bytes.
+
+        Supports both camera shapes already in the repo:
+
+        * the C8 :class:`~amr.camera.frame.CameraSource` protocol
+          (``describe()`` returning ``status``/``simulated``/``name``), and
+        * the legacy :class:`~amr.camera.camera_manager.CameraManager`
+          (``describe()`` returning ``available``/``device``/``resolution``).
+
+        The source tag is derived from what the backend actually reports, never
+        from the runtime's global mode: a mock or simulated camera is tagged
+        ``SIMULATION`` even when the rest of the stack runs live.
+        """
         cam = self.camera
         if cam is None:
             return CameraTelemetry()
@@ -450,31 +474,100 @@ class TelemetryCollector:
         try:
             info = fn()
         except Exception as exc:  # noqa: BLE001
-            self.log.debug("telemetry: camera.describe() failed: %s", exc)
-            return CameraTelemetry()
+            # A camera that *fails to describe itself* is a fault, not an
+            # absent camera: reporting UNAVAILABLE here would hide a broken
+            # subsystem behind the same shape as "no camera configured".
+            self.log.warning("telemetry: camera.describe() failed: %s", exc)
+            return CameraTelemetry(
+                status=CameraStatus.ERROR, error=str(exc),
+            )
         if not isinstance(info, dict):
             return CameraTelemetry()
+
+
+        # C8 sources publish an explicit status + simulated flag; the legacy
+        # manager publishes available/device/resolution instead.
+        raw_status = info.get("status")
         available = bool(info.get("available"))
+        simulated = bool(info.get("simulated"))
         backend = info.get("backend")
-        source_name = info.get("source")
-        # A mock backend is SIMULATION regardless of the runtime's mode: it is
-        # never presented as live camera footage.
-        is_mock = bool(info.get("mock") or backend == "mock")
-        if not available:
-            tag = DataSource.UNAVAILABLE
-        elif is_mock:
-            tag = DataSource.SIMULATION
+        source_name = info.get("name") or info.get("source") or backend
+
+        if raw_status is not None:
+            status = CameraStatus.parse(raw_status)
+            available = status in (CameraStatus.LIVE, CameraStatus.SIMULATION)
+            simulated = simulated or status is CameraStatus.SIMULATION
+            tag = _SOURCE_FOR_STATUS.get(status, DataSource.UNAVAILABLE)
         else:
-            tag = DataSource.SIMULATION if self.simulated else DataSource.LIVE
+            # Legacy CameraManager: no status field, infer from availability.
+            status = None
+            tag = DataSource.UNAVAILABLE
+            if available:
+                tag = DataSource.SIMULATION if self.simulated else DataSource.LIVE
+
+        # A frame, when the source already has one, supplies the honest
+        # resolution/format/frame-id. Absent a frame these stay None.
+        frame = self._latest_camera_frame(cam)
+        width = info.get("width")
+        height = info.get("height")
+        fmt = info.get("format")
+        frame_id = info.get("frame_id")
+        timestamp = None
+        has_frame = False
+        if frame is not None:
+            width = frame.width if width is None else width
+            height = frame.height if height is None else height
+            fmt = frame.format if fmt is None else fmt
+            frame_id = frame.frame_id if not frame_id else frame_id
+            timestamp = frame.timestamp
+            has_frame = frame.data is not None
+            if frame.status is CameraStatus.SIMULATION:
+                simulated, tag = True, DataSource.SIMULATION
+                status = CameraStatus.SIMULATION
+
+        if not simulated and frame is None:
+            # Never claim a live source for a frame we cannot actually see.
+            if status is None and not available:
+                tag = DataSource.UNAVAILABLE
+
+        # `resolution` is the legacy C7 field; derive it from the C8 dimensions
+        # so the two can never disagree about the same camera.
+        resolution = _resolution(info.get("resolution"))
+        if resolution is None and _is_number(width) and _is_number(height):
+            resolution = f"{int(width)}x{int(height)}"
+
         return CameraTelemetry(
-            status="ONLINE" if available else "OFFLINE",
-            source_name=source_name or backend,
+            # A typed CameraStatus throughout; a legacy backend that gives no
+            # explicit state is mapped onto the two nearest lifecycle states.
+            status=(status if status is not None else
+                    (CameraStatus.LIVE if available else CameraStatus.UNAVAILABLE)),
+            source_name=source_name,
             device=info.get("device"),
-            resolution=_resolution(info.get("resolution")),
+            resolution=resolution,
             # fps is never invented: it is only known with a real capture loop.
             fps=info.get("fps") if _is_number(info.get("fps")) else None,
             source=tag,
+            width=width if _is_number(width) else None,
+            height=height if _is_number(height) else None,
+            format=fmt,
+            frame_id=int(frame_id) if _is_number(frame_id) else 0,
+            timestamp=timestamp,
+            has_frame=bool(has_frame),
+            error=info.get("reason") or info.get("error"),
         )
+
+    def _latest_camera_frame(self, cam: Any) -> Optional[CameraFrame]:
+        """Return a cached frame if the source exposes one, else ``None``.
+
+        Deliberately does **not** call ``read()``: telemetry must not trigger a
+        capture, allocate image bytes, or block the control loop. Only an
+        already-available frame attribute is used.
+        """
+        for attr in ("last_frame", "_last_frame", "latest_frame"):
+            frame = getattr(cam, attr, None)
+            if isinstance(frame, CameraFrame):
+                return frame
+        return None
 
     def _system(self, state: Dict[str, Any]) -> SystemTelemetry:
         """Process/runtime identity and uptime."""

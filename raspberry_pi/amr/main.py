@@ -23,15 +23,18 @@ import argparse
 import json
 import sys
 import time
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from . import __version__
-from .camera import CameraManager
+from .camera import (
+    CameraManager,  # noqa: F401  (legacy backend, still public)
+    RaspberryPiCameraSource,
+    SimulatedCameraSource,
+)
 from .communication.arduino_serial import ArduinoSerial, ArduinoSerialTransport
 from .control import ArduinoMotorDriver
 from .hazard import HazardManager
 from .logging import get_logger, setup_logging
-from .mocks import MockCamera
 from .robot import RobotCommandError, RobotManager, RobotMode
 from .utils.config import AppConfig, ConfigError, load_config
 from .web import AMRWebApp
@@ -74,12 +77,26 @@ def build_manager(args: argparse.Namespace, config: AppConfig) -> RobotManager:
     return RobotManager(serial, driver, config)
 
 
-def build_camera(config: AppConfig, mock: bool) -> CameraManager:
-    """Camera facade for the web UI; always degrades gracefully."""
+def build_camera(config: AppConfig, mock: bool) -> Any:
+    """Camera source for the web UI / telemetry; always degrades gracefully.
+
+    C8: returns a :class:`CameraSource` from :mod:`amr.camera.frame`, so the
+    dashboard and the C7 telemetry collector read one stable contract. The
+    choice is explicit and honest about what is behind it:
+
+    * ``--mock`` -> :class:`SimulatedCameraSource` (status ``SIMULATION``)
+    * hardware  -> :class:`RaspberryPiCameraSource` (``LIVE`` / ``UNAVAILABLE``
+      / ``ERROR`` depending on what the Pi actually offers)
+
+    Nothing here opens a device, so a missing camera cannot stop the runtime
+    from starting; the backend reports the failure through its status instead.
+    """
     cam_cfg = config.robot.camera
+    width = getattr(cam_cfg, "width", 640) or 640
+    height = getattr(cam_cfg, "height", 480) or 480
     if mock:
-        return CameraManager(MockCamera(available=True), cam_cfg)
-    return CameraManager.create_real(cam_cfg)
+        return SimulatedCameraSource(width=width, height=height)
+    return RaspberryPiCameraSource(width=width, height=height)
 
 
 def attach_hazard_layer(mgr: RobotManager, config: AppConfig) -> bool:
@@ -150,9 +167,16 @@ def run_demo(mgr: RobotManager, out=print) -> int:
 # --------------------------------------------------------------------------- #
 def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> int:
     """Run the web control panel until Ctrl-C. Returns a process exit code."""
+    camera = build_camera(config, args.mock)
+    # C8: own the camera lifecycle here so the device is opened once and — more
+    # importantly — released on exit. `start()` never raises, so a camera that
+    # fails to open degrades to UNAVAILABLE/ERROR instead of blocking the panel.
+    start = getattr(camera, "start", None)
+    if callable(start):
+        start()
     app = AMRWebApp(
         mgr,
-        camera=build_camera(config, args.mock),
+        camera=camera,
         # C7: the dashboard is told the truth about where its numbers come
         # from. A mock run is tagged SIMULATION everywhere, so the UI can never
         # present simulated telemetry as a physical measurement.
@@ -170,6 +194,10 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
         pass
     finally:
         app.stop()
+        # Release the camera device even if the server failed to come up.
+        stop = getattr(camera, "stop", None)
+        if callable(stop):
+            stop()
         mgr.shutdown()
     return 0
 

@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Optional, Tuple
 
+from ..camera.frame import CameraStatus
+
 #: Telemetry schema version. Bump when a field is removed or changes meaning.
 #: Additive fields do not require a bump (older readers ignore what they
 #: do not know), which keeps the contract forward-compatible.
@@ -300,23 +302,49 @@ class MissionTelemetry:
 
 @dataclass(frozen=True)
 class CameraTelemetry:
-    """Camera presence/status. Frames are served by the existing /image route."""
+    """Camera status/metadata only — never the image payload.
 
-    status: Optional[str] = None
+    Image bytes are fetched separately (``GET /camera/frame``) so a telemetry
+    snapshot polled every few hundred milliseconds stays small enough for a
+    Raspberry Pi browser.
+
+    Every optional field is ``None`` when the camera cannot actually report it:
+    a simulated frame never claims a live resolution, and FPS stays ``None``
+    because it is only measurable with a real capture loop.
+    """
+
+    #: C8 camera lifecycle state. Kept as a typed enum (not a bare string) so
+    #: callers can compare against ``CameraStatus`` rather than string literals.
+    status: CameraStatus = CameraStatus.UNAVAILABLE
     source_name: Optional[str] = None
     device: Optional[str] = None
     resolution: Optional[str] = None
     fps: Optional[float] = None  # not measurable without a capture pipeline
     source: DataSource = DataSource.UNAVAILABLE
+    #: C8 frame metadata (``None`` when no frame has been captured).
+    width: Optional[int] = None
+    height: Optional[int] = None
+    format: Optional[str] = None
+    frame_id: int = 0
+    timestamp: Optional[float] = None
+    has_frame: bool = False
+    error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "status": self.status,
+            "status": self.status.value,
             "source_name": self.source_name,
             "device": self.device,
             "resolution": self.resolution,
             "fps": self.fps,
             "source": self.source.value,
+            "width": self.width,
+            "height": self.height,
+            "format": self.format,
+            "frame_id": self.frame_id,
+            "timestamp": self.timestamp,
+            "has_frame": self.has_frame,
+            "error": self.error,
         }
 
 
@@ -341,7 +369,12 @@ class SystemTelemetry:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "uptime": round(max(0.0, time.time() - self.started_at), 3),
+            # Serialise the *computed* uptime rather than re-deriving it here.
+            # Re-reading the wall clock in the serialiser made every snapshot
+            # differ from the next (and reported the current epoch as uptime),
+            # which broke the determinism guarantee the collector's injectable
+            # clock exists to provide.
+            "uptime": round(max(0.0, float(self.uptime)), 3),
             "software_version": self.software_version,
             "schema_version": self.schema_version,
             "robot_id": self.robot_id,

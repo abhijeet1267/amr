@@ -64,10 +64,13 @@ def _cmd(port: int, payload: dict) -> tuple:
 def web(config_dir):
     """A running web app + mock robot, with a mock camera attached."""
     config = load_config(config_dir)
-    mgr, _transport = RobotManager.create_mock(config)
+    mgr, transport = RobotManager.create_mock(config)
     camera = CameraManager(
         MockCamera(available=True), CameraConfig(enabled=True)
     )
+    # The mock transport records every line written to the controller, so the
+    # read-only tests can prove a camera GET never reaches an actuator.
+    mgr.test_transport = transport
     # The whole stack is mock-backed (MockSerialTransport + MockCamera), so the
     # dashboard must tag every value SIMULATION rather than present it as a
     # physical measurement. This is the same flag `run_web` passes for --mock.
@@ -673,3 +676,119 @@ class TestDashboardAPI:
             _get(port, "/telemetry/nope")
         assert e.value.code == 404
 
+
+
+# --------------------------------------------------------------------------- #
+# C8 — camera monitoring routes (read-only visualisation)
+# --------------------------------------------------------------------------- #
+class _BrokenCamera:
+    """A camera whose every method fails — the dashboard must survive it."""
+
+    def describe(self):
+        raise RuntimeError("camera subsystem exploded")
+
+    def read(self):
+        raise RuntimeError("camera subsystem exploded")
+
+
+class TestCameraMonitoringRoutes:
+    def test_camera_status_without_a_camera(self, web_no_camera):
+        _app, port, _mgr = web_no_camera
+        status, ctype, body = _get(port, "/camera/status")
+        assert status == 200 and "json" in ctype
+        data = json.loads(body)
+        assert data["status"] == "UNAVAILABLE"
+        assert data["source"] == "UNAVAILABLE"
+        assert data["width"] is None and data["height"] is None
+        assert data["has_frame"] is False
+
+    def test_camera_frame_without_a_camera_is_503(self, web_no_camera):
+        _app, port, _mgr = web_no_camera
+        with pytest.raises(urllib.error.HTTPError) as e:
+            _get(port, "/camera/frame")
+        assert e.value.code == 503
+
+    def test_mock_camera_is_never_reported_as_live(self, web):
+        _app, port, _mgr = web
+        _app._camera.capture()  # produce a frame first
+        data = json.loads(_get(port, "/camera/status")[2])
+        # A mock camera is a simulation, whatever the runtime's global mode.
+        assert data["status"] != "LIVE"
+        assert data["source"] == "SIMULATION"
+
+    def test_camera_frame_serves_an_image(self, web):
+        _app, port, _mgr = web
+        _app._camera.capture()
+        status, ctype, body = _get(port, "/camera/frame")
+        assert status == 200
+        assert ctype.startswith("image/")
+        assert body  # real bytes, not an empty placeholder
+
+    def test_camera_status_never_includes_pixels(self, web):
+        _app, port, _mgr = web
+        _app._camera.capture()
+        raw = _get(port, "/camera/status")[2]
+        assert b"data" not in raw.lower().replace(b"metadata", b"")
+        json.loads(raw)  # still valid, compact JSON
+
+    def test_telemetry_carries_the_camera_section(self, web):
+        _app, port, _mgr = web
+        data = json.loads(_get(port, "/telemetry")[2])
+        camera = data["camera"]
+        assert "status" in camera and "source" in camera
+        assert camera["source"] == "SIMULATION"
+
+    def test_dashboard_remains_available_with_no_camera(self, web_no_camera):
+        _app, port, _mgr = web_no_camera
+        for path in ("/dashboard", "/telemetry", "/health"):
+            status, _ctype, body = _get(port, path)
+            assert status == 200, path
+            assert body
+
+    def test_dashboard_contains_the_camera_panel(self, web):
+        _app, port, _mgr = web
+        body = _get(port, "/dashboard")[2].decode("utf-8")
+        assert "camera" in body.lower()
+        # The panel is fed by the read-only telemetry snapshot plus the
+        # single-frame endpoint; it never issues a command, and it does not
+        # depend on /camera/status being polled separately.
+        assert "/camera/frame" in body
+        assert "t.camera.status" in body
+        # Read-only page: no command endpoint may appear in its script.
+        assert "/command" not in body
+
+    def test_a_broken_camera_does_not_break_the_dashboard(self, config_dir):
+        config = load_config(config_dir)
+        mgr, _transport = RobotManager.create_mock(config)
+        app = AMRWebApp(mgr, tick_hz=10.0, camera=_BrokenCamera(), simulated=True)
+        port = app.start(host="127.0.0.1", port=0)
+        mgr.start()
+        try:
+            data = json.loads(_get(port, "/camera/status")[2])
+            assert data["status"] == "ERROR"
+            # Everything else keeps serving.
+            assert _get(port, "/telemetry")[0] == 200
+            assert _get(port, "/dashboard")[0] == 200
+            assert _get(port, "/health")[0] == 200
+        finally:
+            app.stop()
+            mgr.shutdown()
+
+    def test_camera_routes_are_get_only(self, web):
+        _app, port, _mgr = web
+        # No POST surface can reach camera hardware.
+        status, _body = _post(port, "/camera/frame", "{}")
+        assert status in (404, 405)
+
+    def test_reading_camera_never_writes_to_the_controller(self, web):
+        _app, port, mgr = web
+        # The mock transport records every line written to the controller, so
+        # this is the direct proof that a camera GET cannot move the robot.
+        before = len(mgr.test_transport.written)
+        for _ in range(5):
+            _get(port, "/camera/status")
+            try:
+                _get(port, "/camera/frame")
+            except urllib.error.HTTPError:
+                pass
+        assert len(mgr.test_transport.written) == before

@@ -198,6 +198,28 @@ The manager is the single owner of the device; vision processing (markers,
 QR codes, shelf recognition) will build on `capture()` / `capture_jpeg()` in
 a later phase without touching the web layer.
 
+## Camera monitoring (C8)
+
+C8 adds a second, explicit frame contract in `amr/camera/frame.py`
+(`CameraSource` → `CameraFrame` → telemetry) alongside the Phase 11 facade
+above. Both still work; see [`docs/telemetry.md`](telemetry.md#camera-monitoring-c8)
+for the full contract.
+
+| Route | Returns |
+|---|---|
+| `GET /camera/status` | `status` (`LIVE`/`SIMULATION`/`UNAVAILABLE`/`ERROR`), `source`, `width`, `height`, `format`, `frame_id`, `timestamp`, `has_frame` — metadata only, no pixels |
+| `GET /camera/frame` | the latest encoded image (`image/png` / `image/jpeg`); **503** when no frame can be produced |
+
+Both are **GET-only**. There is deliberately no `POST` route to camera
+hardware — the dashboard is a visualisation layer and cannot actuate anything.
+
+A missing or broken camera never affects the rest of the server: with no
+camera, `/telemetry`, `/health`, and `/dashboard` all still return `200`, and
+`/camera/status` reports `UNAVAILABLE` with `null` dimensions rather than
+inventing any. A simulated camera reports `SIMULATION` and is never labelled
+`LIVE`. **Real camera hardware tested: NO** — the `picamera2` adapter's
+unavailable/failure paths are tested, its capture path is not.
+
 ---
 
 ## Tests

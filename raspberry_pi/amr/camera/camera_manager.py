@@ -32,6 +32,13 @@ class CameraError(Exception):
     """Raised for hard camera misconfiguration (not for transient failure)."""
 
 
+#: Backend class names that produce stand-in frames rather than real footage.
+#: Anything listed here is reported as ``SIMULATION`` and never as ``LIVE``.
+#: Matched by class name so this module keeps no import-time dependency on
+#: :mod:`amr.mocks` (and cannot create a circular import).
+_SIMULATED_BACKENDS = frozenset({"MockCamera", "SimulatedCameraSource"})
+
+
 @runtime_checkable
 class CameraBackend(Protocol):
     """Structural interface for camera backends (Mock + Pi both fit)."""
@@ -200,11 +207,27 @@ class CameraManager:
             return None
 
     def describe(self) -> dict:
-        """JSON-friendly status for the web UI."""
+        """JSON-friendly status for the web UI.
+
+        Also publishes the C8 camera keys (``status``/``simulated``/``name``)
+        so the telemetry collector and dashboard can label the camera honestly.
+        A :class:`~amr.mocks.MockCamera` backend is reported as ``SIMULATION``,
+        never ``LIVE`` — a stand-in frame must not look like camera hardware.
+        """
+        available = self.is_available()
+        simulated = type(self._backend).__name__ in _SIMULATED_BACKENDS
+        if not available:
+            status = "UNAVAILABLE"
+        else:
+            status = "SIMULATION" if simulated else "LIVE"
         return {
             "enabled": self.enabled,
-            "available": self.is_available(),
+            "available": available,
             "device": self._config.device,
             "resolution": self._config.resolution,
-            "status": "NOT_VERIFIED" if self.is_available() else "UNAVAILABLE",
+            "status": status,
+            "simulated": simulated,
+            "name": type(self._backend).__name__,
+            # Retained for the pre-C8 web UI, which only ever read `available`.
+            "hardware_verified": available and not simulated,
         }

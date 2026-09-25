@@ -16,6 +16,7 @@ from .collector import TelemetryCollector
 from .types import (
     TELEMETRY_SCHEMA_VERSION,
     BatteryTelemetry,
+    CameraStatus,
     CameraTelemetry,
     DataSource,
     HazardTelemetry,

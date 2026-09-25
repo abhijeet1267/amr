@@ -64,14 +64,16 @@ import json
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from ..camera import CameraManager
+from ..camera.frame import CameraFrame, CameraStatus
 from ..hazard import HazardSeverity, HazardState
 from ..logging import get_logger
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
 from ..telemetry import TelemetryCollector
+from ..telemetry.types import DataSource
 
 #: motion commands accepted by /command and their default speeds
 _MOTION = {
@@ -98,6 +100,41 @@ _STATE_SEVERITY = {
     HazardState.STOP: "CRITICAL",
     HazardState.EMERGENCY: "CRITICAL",
 }
+
+#: C8 — where a camera source's most recent frame is cached. Only the *latest*
+#: frame is retained, so polling the dashboard cannot grow memory over time.
+_FRAME_CACHE_ATTR = "_amr_last_frame"
+
+#: Content types for the encodings the camera sources can actually emit.
+_IMAGE_CONTENT_TYPES = {
+    "jpeg": "image/jpeg",
+    "jpg": "image/jpeg",
+    "png": "image/png",
+    "webp": "image/webp",
+    "bmp": "image/bmp",
+}
+
+
+def _cached_frame(cam: Any) -> Optional[CameraFrame]:
+    """Return the camera's cached latest frame, if it has one."""
+    for attr in (_FRAME_CACHE_ATTR, "last_frame", "latest_frame"):
+        frame = getattr(cam, attr, None)
+        if isinstance(frame, CameraFrame):
+            return frame
+    return None
+
+
+def _cache_frame(cam: Any, frame: CameraFrame) -> None:
+    """Store ``frame`` as the camera's latest, replacing any previous one."""
+    try:
+        setattr(cam, _FRAME_CACHE_ATTR, frame)
+    except Exception:  # noqa: BLE001 - a read-only camera object is not fatal
+        pass
+
+
+def _image_content_type(fmt: Optional[str]) -> str:
+    """Content type for a frame format, defaulting to a safe image type."""
+    return _IMAGE_CONTENT_TYPES.get((fmt or "").lower(), "image/png")
 
 
 class AMRWebApp:
@@ -214,6 +251,104 @@ class AMRWebApp:
             if self._camera is None:
                 return None
             return self._camera.capture_jpeg()
+
+    # ------------------------------------------------------------------ #
+    # C8 — camera monitoring (read-only; no browser → hardware path)
+    # ------------------------------------------------------------------ #
+    def camera_info(self) -> dict:
+        """Camera status for ``GET /camera/status`` — metadata only, no pixels.
+
+        Returns the C8 :class:`~amr.camera.frame.CameraFrame` view when the
+        attached camera follows the C8 source protocol, and falls back to the
+        legacy ``describe()`` shape otherwise. Never raises: a broken camera
+        reports ``ERROR`` so the rest of the dashboard keeps working.
+        """
+        with self._lock:
+            cam = self._camera
+            if cam is None:
+                return {
+                    "status": CameraStatus.UNAVAILABLE.value,
+                    "source": DataSource.UNAVAILABLE.value,
+                    "source_name": None, "width": None, "height": None,
+                    "format": None, "frame_id": 0, "timestamp": None,
+                    "has_frame": False, "error": "no camera configured",
+                }
+            frame = _cached_frame(cam)
+            describe = getattr(cam, "describe", None)
+            info: Dict[str, Any] = {}
+            if callable(describe):
+                try:
+                    got = describe()
+                    if isinstance(got, dict):
+                        info = dict(got)
+                except Exception as exc:  # noqa: BLE001
+                    self.log.warning("camera.describe() failed: %s", exc)
+                    return {
+                        "status": CameraStatus.ERROR.value,
+                        "source": DataSource.UNAVAILABLE.value,
+                        "source_name": None, "width": None, "height": None,
+                        "format": None, "frame_id": 0, "timestamp": None,
+                        "has_frame": False, "error": str(exc),
+                    }
+            if frame is not None:
+                return frame.to_dict()
+            status = CameraStatus.parse(info.get("status", "UNAVAILABLE"))
+            return {
+                "status": status.value,
+                "source": (DataSource.SIMULATION if status is CameraStatus.SIMULATION
+                           else DataSource.LIVE if status is CameraStatus.LIVE
+                           else DataSource.UNAVAILABLE).value,
+                "source_name": info.get("name") or info.get("source"),
+                "width": info.get("width"), "height": info.get("height"),
+                "format": info.get("format"),
+                "frame_id": int(info.get("frame_id") or 0),
+                "timestamp": None, "has_frame": False,
+                "error": info.get("reason"),
+                "available": info.get("available", status.available),
+                "running": info.get("running"),
+                "device": info.get("device"),
+            }
+
+    def camera_frame(self) -> Tuple[Optional[bytes], Optional[str], int]:
+        """Latest encoded frame for ``GET /camera/frame``.
+
+        Returns ``(data, content_type, http_status)``. Only the *latest* frame
+        is served — no history is buffered, so repeated polling cannot grow
+        memory. A camera that cannot produce a frame yields ``503`` with a
+        machine-readable reason rather than a fabricated placeholder.
+        """
+        with self._lock:
+            cam = self._camera
+            if cam is None:
+                return None, None, 503
+            frame = _cached_frame(cam)
+            if frame is not None and frame.data is not None:
+                return frame.data, _image_content_type(frame.format), 200
+            # A C8 source can capture on demand; fall back to that only when no
+            # cached frame exists, so a polling dashboard does not re-capture
+            # on every request.
+            reader = getattr(cam, "read", None)
+            if callable(reader):
+                try:
+                    got = reader()
+                except Exception as exc:  # noqa: BLE001
+                    self.log.warning("camera.read() failed: %s", exc)
+                    return None, None, 503
+                if isinstance(got, CameraFrame) and got.data is not None:
+                    _cache_frame(cam, got)
+                    return got.data, _image_content_type(got.format), 200
+                return None, None, 503
+            # Legacy CameraManager exposes capture_jpeg().
+            capture = getattr(cam, "capture_jpeg", None)
+            if callable(capture):
+                try:
+                    jpeg = capture()
+                except Exception as exc:  # noqa: BLE001
+                    self.log.warning("camera.capture_jpeg() failed: %s", exc)
+                    return None, None, 503
+                if jpeg:
+                    return jpeg, "image/jpeg", 200
+            return None, None, 503
 
     # ------------------------------------------------------------------ #
     # C7 — read-only telemetry projection (no motor path whatsoever)
@@ -461,12 +596,16 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_image(self, jpeg: bytes) -> None:
+        self._send_bytes(jpeg, "image/jpeg")
+
+    def _send_bytes(self, body: bytes, content_type: str) -> None:
+        """Send a binary body with an explicit content type and no caching."""
         self.send_response(200)
-        self.send_header("Content-Type", "image/jpeg")
-        self.send_header("Content-Length", str(len(jpeg)))
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(jpeg)
+        self.wfile.write(body)
 
     # -- routes ------------------------------------------------------------ #
     def do_GET(self) -> None:  # noqa: N802
@@ -479,6 +618,16 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(self.app.poll_sensor())
         elif path == "/camera":
             self._send_json(self.app.camera_status())
+        elif path == "/camera/status":
+            self._send_json(self.app.camera_info())
+        elif path == "/camera/frame":
+            data, ctype, code = self.app.camera_frame()
+            if data is None:
+                self._send_json(
+                    {"error": "camera frame unavailable", "status": code}, code
+                )
+            else:
+                self._send_bytes(data, ctype)
         elif path == "/hazard":
             self._send_json(self.app.hazard_status())
         elif path == "/telemetry":
@@ -895,6 +1044,16 @@ main { padding: 20px; display: grid; gap: 16px;
   font-variant-numeric: tabular-nums; }
 ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
 .empty { color: var(--dim); font-style: italic; }
+/* C8 camera panel. The preview is capped by max-width/height so a 1280x720
+   frame cannot blow out the grid, and the aspect ratio is fixed so the card
+   does not jump while frames arrive. */
+.cam-card { display: flex; flex-direction: column; }
+.cam-view { background: #0b101a; border: 1px solid var(--line); border-radius: 8px;
+  aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; margin-bottom: 10px; }
+.cam-view img { max-width: 100%; max-height: 100%; width: auto; height: auto;
+  display: block; object-fit: contain; }
+.cam-none { color: var(--dim); font-style: italic; font-size: 12px; }
 footer { padding: 10px 20px 24px; color: var(--dim); font-size: 12px; }
 a { color: var(--sim); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
@@ -966,11 +1125,17 @@ a { color: var(--sim); }
     </dl>
   </section>
 
-  <section class="card">
+  <section class="card cam-card">
     <h2>Camera</h2>
+    <div class="cam-view">
+      <img id="c-img" alt="Latest camera frame" hidden>
+      <div id="c-none" class="cam-none">no frame available</div>
+    </div>
     <dl class="kv">
       <dt>Status</dt><dd id="c-state">&mdash;</dd>
       <dt>Source</dt><dd id="c-src">&mdash;</dd>
+      <dt>Resolution</dt><dd id="c-res">&mdash;</dd>
+      <dt>Frame</dt><dd id="c-frame">&mdash;</dd>
     </dl>
   </section>
 
@@ -1029,6 +1194,41 @@ function renderHazards(h) {
   ul.innerHTML = out.length ? out.join("") : '<li class="empty">none active</li>';
 }
 
+// C8: single-frame retrieval, not a continuous media stream. The image is
+// fetched as a blob and swapped via object URL so the page never re-downloads
+// identical bytes every tick; the previous URL is revoked to avoid leaking.
+var FRAME_MS = 1000;
+var lastFrameUrl = null;
+var lastFrameId = null;
+
+function showNoFrame() {
+  var img = document.getElementById("c-img");
+  var none = document.getElementById("c-none");
+  if (img) { img.hidden = true; img.removeAttribute("src"); }
+  if (none) { none.hidden = false; }
+  if (lastFrameUrl) { URL.revokeObjectURL(lastFrameUrl); lastFrameUrl = null; }
+  lastFrameId = null;
+}
+
+function pollFrame() {
+  fetch("/camera/frame", { cache: "no-store" })
+    .then(function (r) {
+      if (!r.ok) { throw new Error("HTTP " + r.status); }
+      return r.blob();
+    })
+    .then(function (blob) {
+      if (!blob || blob.size === 0) { throw new Error("empty frame"); }
+      if (lastFrameUrl) { URL.revokeObjectURL(lastFrameUrl); }
+      lastFrameUrl = URL.createObjectURL(blob);
+      var img = document.getElementById("c-img");
+      img.src = lastFrameUrl;
+      img.hidden = false;
+      var none = document.getElementById("c-none");
+      if (none) { none.hidden = true; }
+    })
+    .catch(function () { showNoFrame(); });
+}
+
 function apply(t) {
   var sim = !!t.simulated;
   var simB = document.getElementById("sim");
@@ -1074,9 +1274,23 @@ function apply(t) {
   txt("m-task", t.mission.current_task || "none");
   txt("m-done", t.mission.completed_tasks);
 
-  txt("c-state", t.camera.status || "OFFLINE");
+  // C8 camera panel. The status badge is driven by telemetry (the contract
+  // that knows what is really behind the lens) and the image is fetched
+  // separately from /camera/frame, so a failed capture cannot break the rest
+  // of the page.
+  txt("c-state", t.camera.status || "UNAVAILABLE");
   txt("c-src", (t.camera.source_name || "none")
-    + " (" + t.camera.source + ")");
+    + (t.camera.source ? " (" + t.camera.source + ")" : ""));
+  txt("c-res", (t.camera.width && t.camera.height)
+    ? t.camera.width + " × " + t.camera.height
+    : "not available");
+  txt("c-frame", typeof t.camera.frame_id === "number" && t.camera.frame_id > 0
+    ? "#" + t.camera.frame_id : "no frame yet");
+
+  // Only LIVE and SIMULATION can produce an image. UNAVAILABLE / ERROR show the
+  // placeholder, so the panel never implies a picture it does not have.
+  var camOk = (t.camera.status === "LIVE" || t.camera.status === "SIMULATION");
+  if (camOk) { pollFrame(); } else { showNoFrame(); }
 
   txt("y-up", typeof t.system.uptime === "number"
     ? Math.round(t.system.uptime) + " s" : "not available");
