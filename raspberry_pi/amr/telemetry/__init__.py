@@ -24,6 +24,20 @@ from .console import (
     route_progress_points,
     source_of,
 )
+from .recorder import (
+    DEFAULT_MIN_INTERVAL_S,
+    DEFAULT_RECORDING_CAPACITY,
+    RECORDING_SCHEMA_VERSION,
+    ReplayFrame,
+    TelemetryRecorder,
+    frame_from_snapshot,
+    read_recording,
+)
+from .replay import (
+    STANDARD_SPEEDS,
+    ReplayPlayer,
+    ReplayState,
+)
 from .types import (
     TELEMETRY_SCHEMA_VERSION,
     BatteryTelemetry,
@@ -45,7 +59,11 @@ from .types import (
 __all__ = [
     "AT_ARRIVAL",
     "CONSOLE_SCHEMA_VERSION",
+    "DEFAULT_MIN_INTERVAL_S",
+    "DEFAULT_RECORDING_CAPACITY",
     "NOT_AVAILABLE",
+    "RECORDING_SCHEMA_VERSION",
+    "STANDARD_SPEEDS",
     "TELEMETRY_SCHEMA_VERSION",
     "BatteryTelemetry",
     "CameraTelemetry",
@@ -57,14 +75,20 @@ __all__ = [
     "SafetyTelemetry",
     "SensorTelemetry",
     "SystemTelemetry",
+    "ReplayFrame",
+    "ReplayPlayer",
+    "ReplayState",
     "TelemetryCollector",
+    "TelemetryRecorder",
     "TelemetrySnapshot",
     "Vector3",
     "Velocity",
     "build_console_state",
     "component_health",
+    "frame_from_snapshot",
     "hazard_summary",
     "mission_phase",
+    "read_recording",
     "route_progress_points",
     "source_of",
 ]

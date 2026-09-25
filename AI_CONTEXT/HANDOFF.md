@@ -5,6 +5,94 @@
 
 ---
 
+## Session: C14 — Telemetry recording and replay (offline engine)
+
+**Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
+
+### Scope
+
+As agreed with the user, this pass is the **engine only** — recorder, replay
+player and tests. The dashboard replay controls are a deliberate follow-up, so
+**no new HTTP route and no UI control** ship here.
+
+### What was implemented
+
+* `amr/telemetry/recorder.py` — `TelemetryRecorder`, `ReplayFrame`,
+  `frame_from_snapshot()`, `read_recording()`
+* `amr/telemetry/replay.py` — `ReplayPlayer`, `ReplayState`,
+  `STANDARD_SPEEDS`
+* `amr/telemetry/__init__.py` — exports
+
+The recorder mirrors the existing `HazardEventLog` conventions (bounded ring
+buffer, JSONL, best-effort persistence that warns rather than raises) so the
+project keeps one convention rather than two.
+
+### Design decision: caller-driven playback
+
+The player has **no thread, no `sleep` and no internal clock**; you hand it
+elapsed time via `advance(dt)`. This is the reason a replay is reproducible and
+the reason the whole engine tests in milliseconds. It is also why the future
+dashboard controls are a separate step: a browser loop already owns a timer and
+can drive this directly instead of starting a second one.
+
+### Honesty rules (tested)
+
+* A snapshot with **no usable timestamp is skipped**, not recorded at the wrong
+  moment.
+* An **unknown pose stays `None`**, never smoothed to `0.0`.
+* Only replay-relevant fields are stored; the C3 hazard event log remains the
+  audit record.
+
+### Transport decisions (documented, tested)
+
+`play` / `pause` / `restart` / `seek` / `seek_seconds` / `speed`, with
+deliberate choices: reaching the end **stops and holds** rather than looping; a
+negative or unparseable `dt` is ignored; a non-positive speed is **refused**
+with `ValueError` so `play()` can never quietly mean "rewind"; and tie-breaking
+at frame timestamps is exact, which is what makes playback reproducible.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `amr/telemetry/recorder.py` | **new** — recorder, frame, JSONL reader |
+| `amr/telemetry/replay.py` | **new** — deterministic player |
+| `amr/telemetry/__init__.py` | exports |
+| `tests/test_replay.py` | **new** — 59 tests |
+| `docs/replay.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+
+### Tests
+
+| Command | Result |
+|---|---|
+| `python -m pytest tests/test_replay.py` | **59 passed** |
+| `python -m pytest` (full) | **1032 passed, 2 skipped, 0 failed** (973 → +59) |
+
+**Hardware tested: NO. Firmware touched: NO.** No existing test was modified.
+
+### Safety
+
+No new route. Source-level tests assert neither module imports `serial`, `RPi`,
+`gpio`, `socket` or `threading`, and that the recorder contains no actuator
+vocabulary. A test records a **real mock run** and asserts the transport sees no
+extra writes.
+
+### Known limitations
+
+- Offline engine only; no dashboard controls yet.
+- JSONL only — no index, no multi-run query, no database.
+- Replay shows what was recorded; it does not re-simulate.
+- No interpolation between frames.
+
+### Next recommended task
+
+**C14b — dashboard replay controls** (the follow-up to this pass): a recording
+list, PLAY/PAUSE/RESTART and 0.5x/1x/2x buttons driving the existing
+`ReplayPlayer` from the dashboard's single 1 Hz tick, plus a read-only route to
+load a recording. The engine is ready and needs no changes.
+
+---
+
 ## Session: C13 — Camera + hazard overlays
 
 **Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
@@ -68,7 +156,7 @@ default `None`) and records a mismatch in `other_source` rather than drawing it.
 | Command | Result |
 |---|---|
 | `python -m pytest tests/test_camera_overlay.py` | **40 passed** |
-| `python -m pytest` (full) | **973 passed, 2 skipped, 0 failed** (910 → +63) |
+| `python -m pytest` (full) | **1032 passed, 2 skipped, 0 failed** (910 → +63) |
 | `node --check` (C11 guard) | OK |
 | Live HTTP smoke | 3 boxes drawn, confidences 0.90/0.88/0.77 preserved, `world_transform: null` |
 
@@ -167,7 +255,7 @@ On top of the fix:
 | Command | Result |
 |---|---|
 | `python -m pytest tests/test_mission_monitoring.py` | **45 passed** |
-| `python -m pytest` (full) | **973 passed, 2 skipped, 0 failed** (865 → +45) |
+| `python -m pytest` (full) | **1032 passed, 2 skipped, 0 failed** (865 → +45) |
 | `node --check` on both served scripts | **OK** (C11 guard re-run) |
 | `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` | all exit 0 |
 | Live `--mock --web --mission-demo` | `NAVIGATE` → `DROP`, dest `station`, 1/3, `mission_id:web-run`; mission no longer degraded; all endpoints 200 |

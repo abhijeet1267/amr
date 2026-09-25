@@ -259,11 +259,40 @@ source-level test proves the overlay imports no serial/GPIO/threading code.
 Tests: 973 passed, 2 skipped, 0 failed (910 at C12 + 63). Hardware NOT tested.
 See `docs/camera_overlay.md`.
 
-### C14 — Historical replay `[ ]` (upcoming)
+### C14 — Historical replay `[~]` (in progress, C14 — offline scope)
 **Touches:** new recorder module + dashboard replay controls
 Record timestamp, pose, navigation/safety state, hazards and mission; replay a
 previous run with PLAY / PAUSE / RESTART and 0.5x / 1x / 2x speed. Very useful
 for demonstrations. Playback sequence must be deterministic.
+
+**Scope note (agreed with the user):** this pass delivers the **recorder and
+replay engine plus tests**, offline. The dashboard replay controls are a
+follow-up, so no new route or UI control ships in this pass. The engine is
+caller-driven rather than threaded, which is what makes playback deterministic
+and testable without a real clock.
+
+**Delivered:** `amr/telemetry/recorder.py` (`TelemetryRecorder`, `ReplayFrame`,
+`frame_from_snapshot`, `read_recording`) and `amr/telemetry/replay.py`
+(`ReplayPlayer`, `ReplayState`). The recorder mirrors the existing
+`HazardEventLog` conventions — bounded ring buffer, JSONL, best-effort
+persistence that never raises — so the project keeps one convention. Honesty
+rules: a frame with no usable timestamp is **skipped** rather than recorded at
+the wrong moment, and an unknown pose stays `None` rather than becoming 0.0.
+
+The player is **caller-driven**: no thread, no `sleep`, no internal clock. You
+pass elapsed time to `advance(dt)` and it reports the frame for that moment, so
+the same call sequence always yields the same frames and the whole engine tests
+in milliseconds. Transport: play / pause / restart / seek / speed, with
+deliberate choices documented (the end stops and holds rather than looping; a
+negative `dt` is ignored; a non-positive speed is refused so `play()` can never
+mean "rewind"; exact tie-breaking at frame timestamps). A source-level test
+fails if `time.time`, `time.sleep` or `Thread` ever reappear.
+
+No new HTTP route and no UI control in this pass. Source-level tests prove
+neither module imports `serial`/`RPi`/`gpio`/`socket`/`threading`, and a test
+records a real mock run and asserts the transport sees no writes.
+Tests: 1032 passed, 2 skipped, 0 failed (973 at C13 + 59). Hardware NOT tested.
+See `docs/replay.md`.
 
 ### C15 — Unified demo `[ ]` (upcoming)
 **Touches:** `amr/main.py` demo mode + dashboard
