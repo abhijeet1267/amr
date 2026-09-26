@@ -357,6 +357,12 @@ class RaspberryPiCameraSource:
 
     def describe(self) -> Dict[str, Any]:
         """Status metadata for telemetry — no image bytes, ever."""
+        # C15b: a source that is UNAVAILABLE before anyone calls start() would
+        # otherwise report no reason at all, leaving the operator with a bare
+        # "UNAVAILABLE" and nothing to act on. Probing here is cheap (a cached
+        # import attempt) and keeps the report honest from the first read.
+        if self._status is CameraStatus.UNAVAILABLE and self._reason is None:
+            self._load_library()
         return {
             "name": self.name,
             "status": self._status.value,

@@ -326,21 +326,41 @@ class VisionDetection:
 
 
 class CameraFrame(Protocol):
-    """Structural interface for one captured frame (opaque here)."""
+    """Structural interface for one captured frame.
+
+    C15b corrected this protocol: it declared ``data()`` as a **method**, but the
+    project's real :class:`amr.camera.frame.CameraFrame` carries ``data`` as a
+    frozen *attribute* holding the encoded bytes. Nothing ever called
+    ``frame.data()`` (it would have raised ``TypeError: 'bytes' object is not
+    callable``), so the mismatch was dormant — but it made the real frame fail
+    this protocol and would have blocked any frame-based detector.
+
+    Both spellings are now accepted, so a real frame satisfies the protocol and a
+    lazy accessor-style frame still works. ``amr.camera.overlay`` reads the same
+    attribute directly, so this is a type-level fix only: no behaviour changes.
+    """
 
     frame_id: Any
 
+    @property
     def data(self) -> Any:
-        """Return the raw frame payload (bytes / array / None)."""
+        """Encoded frame payload (bytes), or ``None`` for a metadata-only frame."""
         ...
 
 
 class VisionDetector(Protocol):
-    """Structural interface every detector backend must satisfy."""
+    """Structural interface every detector backend must satisfy.
+
+    ``detect`` may take the frame or ignore it. That is deliberate: a real
+    detector needs the pixels, while a scripted or already-decoded one does not.
+    :class:`~amr.hazard.sources.VisionHazardSource` inspects the callable and
+    passes the frame only where it is actually accepted, so both styles work
+    through the same hazard pipeline.
+    """
 
     name: str
 
-    def detect(self, frame: Any) -> Tuple[VisionDetection, ...]:
+    def detect(self, frame: Any = None) -> Tuple[VisionDetection, ...]:
         """Return validated detections for frame (empty when none)."""
         ...
 

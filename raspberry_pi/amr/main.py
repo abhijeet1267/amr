@@ -23,7 +23,7 @@ import argparse
 import json
 import sys
 import time
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
 from . import __version__
 from .camera import (
@@ -79,6 +79,35 @@ def build_manager(args: argparse.Namespace, config: AppConfig) -> RobotManager:
     return RobotManager(serial, driver, config)
 
 
+def parse_resolution(value: Any, default: Tuple[int, int] = (640, 480)
+                     ) -> Tuple[int, int]:
+    """Parse a ``"WIDTHxHEIGHT"`` setting into a pixel pair.
+
+    C15b added this because :class:`CameraConfig` stores the resolution as a
+    ``"1280x720"`` string, while :func:`build_camera` read ``cam_cfg.width`` /
+    ``cam_cfg.height`` — attributes that do not exist. The result was that the
+    configured resolution was silently discarded and the camera always opened at
+    640x480.
+
+    An unparsable, zero or negative value falls back to ``default`` rather than
+    producing a size no camera could deliver.
+    """
+    try:
+        text = str(value).strip().lower()
+        if "x" in text:
+            w_text, h_text = text.split("x", 1)
+        elif "*" in text:
+            w_text, h_text = text.split("*", 1)
+        else:
+            w_text = h_text = text
+        width, height = int(float(w_text)), int(float(h_text))
+    except (TypeError, ValueError):
+        return default
+    if width <= 0 or height <= 0:
+        return default
+    return width, height
+
+
 def build_camera(config: AppConfig, mock: bool) -> Any:
     """Camera source for the web UI / telemetry; always degrades gracefully.
 
@@ -92,13 +121,36 @@ def build_camera(config: AppConfig, mock: bool) -> Any:
 
     Nothing here opens a device, so a missing camera cannot stop the runtime
     from starting; the backend reports the failure through its status instead.
+
+    C15b: the resolution now actually comes from ``camera.resolution``. It was
+    previously read from non-existent ``width``/``height`` attributes, so the
+    configured value was ignored and every camera opened at the 640x480
+    fallback.
     """
     cam_cfg = config.robot.camera
-    width = getattr(cam_cfg, "width", 640) or 640
-    height = getattr(cam_cfg, "height", 480) or 480
+    width, height = parse_resolution(getattr(cam_cfg, "resolution", None))
     if mock:
         return SimulatedCameraSource(width=width, height=height)
     return RaspberryPiCameraSource(width=width, height=height)
+
+
+def build_frame_detector(camera: Any, config: AppConfig) -> Any:
+    """A :class:`CameraFrameDetector` for the configured camera, or ``None``.
+
+    C15b. The camera backend is real; the **model** is not, so no inference
+    callable is supplied here and the detector honestly reports no detections.
+    Wiring one in later is a config change plus a callable — the hazard pipeline
+    downstream is untouched.
+
+    Returns ``None`` when ``camera.enabled`` is false, so a camera-less
+    deployment does not gain a pointless source.
+    """
+    from .camera.detector import CameraFrameDetector
+
+    cam_cfg = config.robot.camera
+    if not getattr(cam_cfg, "enabled", True):
+        return None
+    return CameraFrameDetector(camera, camera_id=getattr(cam_cfg, "camera_id", None))
 
 
 def build_navigator(mgr: RobotManager, config: AppConfig,

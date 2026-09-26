@@ -36,12 +36,17 @@ from .overlay import (
     build_camera_overlay,
 )
 
+# C15b: the frame -> detection bridge. Imported last: it depends on both the
+# camera contract above and the C5 vision contract.
+from .detector import CameraFrameDetector
+
 __all__ = [
     "CameraBackend",
     "CameraError",
     "CameraManager",
     "PiCameraBackend",
     "CameraFrame",
+    "CameraFrameDetector",
     "CameraSource",
     "CameraStatus",
     "RaspberryPiCameraSource",

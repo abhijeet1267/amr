@@ -137,6 +137,30 @@ class GasSensorSource:
         )
 
 
+def _accepts_argument(fn: Any) -> bool:
+    """Can ``fn`` be called with one positional argument?
+
+    C15b uses this to tell a frame-based :class:`VisionDetector` apart from the
+    original zero-argument callable. It inspects the signature rather than
+    trusting a flag, so both styles keep working. Anything whose signature cannot
+    be read (``*args``/builtin/C extension) is assumed to accept the frame, which
+    is the safe direction: passing an unexpected frame is harmless for a
+    detector that ignores it, whereas never passing one would silently starve a
+    detector that needs it.
+    """
+    import inspect
+
+    try:
+        sig = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return True
+    for param in sig.parameters.values():
+        if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD,
+                          param.VAR_POSITIONAL):
+            return True
+    return False
+
+
 class VisionHazardSource:
     """Visual hazards from a vision detector callback (C5 evidence adapter).
 
@@ -155,6 +179,19 @@ class VisionHazardSource:
     An optional third element is a message string. A detector that returns
     nothing means "no visual hazard". This source only *produces evidence* --
     it never decides a safety state and never drives motors.
+
+    **C15b — frames.** The detector may be one of two shapes:
+
+    * a zero-argument callable (the original contract, used by
+      :class:`~amr.hazard.vision.SimulatedVisionDetector`), or
+    * a :class:`~amr.hazard.vision.VisionDetector` whose ``detect`` accepts a
+      frame, which is what a real camera backend needs.
+
+    :meth:`call_detector` distinguishes them by inspecting the callable's
+    signature, so both keep working unchanged. When a detector needs frames, pass
+    a ``frame_provider`` (typically ``camera.read``); the frame is then acquired
+    here, at the same point the hazard verdict is produced, so the detections are
+    guaranteed to describe *this* evaluation.
     """
 
     def __init__(
@@ -165,27 +202,65 @@ class VisionHazardSource:
         critical_at: float = 0.8,
         fault_kind: HazardKind = HazardKind.ROBOT_FAULT,
         fault_severity: HazardSeverity = HazardSeverity.WARNING,
+        frame_provider: Optional[Callable[[], Any]] = None,
     ):
         self.name = name
         self._detector = detector
         self._warn_at = float(warn_at)
         self._critical_at = float(critical_at)
+        #: C15b: supplies the current camera frame to a frame-based detector.
+        #: ``None`` keeps the original zero-argument behaviour.
+        self._frame_provider = frame_provider
         #: Detector failures are reported as a fault reading. The defaults
         #: keep the pre-C5 behaviour (``ROBOT_FAULT`` / ``WARNING``); a
         #: deployment may opt into the dedicated ``VISION_FAULT`` kind.
         self.fault_kind = HazardKind.parse(fault_kind)
         self.fault_severity = HazardSeverity.parse(fault_severity)
 
+    def call_detector(self) -> Any:
+        """Invoke the detector, passing a frame only if it can accept one.
+
+        Three shapes are accepted, in this order:
+
+        1. an object with a ``detect`` method — i.e. a real
+           :class:`~amr.hazard.vision.VisionDetector` (C15b);
+        2. a plain callable — the original contract, where
+           ``VisionHazardSource(detector.detect)`` was passed;
+        3. a materialised sequence of detections (replay, recorded frames).
+
+        A frame is passed only where the callable actually accepts one, decided
+        by inspecting its signature, so an existing zero-argument callable keeps
+        working untouched. The frame is acquired here, at the same moment the
+        hazard verdict is produced, so the returned detections are guaranteed to
+        describe *this* evaluation.
+        """
+        detector = self._detector
+        if not callable(detector):
+            detect = getattr(detector, "detect", None)
+            if not callable(detect):
+                return detector          # a plain sequence of detections
+            detector = detect
+        if not _accepts_argument(detector):
+            return detector()
+        frame = None
+        if self._frame_provider is not None:
+            try:
+                frame = self._frame_provider()
+            except Exception as exc:  # noqa: BLE001
+                # A camera that cannot deliver a frame is a *detector* failure and
+                # is reported as a fault reading, never as "no hazard detected".
+                raise RuntimeError(
+                    f"{self.name} frame provider failed: {exc}") from exc
+        return detector(frame)
+
     def read(self) -> Tuple[HazardReading, ...]:
         try:
-            # The detector may be a zero-argument callback (the usual live
-            # case) or an already-materialised sequence of detections (handy
-            # for replay, recorded frames and tests). Supporting both keeps
-            # the adapter backend-agnostic without adding a second class.
-            if callable(self._detector):
-                detections = self._detector()
-            else:
-                detections = self._detector
+            # The detector may be a zero-argument callback (the original live
+            # case), a frame-based VisionDetector (C15b), or an already-
+            # materialised sequence of detections (handy for replay, recorded
+            # frames and tests). Supporting all three keeps the adapter
+            # backend-agnostic without adding a second class.
+            detections = self.call_detector()
         except Exception as exc:  # noqa: BLE001 - a bad detector must not crash us
             return (
                 HazardReading(
