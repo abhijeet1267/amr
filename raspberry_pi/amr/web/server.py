@@ -61,6 +61,7 @@ The hazard endpoints are read/acknowledge only:
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 import urllib.parse
@@ -77,7 +78,27 @@ from ..robot.robot_state import RobotMode
 from ..telemetry import TelemetryCollector, build_console_state
 from ..telemetry.auto_record import AutoRecorder
 from ..telemetry.replay_control import RecordingStore, ReplayController
+from ..telemetry.series import CommandCenterHistory
 from ..telemetry.types import DataSource
+
+# C15c — the Command Center's front-end assets. They live as real files (not
+# embedded Python strings, as the legacy dashboard does) because they are large,
+# are edited as source, and benefit from a browser's syntax highlighting. They are
+# read once at import and served from a whitelist below, so this costs no disk
+# access per request and cannot be used to read arbitrary files.
+_STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+
+def _load_static(name: str) -> str:
+    with open(os.path.join(_STATIC_DIR, name), encoding="utf-8") as fh:
+        return fh.read()
+
+
+_STATIC_FILES = {
+    "command_center.css": _load_static("command_center.css"),
+    "command_center.js": _load_static("command_center.js"),
+}
+COMMAND_CENTER_HTML = _load_static("command_center.html")
 
 #: motion commands accepted by /command and their default speeds
 _MOTION = {
@@ -222,6 +243,10 @@ class AMRWebApp:
         camera_id: Optional[str] = None,
         recordings_dir: Optional[str] = None,
         auto_record: bool = True,
+        # C15c: how much history the Command Center keeps in memory. Both are
+        # bounded; the defaults suit a 1 Hz dashboard on a Raspberry Pi.
+        history_capacity: int = 150,
+        event_capacity: int = 200,
     ):
         self._mgr = mgr
         # C13: the detection identity of the camera, used only to pair a frame
@@ -234,6 +259,12 @@ class AMRWebApp:
         # recording written by the runtime is immediately discoverable by
         # GET /replay/recordings. No-op unless a directory is configured.
         self._auto = AutoRecorder(recordings_dir, enabled=auto_record)
+        # C15c: bounded time-series + event log for the Command Center charts.
+        # Server-side on purpose: a long-running Pi must not accumulate history
+        # in the browser, and the server is then the single owner of the past.
+        self._history = CommandCenterHistory(
+            series_capacity=history_capacity,
+            event_capacity=event_capacity)
         self._tick_hz = max(0.5, float(tick_hz))
         self._camera = camera
         self._lock = threading.Lock()
@@ -358,6 +389,16 @@ class AMRWebApp:
                     self._auto.record(self.telemetry.snapshot())
                 except Exception as exc:  # noqa: BLE001 - recording optional
                     self.log.warning("auto-record failed: %s", exc)
+            # C15c: feed the Command Center's charts and event log from the same
+            # authoritative snapshot. Reusing ``self.telemetry.snapshot()``
+            # rather than collecting again keeps this a projection of real state
+            # with no second collection path and no second loop — it rides the
+            # runtime tick that just happened. Purely read-only.
+            try:
+                self._history.observe(self.telemetry.snapshot(),
+                                      self.telemetry.health())
+            except Exception as exc:  # noqa: BLE001 - history is optional
+                self.log.warning("command-center history failed: %s", exc)
 
     # ------------------------------------------------------------------ #
     # Handler-facing API (all serialised by the lock)
@@ -641,15 +682,24 @@ class AMRWebApp:
         consuming exactly what they consumed before C11.
         """
         with self._lock:
-            return build_console_state(
-                self.telemetry.snapshot(),
-                health=self.telemetry.health(),
+            snapshot = self.telemetry.snapshot()
+            health = self.telemetry.health()
+            state = build_console_state(
+                snapshot,
+                health=health,
                 map_snapshot=self.map.snapshot().to_dict(),
                 twin=build_twin_state(
                     self.map.snapshot(),
                     telemetry=self.telemetry,
                     camera=self._camera).to_dict(),
             )
+            # C15c: charts, the event log and the replay indicator travel with
+            # the same payload so the Command Center polls once. The history was
+            # filled from these very snapshots by the control loop.
+            state["history"] = self._history.to_dict()
+            state["recording"] = self._auto.status()
+            state["replay"] = self._replay.status()
+            return state
 
     def health(self) -> Tuple[dict, int]:
         """Liveness/readiness probe for ``GET /health``.
@@ -895,6 +945,29 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _serve_static(self, path: str) -> None:
+        """Serve the Command Center's own CSS/JS.
+
+        Only the names in :data:`_STATIC_FILES` are servable, and the lookup is
+        by *whitelist* rather than by joining the URL onto a directory. A
+        crafted path such as ``/static/../../etc/passwd`` therefore resolves to
+        nothing at all instead of escaping the static folder.
+        """
+        name = path[len("/static/"):]
+        body = _STATIC_FILES.get(name)
+        if body is None:
+            self._send_json({"error": "not found"}, code=404)
+            return
+        ctype = ("text/css" if name.endswith(".css")
+                 else "application/javascript" if name.endswith(".js")
+                 else "text/html; charset=utf-8")
+        # _send_bytes computes Content-Length from the payload, so the text must
+        # be encoded first: a str length counts characters, not bytes, and the
+        # mismatch would truncate the response mid-transfer.
+        if isinstance(body, str):
+            body = body.encode("utf-8")
+        self._send_bytes(body, ctype)
+
     # -- routes ------------------------------------------------------------ #
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.split("?", 1)[0]
@@ -938,6 +1011,15 @@ class _Handler(BaseHTTPRequestHandler):
         elif path == "/digital-twin":
             # C10: the 3D twin, derived from that same MapSnapshot.
             self._send_json(self.app.digital_twin())
+        elif path == "/command-center":
+            # C15c: the Command Center console. Same backend, same payloads —
+            # this is a different *presentation* of /dashboard/state, not a
+            # second robot architecture.
+            self._send_html(COMMAND_CENTER_HTML)
+        elif path.startswith("/static/"):
+            # C15c: the console's own assets. Strictly limited to the three
+            # known files, so a crafted path cannot read arbitrary disk content.
+            self._serve_static(path)
         elif path == "/dashboard/state":
             # C11: one read-only fetch carrying telemetry + health + the C9 map
             # and C10 twin payloads, so the 1 Hz page load drops from four

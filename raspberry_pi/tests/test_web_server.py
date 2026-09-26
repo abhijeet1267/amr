@@ -63,41 +63,10 @@ def _cmd(port: int, payload: dict) -> tuple:
 # --------------------------------------------------------------------------- #
 # Fixtures
 # --------------------------------------------------------------------------- #
-@pytest.fixture
-def web(config_dir):
-    """A running web app + mock robot, with a mock camera attached."""
-    config = load_config(config_dir)
-    mgr, transport = RobotManager.create_mock(config)
-    camera = CameraManager(
-        MockCamera(available=True), CameraConfig(enabled=True)
-    )
-    # The mock transport records every line written to the controller, so the
-    # read-only tests can prove a camera GET never reaches an actuator.
-    mgr.test_transport = transport
-    # The whole stack is mock-backed (MockSerialTransport + MockCamera), so the
-    # dashboard must tag every value SIMULATION rather than present it as a
-    # physical measurement. This is the same flag `run_web` passes for --mock.
-    app = AMRWebApp(
-        mgr, tick_hz=10.0, camera=camera, simulated=True
-    )
-    port = app.start(host="127.0.0.1", port=0)
-    mgr.start()  # bring the (mock) link up so the control loop sees a robot
-    yield app, port, mgr
-    app.stop()
-    mgr.shutdown()
-
-
-@pytest.fixture
-def web_no_camera(config_dir):
-    """Same, but with no camera configured at all."""
-    config = load_config(config_dir)
-    mgr, _transport = RobotManager.create_mock(config)
-    app = AMRWebApp(mgr, tick_hz=10.0)
-    port = app.start(host="127.0.0.1", port=0)
-    mgr.start()
-    yield app, port, mgr
-    app.stop()
-    mgr.shutdown()
+# C15c: the `web` and `web_no_camera` fixtures now live in conftest.py, so this
+# file and tests/test_command_center.py exercise the *same* running app instead
+# of each building its own. Nothing is lost: pytest resolves conftest fixtures
+# automatically, so the names below are still available here.
 
 
 class MutableHazardSource:

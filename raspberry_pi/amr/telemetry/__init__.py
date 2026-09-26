@@ -24,6 +24,19 @@ from .console import (
     route_progress_points,
     source_of,
 )
+from .series import (
+    CATEGORIES,
+    DEFAULT_EVENT_CAPACITY,
+    DEFAULT_SERIES_CAPACITY,
+    LEVELS,
+    SERIES_SCHEMA_VERSION,
+    CommandCenterHistory,
+    Event,
+    EventStream,
+    Sample,
+    TelemetrySeries,
+    extract_metrics,
+)
 from .recorder import (
     DEFAULT_MIN_INTERVAL_S,
     DEFAULT_RECORDING_CAPACITY,

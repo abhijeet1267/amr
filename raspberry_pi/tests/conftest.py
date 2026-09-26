@@ -83,3 +83,56 @@ class NoActuation:
         assert not offenders, (
             "read path issued actuator command(s) to the controller: "
             f"{offenders}")
+
+
+# --------------------------------------------------------------------------- #
+# Shared web-app fixtures
+#
+# C15c moved these here from test_web_server.py so the Command Center tests can
+# exercise the *same* running app rather than building a second one. A single
+# fixture means both suites assert against identical wiring.
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def web(config_dir):
+    """A running web app + mock robot, with a mock camera attached."""
+    from amr.camera import CameraManager
+    from amr.mocks import MockCamera
+    from amr.robot import RobotManager
+    from amr.utils.config import CameraConfig, load_config
+    from amr.web import AMRWebApp
+
+    config = load_config(config_dir)
+    mgr, transport = RobotManager.create_mock(config)
+    camera = CameraManager(MockCamera(available=True), CameraConfig(enabled=True))
+    # The mock transport records every line written to the controller, so the
+    # read-only tests can prove a GET never reaches an actuator.
+    mgr.test_transport = transport
+    # Mock-backed throughout, so the console must tag everything SIMULATION
+    # rather than present it as a physical measurement.
+    app = AMRWebApp(mgr, tick_hz=10.0, camera=camera, simulated=True)
+    port = app.start(host="127.0.0.1", port=0)
+    mgr.start()  # bring the (mock) link up so the control loop sees a robot
+    try:
+        yield app, port, mgr
+    finally:
+        app.stop()
+        mgr.shutdown()
+
+
+@pytest.fixture
+def web_no_camera(config_dir):
+    """Same, but with no camera configured at all."""
+    from amr.robot import RobotManager
+    from amr.utils.config import load_config
+    from amr.web import AMRWebApp
+
+    config = load_config(config_dir)
+    mgr, _transport = RobotManager.create_mock(config)
+    app = AMRWebApp(mgr, tick_hz=10.0)
+    port = app.start(host="127.0.0.1", port=0)
+    mgr.start()
+    try:
+        yield app, port, mgr
+    finally:
+        app.stop()
+        mgr.shutdown()

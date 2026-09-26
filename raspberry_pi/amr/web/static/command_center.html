@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMR Command Center</title>
+<link rel="stylesheet" href="/static/command_center.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="topbar">
+  <div class="brand">
+    <h1>AMR Command Center</h1>
+    <span class="sub">Autonomous Warehouse Robot</span>
+  </div>
+  <span class="spacer"></span>
+  <!-- LIVE / REPLAY is a first-class visual distinction: the badge and the
+       banner change together so the mode can never be ambiguous. -->
+  <span class="chip info" id="mode-badge"><span class="dot"></span><span id="mode-text">CONNECTING</span></span>
+  <span class="chip" id="src-badge"><span class="lbl">SOURCE</span><span id="src-text">&mdash;</span></span>
+  <span class="chip" id="conn-badge"><span class="dot"></span><span id="conn-text">&mdash;</span></span>
+  <span class="chip" id="safety-badge"><span class="lbl">SAFETY</span><span id="safety-text">&mdash;</span></span>
+  <span class="chip mono"><span id="clock-text">--:--:--</span></span>
+</header>
+
+<p class="sim-banner" id="sim-banner" hidden></p>
+
+<main id="main">
+
+  <!-- 3D DIGITAL TWIN (C10 payload) -->
+  <section class="card span-5" aria-labelledby="h-twin">
+    <h2 id="h-twin">3D Digital Twin <span class="count" id="twin-src"></span></h2>
+    <div class="toolbar" role="group" aria-label="3D view controls">
+      <button type="button" id="t-iso">Isometric</button>
+      <button type="button" id="t-top">Top</button>
+      <button type="button" id="t-front">Front</button>
+      <button type="button" id="t-follow" aria-pressed="false">Follow</button>
+      <button type="button" id="t-reset">Reset</button>
+      <span class="sep"></span>
+      <button type="button" id="t-haz" aria-pressed="true">Hazards</button>
+      <button type="button" id="t-path" aria-pressed="true">Route</button>
+    </div>
+    <div class="stage twin">
+      <canvas id="t-canvas" aria-label="3D digital twin of the AMR. Robot pose, route and hazards follow live telemetry."></canvas>
+      <span class="overlay-badge" id="t-badge">NO DATA</span>
+      <div class="legend" id="t-legend" hidden></div>
+      <div class="empty" id="t-fallback" hidden>
+        3D rendering is unavailable (WebGL not supported). Map, telemetry and
+        every other panel remain fully functional.
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE CAMERA (C8 / C15b payload) -->
+  <section class="card span-4" aria-labelledby="h-cam">
+    <h2 id="h-cam">Live Camera <span class="count" id="cam-src"></span></h2>
+    <div class="stage cam">
+      <img id="cam-img" alt="Latest camera frame with hazard overlays" hidden>
+      <span class="overlay-badge" id="cam-badge">&mdash;</span>
+      <div class="empty" id="cam-empty">Waiting for camera&hellip;</div>
+    </div>
+    <dl class="kv" style="margin-top:9px">
+      <dt>Status</dt><dd id="cam-status">n/a</dd>
+      <dt>Source</dt><dd id="cam-source">n/a</dd>
+      <dt>Resolution</dt><dd id="cam-res">n/a</dd>
+      <dt>Frame</dt><dd id="cam-frame">n/a</dd>
+      <dt>Timestamp</dt><dd id="cam-time">n/a</dd>
+      <dt>Detections</dt><dd id="cam-det">none</dd>
+    </dl>
+  </section>
+
+  <!-- ROBOT STATUS -->
+  <section class="card span-3" aria-labelledby="h-robot">
+    <h2 id="h-robot">Robot Status</h2>
+    <dl class="kv">
+      <dt>ID</dt><dd id="r-id">n/a</dd>
+      <dt>Mode</dt><dd id="r-mode">n/a</dd>
+      <dt>Position</dt><dd id="r-pos">n/a</dd>
+      <dt>Yaw</dt><dd id="r-yaw">n/a</dd>
+      <dt>Speed</dt><dd id="r-speed">n/a</dd>
+      <dt>Nav</dt><dd id="r-nav">n/a</dd>
+      <dt>Battery</dt><dd id="r-batt">n/a</dd>
+      <dt>Uptime</dt><dd id="r-up">n/a</dd>
+      <dt>Recording</dt><dd id="r-rec">n/a</dd>
+    </dl>
+  </section>
+
+  <!-- SAFETY -->
+  <section class="card span-12" aria-labelledby="h-safety">
+    <h2 id="h-safety">Safety</h2>
+    <div class="safety ok" id="safety-panel" role="status" aria-live="polite">
+      <span class="icon" id="s-icon" aria-hidden="true">&#9679;</span>
+      <span class="txt">
+        <span class="headline" id="s-head">Awaiting data</span>
+        <span class="why" id="s-why">The backend safety layer is authoritative; this panel only displays it.</span>
+      </span>
+    </div>
+    <dl class="kv" style="margin-top:10px">
+      <dt>Action</dt><dd id="s-action">n/a</dd>
+      <dt>State</dt><dd id="s-state">n/a</dd>
+      <dt>E-STOP</dt><dd id="s-estop">n/a</dd>
+      <dt>Avoidance</dt><dd id="s-avoid">n/a</dd>
+      <dt>Hazards</dt><dd id="s-hazcount">0</dd>
+    </dl>
+  </section>
+
+  <!-- WAREHOUSE MAP (C9 payload) -->
+  <section class="card span-12" aria-labelledby="h-map">
+    <h2 id="h-map">Warehouse Map <span class="count" id="map-note"></span></h2>
+    <div class="toolbar" role="group" aria-label="Map controls">
+      <button type="button" id="m-fit">Fit</button>
+      <button type="button" id="m-center">Centre robot</button>
+      <button type="button" id="m-in">Zoom +</button>
+      <button type="button" id="m-out">Zoom &minus;</button>
+      <span class="sep"></span>
+      <button type="button" id="m-route" aria-pressed="true">Route</button>
+      <button type="button" id="m-trail" aria-pressed="true">Trail</button>
+      <button type="button" id="m-haz" aria-pressed="true">Hazards</button>
+      <button type="button" id="m-zones" aria-pressed="true">Zones</button>
+    </div>
+    <div class="stage map">
+      <svg id="m-svg" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMid meet"
+           role="img" aria-label="Top-down warehouse map: robot, waypoints, route, trail, hazards and restricted zones."></svg>
+      <span class="overlay-badge" id="m-badge">&mdash;</span>
+      <div class="empty" id="m-empty">No map data.</div>
+    </div>
+  </section>
+
+  <!-- MISSION -->
+  <section class="card span-5" aria-labelledby="h-mission">
+    <h2 id="h-mission">Mission</h2>
+    <dl class="kv">
+      <dt>State</dt><dd id="m-state">n/a</dd>
+      <dt>Phase</dt><dd id="m-phase">n/a</dd>
+      <dt>Task</dt><dd id="m-task">n/a</dd>
+      <dt>Task type</dt><dd id="m-ttype">n/a</dd>
+      <dt>Destination</dt><dd id="m-dest">n/a</dd>
+      <dt>Tasks</dt><dd id="m-total">n/a</dd>
+      <dt>Completed</dt><dd id="m-done">n/a</dd>
+      <dt>Failed</dt><dd id="m-fail">n/a</dd>
+    </dl>
+    <div class="bar" id="m-bar" aria-hidden="true"><i></i></div>
+    <div class="bar-label"><span id="m-bar-lo">0 / 0</span><span id="m-bar-hi">&mdash;</span></div>
+  </section>
+
+  <!-- TELEMETRY -->
+  <section class="card span-4" aria-labelledby="h-tel">
+    <h2 id="h-tel">Telemetry</h2>
+    <div class="chart-title"><span>Speed</span><span class="val" id="c-speed">n/a</span></div>
+    <canvas class="chart" id="c-speed-c" aria-label="Speed over recent samples"></canvas>
+    <div class="chart-title"><span>Battery</span><span class="val" id="c-batt">n/a</span></div>
+    <canvas class="chart" id="c-batt-c" aria-label="Battery percentage over recent samples"></canvas>
+    <p class="dim" style="font-size:10px;margin:8px 0 0">
+      Gaps mean the sensor reported no value &mdash; they are never drawn as zero.
+    </p>
+  </section>
+
+  <!-- HAZARDS -->
+  <section class="card span-3" aria-labelledby="h-haz">
+    <h2 id="h-haz">Hazards <span class="count" id="haz-count">0</span></h2>
+    <div class="hz" id="haz-list"></div>
+  </section>
+
+  <!-- EVENT LOG -->
+  <section class="card span-7" aria-labelledby="h-log">
+    <h2 id="h-log">Event Log <span class="count" id="log-count">0</span></h2>
+    <div class="filters" role="group" aria-label="Filter events">
+      <button type="button" data-f="ALL" aria-pressed="true">All</button>
+      <button type="button" data-f="INFO" aria-pressed="false">Info</button>
+      <button type="button" data-f="WARNING" aria-pressed="false">Warning</button>
+      <button type="button" data-f="CRITICAL" aria-pressed="false">Critical</button>
+      <button type="button" data-f="MISSION" aria-pressed="false">Mission</button>
+      <button type="button" data-f="SAFETY" aria-pressed="false">Safety</button>
+      <button type="button" data-f="VISION" aria-pressed="false">Vision</button>
+      <button type="button" data-f="HAZARD" aria-pressed="false">Hazard</button>
+      <button type="button" data-f="CAMERA" aria-pressed="false">Camera</button>
+      <button type="button" data-f="SYSTEM" aria-pressed="false">System</button>
+    </div>
+    <div class="log" id="log" role="log" aria-live="polite" aria-label="Event log"></div>
+  </section>
+
+  <!-- RECORDING / REPLAY (C14 / C14b) -->
+  <section class="card span-5" aria-labelledby="h-replay">
+    <h2 id="h-replay">Record &amp; Replay</h2>
+    <div class="toolbar">
+      <select id="rec-select" aria-label="Select recording"><option value="">No recordings</option></select>
+      <button type="button" id="rec-load">Load</button>
+    </div>
+    <div class="transport" role="group" aria-label="Replay transport">
+      <button type="button" id="rp-play" disabled>Play</button>
+      <button type="button" id="rp-pause" disabled>Pause</button>
+      <button type="button" id="rp-restart" disabled>Restart</button>
+      <button type="button" id="rp-unload" disabled>Unload</button>
+      <div class="scrub" id="rp-scrub" role="progressbar" aria-label="Replay position"><i></i></div>
+    </div>
+    <div class="toolbar" style="margin-top:8px" role="group" aria-label="Playback speed">
+      <span class="dim" style="font-size:10px">SPEED</span>
+      <button type="button" data-speed="0.5" aria-pressed="false">0.5&times;</button>
+      <button type="button" data-speed="1" aria-pressed="true">1&times;</button>
+      <button type="button" data-speed="2" aria-pressed="false">2&times;</button>
+    </div>
+    <dl class="kv" style="margin-top:8px">
+      <dt>State</dt><dd id="rp-state">n/a</dd>
+      <dt>Recording</dt><dd id="rp-id">none</dd>
+      <dt>Position</dt><dd id="rp-pos">n/a</dd>
+      <dt>Duration</dt><dd id="rp-dur">n/a</dd>
+      <dt>Frame</dt><dd id="rp-frame">n/a</dd>
+    </dl>
+  </section>
+
+</main>
+
+<script src="/static/command_center.js"></script>
+</body>
+</html>
