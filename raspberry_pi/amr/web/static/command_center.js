@@ -103,6 +103,9 @@ function renderAll(s) {
   renderMap(s);
   renderTwin(s);
   renderCamera(s);
+  // C5e: the operations panels, from the `ops` block in this same payload.
+  renderOps(s);
+  applyEventFilter();
 }
 
 function renderHeader(s) {
@@ -1000,43 +1003,421 @@ function initControls() {
   });
 }
 
-/* -- C15d: focused views ---------------------------------------------------- */
+/* -- C5e — operations panels ------------------------------------------------ */
+/* Every value here comes from the `ops` block the server already put in the
+   same /dashboard/state response. A missing value is rendered "n/a" and is
+   never turned into 0. */
+function stCell(state) {
+  return '<span class="st-' + esc(String(state || "UNKNOWN").replace(/\s+/g, "_"))
+    + '">' + esc(state || "UNKNOWN") + "</span>";
+}
+
+function rank(state) {
+  return { HEALTHY: 0, DEGRADED: 1, WARNING: 2, FAULT: 3 }[state] || 0;
+}
+
+function renderOps(s) {
+  var ops = s.ops;
+  if (!ops) return;
+  renderIdentity(ops.identity);
+  renderHealth(ops.health);
+  renderSensors(ops.sensors);
+  renderSystem(ops, s);
+  renderTimeline(ops.mission);
+  renderNav(ops.navigation);
+  renderHazCentre(ops.hazards);
+  renderPerf(ops.performance, s);
+  renderAlerts(ops.alerts);
+}
+
+function renderIdentity(id) {
+  if (!id) return;
+  txt("ident-id", id.robot_id);
+  txt("ident-mode", id.mode);
+  txt("ident-mission", id.mission);
+  txt("ident-state", id.state);
+}
+
+function renderHealth(h) {
+  if (!h) return;
+  var overall = h.overall || "UNKNOWN";
+  txt("h-state", overall);
+  txt("health-overall", overall);
+  // Show the reason of the *worst* component, so the verdict is never bare.
+  var worst = null;
+  h.components.forEach(function (c) {
+    if (!worst || rank(c.state) > rank(worst.state)) worst = c;
+  });
+  txt("h-why", worst ? worst.component + ": " + worst.reason : "no data");
+  var el = $("h-state");
+  if (el) el.className = "health-big st-" + String(overall).replace(/\s+/g, "_");
+  var body = $("health-rows");
+  if (body) {
+    body.innerHTML = h.components.map(function (c) {
+      return "<tr><td>" + esc(c.component) + "</td><td>" + stCell(c.state) +
+        "</td><td>" + esc(c.reason || "") + "</td></tr>";
+    }).join("") || '<tr><td colspan="3">n/a</td></tr>';
+  }
+  // There is intentionally no score bar; say why instead of drawing a number
+  // the project has no weighting to justify.
+  txt("health-note", h.score === null ? (h.score_note || "") : "");
+}
+
+function renderSensors(rows) {
+  var body = $("sensor-rows");
+  if (!body || !rows) return;
+  body.innerHTML = rows.map(function (r) {
+    // No value -> "n/a", never 0: a sensor reading 0 and one that is
+    // unconnected must never look the same.
+    return "<tr><td>" + esc(r.sensor) + "</td><td>" + stCell(r.state) +
+      "</td><td>" + esc(r.source || "n/a") + "</td><td>" +
+      (r.value === null || r.value === undefined ? "n/a" : esc(String(r.value))) +
+      "</td></tr>";
+  }).join("") || '<tr><td colspan="4">no sensors reported</td></tr>';
+}
+
+function renderSystem(ops, s) {
+  var list = $("system-layers");
+  if (list && ops.system) {
+    list.innerHTML = ops.system.map(function (l) {
+      return "<li><b>" + esc(l.layer) + "</b><span>" + stCell(l.state) +
+        "</span><em>" + esc(l.detail || "") + "</em></li>";
+    }).join("");
+  }
+  var perf = ops.performance || {};
+  txt("sys-updated", clock(s.timestamp));
+  txt("sys-hz", perf.dashboard_hz ? perf.dashboard_hz + " Hz" : "n/a");
+  txt("sys-backend", (s.system && s.system.status) || "n/a");
+  var rec = s.recording || {};
+  txt("sys-rec", rec.active ? ("ACTIVE " + (rec.recording_id || ""))
+    : (rec.available === false ? "unavailable" : "idle"));
+}
+
+function renderTimeline(m) {
+  var list = $("mission-timeline");
+  if (list && m && m.timeline) {
+    list.innerHTML = m.timeline.map(function (s) {
+      return '<li class="st-' + esc(s.state) + '">' + esc(s.step) +
+        (s.at ? "<small>" + clock(s.at) + "</small>" : "") + "</li>";
+    }).join("");
+  }
+  var st = (m && m.statistics) || {};
+  txt("ms-time", isNum(st.elapsed_s) ? Math.round(st.elapsed_s) + " s" : "n/a");
+  txt("ms-tasks", isNum(st.tasks_total)
+    ? (st.tasks_completed || 0) + " / " + st.tasks_total : "n/a");
+  txt("ms-prog", isNum(st.mission_progress)
+    ? Math.round(st.mission_progress * 100) + "%" : "n/a");
+  txt("ms-haz", isNum(st.hazards_observed) ? st.hazards_observed : "n/a");
+  txt("ms-avoid", isNum(st.avoidances) ? st.avoidances : "n/a");
+  txt("ms-err", isNum(st.tasks_failed) ? st.tasks_failed : "n/a");
+}
+
+function renderNav(nv) {
+  if (!nv) return;
+  txt("nv-state", nv.state || "n/a");
+  txt("nv-target", nv.target || "none");
+  // The runtime exposes no measured range to the goal, so this stays n/a
+  // rather than showing a straight-line guess presented as a measurement.
+  txt("nv-dist", isNum(nv.distance_m) ? nv.distance_m.toFixed(2) + " m" : "n/a");
+  txt("nv-head", isNum(nv.heading_deg)
+    ? nv.heading_deg.toFixed(1) + "\u00b0" : "n/a");
+  txt("nv-planner", nv.planner || "n/a");
+  txt("nv-avoid", nv.avoidance || "CLEAR");
+  txt("nv-points", isNum(nv.route_points) ? nv.route_points : "n/a");
+}
+
+function renderHazCentre(h) {
+  if (!h) return;
+  var cur = h.current;
+  txt("haz-state", cur ? (cur.severity || "ACTIVE") : "NO ACTIVE HAZARD");
+  if (cur) {
+    // The bbox is image-space pixels and is labelled as such; it is never
+    // presented as a world position.
+    txt("haz-detail", cur.kind +
+      (isNum(cur.confidence) ? "  conf " + cur.confidence.toFixed(2) : "") +
+      (cur.source ? "  src " + cur.source : "") +
+      (cur.bbox_image_px
+        ? "  bbox " + cur.bbox_image_px.join(",") + " px [" +
+          cur.coordinate_space + "-space]"
+        : "  no world location"));
+  } else {
+    txt("haz-detail", "no hazard reported by the hazard manager");
+  }
+  var list = $("haz-recent");
+  if (list && h.recent) {
+    list.innerHTML = h.recent.slice(0, 25).map(function (e) {
+      return "<li>" + clock(e.t) + "  " + stCell(e.level) + "  " +
+        esc(e.category || "") + "  " + esc(e.message || "") + "</li>";
+    }).join("") || '<li class="mini">no hazard events yet</li>';
+  }
+}
+
+function renderPerf(p, s) {
+  if (!p) return;
+  txt("pf-hz", isNum(p.dashboard_hz) ? p.dashboard_hz + " Hz" : "n/a");
+  txt("pf-rate", isNum(p.observed_series_hz) ? p.observed_series_hz + " Hz" : "n/a");
+  txt("pf-api", isNum(p.api_latency_ms) ? p.api_latency_ms + " ms" : "n/a");
+  txt("pf-fps", isNum(p.camera_fps) ? p.camera_fps + " fps" : "n/a");
+  txt("pf-ifps", isNum(p.inference_fps) ? p.inference_fps + " fps" : "n/a");
+  txt("pf-ilat", isNum(p.inference_latency_ms) ? p.inference_latency_ms + " ms" : "n/a");
+  txt("pf-speed", isNum(p.replay_speed) ? p.replay_speed + "x" : "n/a");
+  var cam = s.camera || {};
+  txt("cd-frame", cam.has_frame ? "YES" : "NO");
+  txt("cd-dim", (isNum(cam.width) && isNum(cam.height))
+    ? cam.width + " \u00d7 " + cam.height : "n/a");
+  // C15b deliberately supports a camera with no inference model, so "not
+  // configured" is a normal state here rather than a fault.
+  txt("cd-det", "not configured");
+  var n = 0;
+  var hl = s.hazard_list;
+  if (hl && Array.isArray(hl.active)) {
+    n = hl.active.filter(function (x) {
+      return x && x.metadata && Array.isArray(x.metadata.bbox);
+    }).length;
+  }
+  txt("cd-count", n);
+  txt("cd-last", clock(cam.timestamp));
+}
+
+/* -- C5e — event search ----------------------------------------------------- */
+/* The C15c log is still the single renderer; this only filters what it already
+   produced, so there is no second event stream. */
+function currentEvents() {
+  var ev = CC.state && CC.state.history && CC.state.history.events;
+  return (ev && Array.isArray(ev.events)) ? ev.events : [];
+}
+
+function applyEventFilter() {
+  var q = (($("ev-search") || {}).value || "").toLowerCase();
+  var cat = ($("ev-cat") || {}).value || "";
+  var lvl = ($("ev-level") || {}).value || "";
+  var rows = currentEvents().filter(function (e) {
+    if (cat && String(e.category || "") !== cat) return false;
+    if (lvl && String(e.level || "") !== lvl) return false;
+    if (q && String(e.message || "").toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+  var host = $("log");
+  if (host) {
+    host.innerHTML = rows.length ? rows.map(function (e, i) {
+      return '<div class="log-row" data-ev="' + i + '"><span class="mono">' +
+        clock(e.t) + "</span>" + stCell(e.level) + "  " +
+        esc(e.category || "") + "  " + esc(e.message || "") + "</div>";
+    }).join("") : '<p class="mini">no events match this filter</p>';
+    host.querySelectorAll(".log-row").forEach(function (row) {
+      row.addEventListener("click", function () {
+        showEventDetail(rows[Number(row.getAttribute("data-ev"))]);
+      });
+    });
+  }
+  var shown = currentEvents().length;
+  txt("ev-count", rows.length + " of " + shown + " events");
+}
+
+function showEventDetail(e) {
+  var box = $("ev-detail");
+  if (!box || !e) return;
+  var meta = e.detail && typeof e.detail === "object" ? e.detail : null;
+  box.innerHTML =
+    "<div><b>Type:</b> " + esc(e.category || "n/a") + "</div>" +
+    "<div><b>Timestamp:</b> " + clock(e.t) + "</div>" +
+    "<div><b>Level:</b> " + esc(e.level || "n/a") + "</div>" +
+    "<div><b>Message:</b> " + esc(e.message || "n/a") + "</div>" +
+    // Any coordinate carried by an event is image-space unless the runtime
+    // explicitly says otherwise; the label makes that explicit.
+    (meta ? "<div><b>Detail:</b> " + esc(JSON.stringify(meta)) +
+      " <em>[image-space]</em></div>" : "");
+  box.hidden = false;
+}
+
+function initEventSearch() {
+  // Populate the category filter from the categories the stream really emits.
+  var sel = $("ev-cat");
+  if (sel && sel.options.length <= 1) {
+    (CATEGORIES || []).forEach(function (c) {
+      var o = document.createElement("option");
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
+  }
+  ["ev-search", "ev-cat", "ev-level"].forEach(function (id) {
+    var el = $(id);
+    if (!el) return;
+    el.addEventListener("input", applyEventFilter);
+    el.addEventListener("change", applyEventFilter);
+  });
+}
+
+/* -- C5e — theme, shortcuts, alert popover --------------------------------- */
+/* Theme is a presentation preference stored in localStorage only. It never
+   changes backend behaviour, and a stored preference is a normal thing for a
+   single-operator console. */
+function applyTheme(name) {
+  var light = name === "light";
+  document.body.classList.toggle("light", light);
+  var icon = $("theme-icon");
+  if (icon) icon.innerHTML = light ? "&#9788;" : "&#9789;";
+  try { localStorage.setItem("amr-theme", light ? "light" : "dark"); } catch (e) { }
+  if (CC.state) renderTwin(CC.state);
+}
+
+function initTheme() {
+  var stored = null;
+  try { stored = localStorage.getItem("amr-theme"); } catch (e) { }
+  applyTheme(stored || "dark");
+  var btn = $("theme-btn");
+  if (btn) {
+    btn.addEventListener("click", function () {
+      applyTheme(document.body.classList.contains("light") ? "dark" : "light");
+    });
+  }
+}
+
+function initShortcuts() {
+  document.addEventListener("keydown", function (e) {
+    // Never steal keys from a field the operator is typing in.
+    var t = e.target || {};
+    if (t.tagName === "INPUT" || t.tagName === "SELECT" ||
+        t.tagName === "TEXTAREA") return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var n = Number(e.key);
+    // Number keys select a view; no key is ever bound to a motor command.
+    if (n >= 1 && n <= 8 && VIEW_KEYS[n]) {
+      setView(VIEW_KEYS[n]);
+      return;
+    }
+    if (e.key === "t" || e.key === "T") {
+      applyTheme(document.body.classList.contains("light") ? "dark" : "light");
+    } else if (e.key === "f" || e.key === "F") {
+      toggleFullscreen();
+    }
+  });
+}
+
+function toggleFullscreen() {
+  var el = document.documentElement;
+  if (!document.fullscreenElement) {
+    if (el.requestFullscreen) el.requestFullscreen();
+  } else if (document.exitFullscreen) {
+    document.exitFullscreen();
+  }
+}
+
+function initAlertCenter() {
+  var bell = $("alert-bell");
+  var pop = $("alert-center");
+  function close() {
+    if (pop) pop.hidden = true;
+    if (bell) bell.setAttribute("aria-expanded", "false");
+  }
+  if (bell && pop) {
+    bell.addEventListener("click", function () {
+      var open = pop.hidden;
+      pop.hidden = !open;
+      bell.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+  var x = $("alert-close");
+  if (x) x.addEventListener("click", close);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") close();
+  });
+}
+
+function renderAlerts(list) {
+  if (!list) return;
+  var html = list.length ? list.map(function (a) {
+    return '<li class="sev-' + esc(a.severity) + '"><span class="cat">' +
+      esc(a.category) + "</span>" + esc(a.message) + "</li>";
+  }).join("") : '<li class="mini">no alerts</li>';
+  ["alert-list", "alert-list-pop"].forEach(function (id) {
+    var el = $(id);
+    if (el) el.innerHTML = html;
+  });
+  var badge = $("alert-count");
+  if (badge) {
+    // Unread is browser state only; nothing is persisted server-side.
+    badge.textContent = String(list.length);
+    badge.hidden = list.length === 0;
+  }
+}
+
 /* Client-side only. The brief allows either separate routes or client-side
    views; this chooses the latter so there is still exactly one page, one poll
    and no duplicated backend logic. The same panels are shown either way. */
+
+/* C5e: which panels belong to which view. "overview" keeps everything, so the
+   landing screen still shows the whole robot at a glance. */
+var VIEW_SECTIONS = {
+  overview: null,                 // null = show every panel
+  twin: ["twin"],
+  camera: ["camera"],
+  map: ["map", "nav"],
+  mission: ["mission", "timeline"],
+  telemetry: ["telemetry", "perf"],
+  safety: ["safety", "hazcentre"],
+  sensors: ["sensors", "system"],
+  hazards: ["hazcentre"],
+  replay: ["replay"],
+  events: ["events"],
+  diagnostics: ["health", "system", "perf", "alerts"]
+};
+var VIEW_KEYS = ["overview", "twin", "camera", "map", "mission", "telemetry",
+                 "safety", "sensors", "hazards", "replay", "events",
+                 "diagnostics"];
+
 function setView(name) {
   var main = $("main");
+  var wanted = (VIEW_SECTIONS[name] === undefined) ? "overview" : name;
   if (main) {
-    main.className = "view-" + name;
-    main.setAttribute("data-view", name);
+    main.className = "view-" + wanted;
+    main.setAttribute("data-view", wanted);
   }
-  document.querySelectorAll(".tabs button[data-view]").forEach(function (b) {
-    b.setAttribute("aria-selected", b.getAttribute("data-view") === name
-      ? "true" : "false");
+  // Both the top tabs and the sidebar drive this one function, so the two
+  // navigation surfaces can never disagree about which view is active.
+  document.querySelectorAll("button[data-view]").forEach(function (b) {
+    var on = b.getAttribute("data-view") === wanted;
+    b.setAttribute("aria-selected", on ? "true" : "false");
   });
+  var keep = VIEW_SECTIONS[wanted];
+  document.querySelectorAll("[data-section]").forEach(function (sec) {
+    // Overview shows everything; a focused view shows only its own panels.
+    sec.style.display = (keep === null ||
+      keep.indexOf(sec.getAttribute("data-section")) >= 0) ? "" : "none";
+  });
+  CC.view = wanted;
   // The canvases must be re-measured after a layout change, or the focused
   // view renders at the old (overview) pixel size.
   window.requestAnimationFrame(function () { if (CC.state) renderTwin(CC.state); });
 }
 
 function initViews() {
-  document.querySelectorAll(".tabs button[data-view]").forEach(function (b) {
+  document.querySelectorAll("button[data-view]").forEach(function (b) {
     b.addEventListener("click", function () { setView(b.getAttribute("data-view")); });
   });
   // A hash keeps a focused view linkable and survives a reload.
-  var initial = (location.hash || "").replace("#", "");
-  setView(["twin", "map", "camera", "replay"].indexOf(initial) >= 0
-    ? initial : "overview");
-  window.addEventListener("hashchange", function () {
+  function fromHash() {
     var n = (location.hash || "").replace("#", "");
-    setView(["twin", "map", "camera", "replay"].indexOf(n) >= 0 ? n : "overview");
-  });
+    setView(VIEW_KEYS.indexOf(n) >= 0 ? n : "overview");
+  }
+  fromHash();
+  window.addEventListener("hashchange", fromHash);
 }
 
 /* -- bootstrap ------------------------------------------------------------ */
+/* The C5e event filters mirror the categories the server's event stream really
+   emits (amr.telemetry.series.CATEGORIES), restated here so the page does not
+   have to fetch the list before the first render. */
+var CATEGORIES = ["MISSION", "SAFETY", "HAZARD", "VISION", "NAVIGATION",
+                  "CAMERA", "SYSTEM"];
+
 initControls();
 initViews();
 initTwin();
+initTheme();          // C5e: dark by default, preference only
+initEventSearch();    // C5e: filters the existing log, no second stream
+initShortcuts();      // C5e: view keys + theme + fullscreen, never a command
+initAlertCenter();    // C5e
 renderTwinLegend();
 loadRecordings();
 poll();

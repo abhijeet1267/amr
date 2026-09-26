@@ -345,6 +345,10 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
         # panel present but reporting "no recordings configured".
         recordings_dir=replay_dir,
         auto_record=bool(getattr(replay_cfg, "auto_record", True)),
+        # C5e: the console shows the configured unit name instead of a
+        # placeholder. Sourced from config/robot.yaml (robot.name), so the
+        # operator sees the robot they are actually watching. Read-only label.
+        robot_id=getattr(config.robot, "name", None),
     )
     port = app.start(host=args.host, port=args.port)
     shown = "localhost" if args.host in ("0.0.0.0", "") else args.host

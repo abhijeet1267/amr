@@ -72,6 +72,7 @@ class TelemetryCollector:
         simulated: bool = False,
         software_version: Optional[str] = None,
         clock: Optional[Callable[[], float]] = None,
+        robot_id: Optional[str] = None,
     ):
         self.robot = robot
         self.navigator = navigator
@@ -79,6 +80,10 @@ class TelemetryCollector:
         self.camera = camera
         self.simulated = bool(simulated)
         self.software_version = software_version
+        # C5e: an operator-facing identity. Config-supplied, so the console
+        # names the robot it is actually watching instead of printing
+        # "UNIDENTIFIED" on every run.
+        self.robot_id = robot_id
         self._clock = clock or time.time
         self.log = get_logger("telemetry")
         self._started_at = self._clock()
@@ -661,6 +666,7 @@ class TelemetryCollector:
             robot_id=_first_str(
                 state.get("robot_id"),
                 getattr(self.robot, "robot_id", None),
+                self.robot_id,
             ),
             connected=bool(state.get("connected")),
             mode=_enum_str(state.get("mode")),

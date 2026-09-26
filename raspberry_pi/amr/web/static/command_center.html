@@ -22,6 +22,17 @@
     <button type="button" role="tab" data-view="camera" aria-selected="false">Camera</button>
     <button type="button" role="tab" data-view="replay" aria-selected="false">Replay</button>
   </nav>
+  <!-- C5e alert centre. Read/unread state is browser-only on purpose: nothing
+       has to be persisted on the server for the console to remember nothing. -->
+  <button type="button" class="bell" id="alert-bell" aria-expanded="false"
+          aria-controls="alert-center" aria-label="Open alert centre">
+    <span aria-hidden="true">&#9873;</span>
+    <span class="bell-count" id="alert-count" hidden>0</span>
+  </button>
+  <button type="button" class="icon-btn" id="theme-btn"
+          aria-label="Toggle light and dark theme">
+    <span aria-hidden="true" id="theme-icon">&#9789;</span>
+  </button>
   <!-- LIVE / REPLAY is a first-class visual distinction: the badge and the
        banner change together so the mode can never be ambiguous. -->
   <span class="chip info" id="mode-badge"><span class="dot"></span><span id="mode-text">CONNECTING</span></span>
@@ -34,7 +45,43 @@
 
 <p class="sim-banner" id="sim-banner" hidden></p>
 
-<main id="main">
+<div class="shell">
+  <!-- C5e sidebar: the same data-view buttons the top tabs use, so both drive
+       one setView() and there is exactly one navigation model. -->
+  <aside class="sidebar" aria-label="Command Center navigation">
+    <div class="ident" id="ident-card">
+      <div class="ident-id" id="ident-id">&mdash;</div>
+      <div class="ident-name">Warehouse AMR</div>
+      <dl class="ident-kv">
+        <dt>MODE</dt><dd id="ident-mode">&mdash;</dd>
+        <dt>MISSION</dt><dd id="ident-mission">&mdash;</dd>
+        <dt>STATE</dt><dd id="ident-state">&mdash;</dd>
+      </dl>
+    </div>
+    <div class="health-mini" id="health-mini">
+      <div class="health-label">SYSTEM HEALTH</div>
+      <div class="health-state" id="health-overall">&mdash;</div>
+    </div>
+    <nav class="sidenav" role="tablist" aria-label="Views">
+      <button type="button" role="tab" data-view="overview" aria-selected="true"><b>Overview</b><small>everything at a glance</small></button>
+      <button type="button" role="tab" data-view="twin" aria-selected="false"><b>Digital Twin</b><small>3D AMR + pose</small></button>
+      <button type="button" role="tab" data-view="camera" aria-selected="false"><b>Camera</b><small>frame + detections</small></button>
+      <button type="button" role="tab" data-view="map" aria-selected="false"><b>Map</b><small>warehouse + route</small></button>
+      <button type="button" role="tab" data-view="mission" aria-selected="false"><b>Mission</b><small>timeline + stats</small></button>
+      <button type="button" role="tab" data-view="telemetry" aria-selected="false"><b>Telemetry</b><small>charts + history</small></button>
+      <button type="button" role="tab" data-view="safety" aria-selected="false"><b>Safety</b><small>verdict + history</small></button>
+      <button type="button" role="tab" data-view="sensors" aria-selected="false"><b>Sensors</b><small>what is wired</small></button>
+      <button type="button" role="tab" data-view="hazards" aria-selected="false"><b>Hazards</b><small>centre + recent</small></button>
+      <button type="button" role="tab" data-view="replay" aria-selected="false"><b>Replay</b><small>recordings + playback</small></button>
+      <button type="button" role="tab" data-view="events" aria-selected="false"><b>Events</b><small>searchable log</small></button>
+      <button type="button" role="tab" data-view="diagnostics" aria-selected="false"><b>Diagnostics</b><small>health + performance</small></button>
+    </nav>
+    <div class="side-foot">
+      <div class="kbd-hint">Keys 1&#8211;8 switch view &middot; T theme &middot; F fullscreen</div>
+    </div>
+  </aside>
+
+  <main id="main" tabindex="-1">
 
   <!-- 3D DIGITAL TWIN (C10 payload) -->
   <section class="card span-5" id="sec-twin" data-section="twin" aria-labelledby="h-twin">
@@ -218,7 +265,155 @@
     </dl>
   </section>
 
+  <!-- ================= C5e — OPERATIONS PANELS ================= -->
+
+  <!-- ROBOT HEALTH: categorical, never an invented percentage. -->
+  <section class="card span-4" id="sec-health" data-section="diagnostics"
+           aria-labelledby="h-health">
+    <h2 id="h-health">Robot Health</h2>
+    <div class="health-hero">
+      <span class="health-big" id="h-state">&mdash;</span>
+      <span class="health-why" id="h-why">awaiting telemetry</span>
+    </div>
+    <table class="matrix">
+      <caption class="sr-only">Per-subsystem health and the reason for each state</caption>
+      <thead><tr><th scope="col">Subsystem</th><th scope="col">State</th><th scope="col">Reason</th></tr></thead>
+      <tbody id="health-rows"><tr><td colspan="3">n/a</td></tr></tbody>
+    </table>
+    <p class="mini" id="health-note"></p>
+  </section>
+
+  <!-- SENSOR MATRIX: what is actually wired, and what is not. -->
+  <section class="card span-4" id="sec-sensors" data-section="sensors"
+           aria-labelledby="h-sensors">
+    <h2 id="h-sensors">Sensors</h2>
+    <p class="mini">A sensor with no value reads <b>n/a</b> &mdash; never <b>0</b>.</p>
+    <table class="matrix">
+      <caption class="sr-only">Sensor state, source and value</caption>
+      <thead><tr><th scope="col">Sensor</th><th scope="col">State</th><th scope="col">Source</th><th scope="col">Value</th></tr></thead>
+      <tbody id="sensor-rows"><tr><td colspan="4">n/a</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- SYSTEM CONNECTION: a working web page is not a working robot. -->
+  <section class="card span-4" id="sec-system" data-section="diagnostics"
+           aria-labelledby="h-system">
+    <h2 id="h-system">System Connection</h2>
+    <ul class="layers" id="system-layers"></ul>
+    <dl class="kv">
+      <dt>Last update</dt><dd id="sys-updated">&mdash;</dd>
+      <dt>Update rate</dt><dd id="sys-hz">&mdash;</dd>
+      <dt>Backend</dt><dd id="sys-backend">&mdash;</dd>
+      <dt>Recording</dt><dd id="sys-rec">&mdash;</dd>
+    </dl>
+  </section>
+
+  <!-- MISSION TIMELINE + STATISTICS -->
+  <section class="card span-4" id="sec-timeline" data-section="mission"
+           aria-labelledby="h-timeline">
+    <h2 id="h-timeline">Mission Timeline</h2>
+    <ol class="timeline" id="mission-timeline"></ol>
+    <h3 class="sub-h">Statistics</h3>
+    <dl class="kv">
+      <dt>Mission time</dt><dd id="ms-time">n/a</dd>
+      <dt>Tasks</dt><dd id="ms-tasks">n/a</dd>
+      <dt>Progress</dt><dd id="ms-prog">n/a</dd>
+      <dt>Hazards</dt><dd id="ms-haz">n/a</dd>
+      <dt>Avoidances</dt><dd id="ms-avoid">n/a</dd>
+      <dt>Errors</dt><dd id="ms-err">n/a</dd>
+    </dl>
+  </section>
+
+  <!-- NAVIGATION: visualise the existing planner, never a second one. -->
+  <section class="card span-4" id="sec-nav" data-section="map"
+           aria-labelledby="h-nav">
+    <h2 id="h-nav">Navigation</h2>
+    <dl class="kv">
+      <dt>State</dt><dd id="nv-state">n/a</dd>
+      <dt>Target</dt><dd id="nv-target">n/a</dd>
+      <dt>Distance</dt><dd id="nv-dist">n/a</dd>
+      <dt>Heading</dt><dd id="nv-head">n/a</dd>
+      <dt>Planner</dt><dd id="nv-planner">n/a</dd>
+      <dt>Avoidance</dt><dd id="nv-avoid">n/a</dd>
+      <dt>Route points</dt><dd id="nv-points">n/a</dd>
+    </dl>
+  </section>
+
+  <!-- HAZARD CENTRE: image-space bboxes stay image-space. -->
+  <section class="card span-4" id="sec-hazcentre" data-section="hazards"
+           aria-labelledby="h-hazcentre">
+    <h2 id="h-hazcentre">Hazard Centre</h2>
+    <div class="haz-current">
+      <div class="haz-state" id="haz-state">NO ACTIVE HAZARD</div>
+      <p class="mini" id="haz-detail">n/a</p>
+    </div>
+    <h3 class="sub-h">Recent</h3>
+    <ul class="haz-recent" id="haz-recent"><li class="mini">no hazard events yet</li></ul>
+  </section>
+
+  <!-- PERFORMANCE + CAMERA DIAGNOSTICS -->
+  <section class="card span-4" id="sec-perf" data-section="diagnostics"
+           aria-labelledby="h-perf">
+    <h2 id="h-perf">System Performance</h2>
+    <dl class="kv">
+      <dt>Dashboard</dt><dd id="pf-hz">n/a</dd>
+      <dt>Observed rate</dt><dd id="pf-rate">n/a</dd>
+      <dt>API latency</dt><dd id="pf-api">n/a</dd>
+      <dt>Camera FPS</dt><dd id="pf-fps">n/a</dd>
+      <dt>Inference FPS</dt><dd id="pf-ifps">n/a</dd>
+      <dt>Inference latency</dt><dd id="pf-ilat">n/a</dd>
+      <dt>Replay speed</dt><dd id="pf-speed">n/a</dd>
+    </dl>
+    <h3 class="sub-h">Camera Diagnostics</h3>
+    <dl class="kv">
+      <dt>Frame available</dt><dd id="cd-frame">n/a</dd>
+      <dt>Dimensions</dt><dd id="cd-dim">n/a</dd>
+      <dt>Detector</dt><dd id="cd-det">n/a</dd>
+      <dt>Detections</dt><dd id="cd-count">n/a</dd>
+      <dt>Last frame</dt><dd id="cd-last">n/a</dd>
+    </dl>
+  </section>
+
+  <!-- ALERT CENTRE -->
+  <section class="card span-5" id="sec-alerts" data-section="diagnostics"
+           aria-labelledby="h-alerts">
+    <h2 id="h-alerts">Alert Centre</h2>
+    <ul class="alerts" id="alert-list"><li class="mini">no alerts</li></ul>
+  </section>
+
+  <!-- EVENT SEARCH (extends the C15c log rather than replacing it) -->
+  <section class="card span-7" id="sec-events" data-section="events"
+           aria-labelledby="h-events2">
+    <h2 id="h-events2">Event Search</h2>
+    <div class="ev-tools">
+      <label class="sr-only" for="ev-search">Search events</label>
+      <input type="search" id="ev-search" placeholder="Search messages&hellip;"
+             autocomplete="off">
+      <label class="sr-only" for="ev-cat">Filter by category</label>
+      <select id="ev-cat"><option value="">ALL</option></select>
+      <label class="sr-only" for="ev-level">Filter by level</label>
+      <select id="ev-level">
+        <option value="">ALL</option><option>INFO</option>
+        <option>WARNING</option><option>CRITICAL</option>
+      </select>
+      <span class="mini" id="ev-count">&mdash;</span>
+    </div>
+    <div class="ev-detail" id="ev-detail" hidden></div>
+    <div id="log"></div>
+  </section>
+
 </main>
+</div>
+
+<!-- ALERT CENTRE popover -->
+<div class="alert-center" id="alert-center" hidden>
+  <div class="ac-head">
+    <h2>Alert Centre</h2>
+    <button type="button" class="icon-btn" id="alert-close"
+            aria-label="Close alert centre">&#10005;</button>
+  </div>
+  <ul class="alerts" id="alert-list-pop"></ul>
+</div>
 
 <script src="/static/command_center.js"></script>
 </body>

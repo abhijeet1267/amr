@@ -75,7 +75,7 @@ from ..logging import get_logger
 from ..map import MapService, build_twin_state
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
-from ..telemetry import TelemetryCollector, build_console_state
+from ..telemetry import TelemetryCollector, build_console_state, build_ops_state
 from ..telemetry.auto_record import AutoRecorder
 from ..telemetry.replay_control import RecordingStore, ReplayController
 from ..telemetry.series import CommandCenterHistory
@@ -250,6 +250,11 @@ class AMRWebApp:
         # C15d: step the warehouse mission from this app's control loop, so the
         # mission advances in step with the robot instead of racing ahead of it.
         run_warehouse: bool = False,
+        # C5e: operator-facing identity shown by the Command Center. Config-
+        # supplied (from RobotConfig.name) so the console names the unit it is
+        # actually watching instead of printing a placeholder. Read-only: it is
+        # passed to the telemetry projection and never used for control.
+        robot_id: Optional[str] = None,
     ):
         self._mgr = mgr
         # C13: the detection identity of the camera, used only to pair a frame
@@ -297,6 +302,9 @@ class AMRWebApp:
             camera=camera,
             simulated=simulated,
             software_version=software_version,
+            # C5e: the identity the console shows. Config-supplied, so it names
+            # the real unit rather than a hard-coded label.
+            robot_id=robot_id,
         )
         # C9 map: a read-only projection of the SAME runtime. It is built from
         # this app's own collaborators so the map can never be wired to a
@@ -723,6 +731,14 @@ class AMRWebApp:
             state["history"] = self._history.to_dict()
             state["recording"] = self._auto.status()
             state["replay"] = self._replay.status()
+            # C5e: the operations projection (health scorecard, sensor matrix,
+            # system layers, mission timeline, navigation, hazard centre,
+            # performance, alerts) rides along in the SAME response. Deriving
+            # it here adds no request, no loop and no second data path: it is
+            # a pure read of the payload assembled just above.
+            state["ops"] = build_ops_state(
+                state, history=state["history"], replay=state["replay"],
+                recording=state["recording"], tick_hz=self._tick_hz)
             return state
 
     def health(self) -> Tuple[dict, int]:
