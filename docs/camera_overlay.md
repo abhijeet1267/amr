@@ -156,3 +156,91 @@ the **existing 1 Hz tick** — there is no second timer, and a test asserts it.
 - Multi-camera support is modelled (source matching) but the runtime currently
   exposes a single camera.
 
+---
+
+# C15b — Real camera backend
+
+C15b adds **real camera acquisition** behind the existing `VisionDetector`
+protocol. It is the "Stage A" of vision: frames come from an actual camera;
+object-detection inference is deliberately *not* bundled.
+
+## Architecture
+
+```
+CameraSource                       (amr.camera.frame — already existed, C8)
+   ├── SimulatedCameraSource       deterministic, no hardware
+   ├── RaspberryPiCameraSource     picamera2 → libcamera-still → none
+   └── UnavailableCameraSource     explicit "no camera"
+        │
+        ▼  CameraFrame (timestamp, width, height, frame_id, source, status)
+   CameraFrameDetector             (new — amr/camera/detector.py)
+        │  .detect() → [VisionDetection]
+        ▼
+   VisionHazardSource(frame_provider=camera.read)     (extended, not duplicated)
+        │
+        ▼
+   HazardManager → HazardEvent → safety / navigation / telemetry / dashboard
+```
+
+The camera backend only acquires frames. It makes **no** hazard, safety or
+navigation decision, and the whole path is display- and evidence-only.
+
+## No ML dependency
+
+`CameraFrameDetector` takes an **optional** `inference(frame)` callable. With
+none supplied it reports `inference_configured: false` and returns no
+detections. That is the honest state: a camera that is not wired to a model
+must not pretend to see hazards. No YOLO, Torch, TensorFlow, OpenCV-DNN or
+model weights were added, and `import amr.camera` pulls in none of them — a
+test asserts that in a subprocess.
+
+Supplying a model later is a config change plus a callable; the hazard pipeline
+downstream is untouched.
+
+## Configuration
+
+`camera.resolution` is now actually honoured. It was previously read from
+`cam_cfg.width` / `cam_cfg.height`, which `CameraConfig` does not define, so
+the setting was silently discarded and every camera opened at the 640x480
+fallback. `amr.main.parse_resolution()` accepts `"1280x720"`, `"1280X720"`,
+`"640*480"` and a bare number, and falls back safely on nonsense.
+
+| Key | Meaning |
+|---|---|
+| `camera.enabled` | when false, `build_frame_detector()` returns `None` |
+| `camera.resolution` | `"WIDTHxHEIGHT"`, applied to both backends |
+| `camera.camera_id` | source identity carried into detections (e.g. `camera_front`) |
+
+## Image space is still image space
+
+The C13 rule is unchanged and explicitly tested end-to-end: a detection's bbox
+is stored in `metadata["bbox"]` in image pixels alongside
+`metadata["image_size"]`, and `HazardEvent.location` stays `None`. No
+image→world conversion is performed or implied, because the project stores no
+camera calibration.
+
+## Graceful degradation
+
+Without `picamera2` the Pi backend reports `UNAVAILABLE` and names why
+(`picamera2 unavailable: No module named 'picamera2'`). `start()`/`stop()` are
+idempotent and never raise, so a missing camera cannot stop the runtime. A
+frame may still be returned, but it is flagged `UNAVAILABLE` with null
+dimensions and can never masquerade as real imagery.
+
+A failing detector yields a `ROBOT_FAULT` / `WARNING` reading — deliberately
+*not* `ERROR`/`STOP`, because a camera problem must not by itself halt a robot
+that is otherwise safe to drive.
+
+## Hardware status
+
+**Camera hardware: NOT TESTED.**
+
+- The development machine has no `picamera2`; the Pi path was verified only in
+  its unavailable state.
+- The Pi Camera V2 8MP uses the 15-pin connector while the Raspberry Pi 5 uses
+  the smaller one, so a **15-pin → 22-pin adapter** is required. That has not
+  been fitted, and no frame has ever been captured from the physical sensor.
+- No inference model is bundled, so no detection accuracy of any kind is
+  claimed — the confidence figures in the tests are inputs to the pipeline,
+  not measurements of model performance.
+

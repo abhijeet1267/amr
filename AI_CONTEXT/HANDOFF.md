@@ -5,6 +5,124 @@
 
 ---
 
+## Session: C15b — Real camera backend
+
+**Date:** 2026-09-26 · **Branch:** `main` · **Status:** complete, tested, committed
+
+### Implementation
+
+Real **camera acquisition** behind the existing `VisionDetector` protocol, with
+object-detection inference deliberately left unwired ("Stage A").
+
+* `raspberry_pi/amr/camera/detector.py` (new) — `CameraFrameDetector`: pulls a
+  `CameraFrame` from any `CameraSource` and maps an optional
+  `inference(frame)` callable onto the existing C5 `VisionDetection` contract.
+* `VisionHazardSource` extended with `frame_provider=...`; it now accepts a
+  frame-based detector as well as the pre-existing zero-arg callback and
+  pre-materialised sequence forms. No second class was created.
+* `amr/main.py` — `build_camera()` and `build_frame_detector()`; resolution now
+  parsed from `camera.resolution`.
+* `amr/camera/__init__.py` — exports the detector.
+
+```
+camera -> CameraFrame -> CameraFrameDetector -> VisionDetection
+        -> VisionHazardSource -> HazardManager -> safety / navigation
+        -> telemetry / dashboard
+```
+
+### No ML dependency
+
+`inference` is optional. With none supplied the detector reports
+`inference_configured: false` and yields no detections — the honest state for a
+camera not wired to a model. No YOLO/Torch/TensorFlow/OpenCV-DNN/weights were
+added, and a subprocess test asserts `import amr.camera` pulls in none of
+`picamera2`, `RPi`, `RPi.GPIO`, `cv2`, `numpy`.
+
+### Bugs found and fixed (all pre-existing, found by integrating against the real runtime)
+
+1. **Configured resolution was silently ignored.** `build_camera` read
+   `cam_cfg.width` / `cam_cfg.height`, which `CameraConfig` does not define — it
+   stores `resolution` as `"1280x720"`. Every camera therefore opened at the
+   640x480 fallback. `parse_resolution()` fixes this and is unit tested,
+   including malformed input.
+2. **`describe()` gave no reason for `UNAVAILABLE`.** The Pi backend only probed
+   for `picamera2` inside `start()`, so before startup the dashboard reported a
+   bare "UNAVAILABLE" with nothing to act on. It now probes when reporting an
+   unavailable state (a cached import attempt, so still free).
+3. **A `VisionDetector` object was treated as an iterable.** Objects are not
+   callable, so the source iterated over the detector instead of calling its
+   `detect` method. The protocol is now honoured.
+
+### Files changed
+
+| Path | Change |
+|---|---|
+| `raspberry_pi/amr/camera/detector.py` | **new** — `CameraFrameDetector` |
+| `raspberry_pi/amr/camera/frame.py` | `describe()` probes for a reason |
+| `raspberry_pi/amr/camera/__init__.py` | export the detector |
+| `raspberry_pi/amr/hazard/sources.py` | `frame_provider`; object-detector support |
+| `raspberry_pi/amr/hazard/vision.py` | contract support for frame-based detection |
+| `raspberry_pi/amr/main.py` | `build_frame_detector`, `parse_resolution` |
+| `raspberry_pi/tests/test_camera_backend.py` | **new** — 47 tests |
+| `docs/camera_overlay.md` | C15b section |
+| `AI_CONTEXT/{TASK_BOARD,CURRENT_STATUS}.md`, `README.md` | record |
+
+### Tests
+
+| Check | Result |
+|---|---|
+| `python -m pytest` | **1204 passed, 2 skipped, 0 failed** |
+| baseline before C15b | 1157 passed, 2 skipped |
+| new C15b tests | **47** (`tests/test_camera_backend.py`) |
+| `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` | all exit 0 |
+
+Coverage: camera abstraction lifecycle, mock determinism and dimensions, real
+backend degradation, bbox validation and image-space safety, malformed/garbage
+detections, detector failure containment and recovery, config/factory wiring,
+and an end-to-end `frame → detection → HazardEvent` test that also asserts a
+critical detection actually sets `blocks_motion` (and that a marginal one
+correctly does not).
+
+### Safety
+
+* `/command` remains the only actuator path; unchanged.
+* A runtime test drives the full camera→hazard chain inside `NoActuation` and
+  asserts **zero** transport writes.
+* `amr/camera/detector.py` is source-level checked to contain no `/command`,
+  `gpio`, `RPi`, `robot`, `control`, `web` or `estop` reference.
+* A failing detector produces `ROBOT_FAULT` / `WARNING`, deliberately **not**
+  `ERROR`/`STOP` — a camera problem must not by itself halt a safe robot.
+
+### Hardware status
+
+**Camera hardware: NOT TESTED. Firmware: NOT TESTED.**
+
+* No `picamera2` on the development machine; the Pi backend was verified only in
+  its unavailable state (`picamera2 unavailable: No module named 'picamera2'`).
+* The Pi Camera V2 8MP needs a **15-pin → 22-pin adapter** for the Raspberry
+  Pi 5's smaller connector. Not fitted; no frame has been captured from the
+  physical sensor.
+* No inference model is bundled or benchmarked, so **no detection accuracy is
+  claimed**. Confidence values in tests are pipeline inputs, not measurements.
+
+### Known limitations
+
+* Acquisition only — no object detection is wired in.
+* No camera calibration, so bbox stays image-space (the C13 rule).
+* The legacy `CameraManager` JPEG path is untouched and exposes no
+  `CameraFrame` metadata.
+* Frame latency / FPS were not measured; no hardware was available.
+
+### Next milestone
+
+Stage B — wire a real inference backend behind `CameraFrameDetector`'s existing
+`inference` hook, once a model is chosen and the 15-pin→22-pin adapter is in
+place so real frames can validate it. Until then, the highest-value work is the
+hardware-dependent items (C1 geometry/thresholds, C4 gas sensor), which are
+genuinely blocked on physical measurements.
+
+---
+
 ## Session: C15 — Unified deterministic demo
 
 **Date:** 2026-09-26 · **Branch:** `main` · **Status:** complete, tested, committed

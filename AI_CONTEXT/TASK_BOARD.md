@@ -330,6 +330,56 @@ timer, no queue/async pipeline. Source-level tests assert exactly one
 Tests: 1127 passed, 2 skipped, 0 failed (1100 at C14b + 27). Hardware NOT
 tested. See `docs/replay_dashboard.md`.
 
+### C15b — Real camera backend `[x]` (complete)
+**Touches:** `raspberry_pi/amr/camera/detector.py` (new),
+`raspberry_pi/amr/camera/frame.py`, `amr/camera/__init__.py`,
+`amr/hazard/sources.py`, `amr/hazard/vision.py`, `amr/main.py`,
+`raspberry_pi/tests/test_camera_backend.py` (new)
+
+Stage A of the vision work: **real camera acquisition** behind the existing
+`VisionDetector` protocol, with object-detection inference deliberately left
+unwired.
+
+    camera backend -> CameraFrame -> VisionDetector -> VisionDetection
+                   -> VisionHazardSource -> HazardManager -> safety/nav
+
+Delivered:
+
+* `CameraFrameDetector` — a `VisionDetector` that pulls a frame from any
+  `CameraSource` and maps an optional `inference(frame)` callable onto the
+  existing C5 `VisionDetection` contract. **No ML dependency added**: with no
+  callable it reports `inference_configured: false` and yields no detections,
+  which is honest rather than pretending to see.
+* `VisionHazardSource(frame_provider=...)` — accepts a frame-based detector
+  alongside the pre-existing zero-arg callback and pre-materialised sequence
+  forms, so no second class was needed.
+* `build_camera()` / `build_frame_detector()` in `amr/main.py`.
+
+**Bugs found and fixed while integrating:**
+
+1. `build_camera` read `cam_cfg.width` / `cam_cfg.height`, which
+   `CameraConfig` does not have — it stores `resolution` as `"1280x720"`. The
+   configured resolution was silently discarded and every camera opened at the
+   640x480 fallback. `parse_resolution()` now parses it and is unit tested,
+   including malformed input.
+2. `RaspberryPiCameraSource.describe()` reported `UNAVAILABLE` with **no reason**
+   until someone called `start()`, so the dashboard could not explain itself.
+   It now probes (a cached import attempt) when reporting an unavailable state.
+3. A `VisionDetector` **object** is not callable, so an object detector was
+   being treated as an iterable of detections. The source now honours the
+   protocol's `.detect` method.
+
+**Tests:** 47 in `tests/test_camera_backend.py`. Full suite **1204 passed, 2
+skipped, 0 failed** (1157 → +47).
+
+**Hardware: NOT TESTED.** No `picamera2` on the development machine; the Pi
+backend degrades to `UNAVAILABLE` with reason `picamera2 unavailable: No module
+named 'picamera2'`, verified live. The Pi Camera V2 8MP also needs a 15-pin →
+22-pin adapter for the Raspberry Pi 5's smaller connector, and that has not been
+done. No inference model is bundled or benchmarked.
+
+---
+
 ### C15 — Unified demo `[x]` (complete)
 **Touches:** `raspberry_pi/amr/demo.py`, `amr/main.py`, `amr/web/server.py`,
 `amr/robot/robot_manager.py`, `amr/telemetry/collector.py`,
