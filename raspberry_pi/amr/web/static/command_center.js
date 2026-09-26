@@ -117,6 +117,13 @@ function renderHeader(s) {
   var conn = !!(s.system && s.system.connected);
   setChip("conn-badge", "conn-text", conn ? "ONLINE" : "OFFLINE",
           conn ? "ok" : "crit");
+  // C15d: SIMULATION must never read as live hardware. The badge names the
+  // *backing* of the data, which is a different question from whether the
+  // process is reachable (that is the ONLINE chip beside it).
+  var simulated = !!s.simulated || src === "SIMULATION";
+  setChip("hw-badge", "hw-text",
+          simulated ? "SIMULATION" : (src === "LIVE" ? "LIVE HARDWARE" : src),
+          simulated ? "warn" : (src === "LIVE" ? "ok" : "info"));
   var sf = s.safety || {};
   var act = sf.action || null;
   var estop = !!sf.emergency_stop;
@@ -193,7 +200,12 @@ function renderSafety(s) {
 
 function renderHazards(s) {
   var hz = s.hazards || {};
-  var list = hz.items || s.hazard_list || [];
+  // C15d: the raw C7 hazard section is an OBJECT ({state, active, recent}),
+  // not a list. Reading `hz.items` off a dict returns the built-in `.items`
+  // METHOD, which is truthy and then explodes on `.filter` -- so the list is
+  // taken from `active`, with `hazard_list.active` as the fallback.
+  var raw = (s.hazard_list && s.hazard_list.active) || hz.active_items || [];
+  var list = Array.isArray(raw) ? raw : [];
   var placed = hz.placed || 0, unlocated = hz.unlocated || 0;
   txt("haz-count", (isNum(hz.active) ? hz.active : list.length) + " active");
   var el = $("haz-list");
@@ -436,7 +448,8 @@ function renderCamera(s) {
   txt("cam-frame", isNum(c.frame_id) ? "#" + c.frame_id : "n/a");
   txt("cam-time", clock(c.timestamp));
   var hz = s.hazards || {};
-  var list = hz.items || s.hazard_list || [];
+  var list = (s.hazard_list && Array.isArray(s.hazard_list.active)
+    ? s.hazard_list.active : []);
   var withBox = list.filter(function (h) { return (h.metadata || {}).bbox; });
   txt("cam-det", withBox.length
     ? withBox.length + " (image-space)" : "none");
@@ -446,25 +459,93 @@ function renderCamera(s) {
     badge.style.color = st === "LIVE" ? "#2fbf71"
       : (st === "SIMULATION" ? "#e8a33d" : "#ef4d5a");
   }
-  // A missing camera is shown as missing. It is never replaced by a placeholder
-  // image, and it never becomes a fake detection.
-  if (c.has_frame) {
-    if (img) { img.hidden = false; img.src = "/camera/frame?t=" + Date.now(); }
+  // C15d: the camera panel must be a real visual area, not a text card.
+  //
+  // The previous version only fetched /camera/frame when the telemetry said
+  // `has_frame`, but has_frame only becomes true *after* something reads a
+  // frame -- so the panel could never light up: a deadlock. The frame is now
+  // requested whenever the camera is not UNAVAILABLE/ERROR, and the badge
+  // reports what actually arrived. A simulated frame is still never presented
+  // as live hardware, and a genuinely missing camera is still shown as missing.
+  if (st !== "UNAVAILABLE" && st !== "ERROR") {
+    if (img) {
+      img.hidden = false;
+      // onerror fires for a 503, so a dead camera collapses back to the notice.
+      img.onerror = function () {
+        img.hidden = true;
+        if (empty) {
+          empty.hidden = false;
+          empty.textContent = "No camera frame available right now.";
+        }
+      };
+      img.src = "/camera/frame?t=" + Date.now();
+    }
     if (empty) empty.hidden = true;
   } else {
     if (img) { img.hidden = true; img.removeAttribute("src"); }
     if (empty) {
       empty.hidden = false;
-      empty.textContent = st === "UNAVAILABLE" || st === "ERROR"
-        ? ("Camera unavailable" + (c.error ? " \u2014 " + c.error : "") +
-           ". No detections are shown because there is no image.")
-        : "Waiting for a frame\u2026";
+      empty.textContent = (c.error ? c.error : st) +
+        " — no camera frame. No detections are shown because there is no image.";
     }
   }
   txt("cam-src", c.source || "");
+  renderCameraOverlay(list, c);
+}
+
+/* Draw bounding boxes over the image. The boxes stay in IMAGE space: they are
+   scaled by the image's own pixel size, never converted to world metres. */
+function renderCameraOverlay(list, cam) {
+  var host = $("cam-overlay");
+  if (!host) return;
+  var boxes = list.filter(function (h) {
+    var b = (h.metadata || {}).bbox;
+    return Array.isArray(b) && b.length >= 4 && isNum(cam.width) && isNum(cam.height);
+  });
+  if (!boxes.length) {
+    host.innerHTML = "";
+    host.hidden = true;
+    return;
+  }
+  var W = cam.width, H = cam.height;
+  host.hidden = false;
+  host.innerHTML = boxes.map(function (h) {
+    var b = h.metadata.bbox;   // C5 corner form [x1, y1, x2, y2] in pixels
+    var x = Math.min(b[0], b[2]), y = Math.min(b[1], b[3]);
+    var w = Math.abs(b[2] - b[0]), hgt = Math.abs(b[3] - b[1]);
+    var conf = isNum(h.confidence) ? " " + h.confidence.toFixed(2) : "";
+    return '<div class="ov-box" style="left:' + (100 * x / W) + "%;top:" +
+      (100 * y / H) + "%;width:" + (100 * w / W) + "%;height:" +
+      (100 * hgt / H) + '%"><span class="ov-label">' + esc(h.kind) +
+      esc(conf) + "</span></div>";
+  }).join("");
 }
 
 /* -- 3D twin (renders the C10 payload) ------------------------------------ */
+/* The legend is static on purpose: it names what the renderer draws, and it
+   stays visible even when the scene is empty so the operator can tell an empty
+   warehouse apart from a broken panel. */
+var T_LEGEND = [
+  ["#2fbf71", "Robot body (chassis)"],
+  ["#151b24", "Wheels (4)"],
+  ["#3893fa", "Camera module"],
+  ["#d99e1c", "Sensor mast"],
+  ["#ffffff", "Heading indicator (front)"],
+  ["#f5a623", "Hazard"],
+  ["#38bcf6", "Planned route"],
+  ["#a855f7", "Goal"],
+  ["#57e389", "Waypoint"]
+];
+
+function renderTwinLegend() {
+  var el = $("t-legend");
+  if (!el) return;
+  el.innerHTML = "<b>3D TWIN</b><br>" + T_LEGEND.map(function (row) {
+    return '<span class="swatch" style="background:' + row[0] + '"></span>' +
+      esc(row[1]);
+  }).join("<br>");
+}
+
 function renderTwin(s) {
   var tw = s.twin || {};
   txt("twin-src", tw.source || "");
@@ -919,9 +1000,44 @@ function initControls() {
   });
 }
 
+/* -- C15d: focused views ---------------------------------------------------- */
+/* Client-side only. The brief allows either separate routes or client-side
+   views; this chooses the latter so there is still exactly one page, one poll
+   and no duplicated backend logic. The same panels are shown either way. */
+function setView(name) {
+  var main = $("main");
+  if (main) {
+    main.className = "view-" + name;
+    main.setAttribute("data-view", name);
+  }
+  document.querySelectorAll(".tabs button[data-view]").forEach(function (b) {
+    b.setAttribute("aria-selected", b.getAttribute("data-view") === name
+      ? "true" : "false");
+  });
+  // The canvases must be re-measured after a layout change, or the focused
+  // view renders at the old (overview) pixel size.
+  window.requestAnimationFrame(function () { if (CC.state) renderTwin(CC.state); });
+}
+
+function initViews() {
+  document.querySelectorAll(".tabs button[data-view]").forEach(function (b) {
+    b.addEventListener("click", function () { setView(b.getAttribute("data-view")); });
+  });
+  // A hash keeps a focused view linkable and survives a reload.
+  var initial = (location.hash || "").replace("#", "");
+  setView(["twin", "map", "camera", "replay"].indexOf(initial) >= 0
+    ? initial : "overview");
+  window.addEventListener("hashchange", function () {
+    var n = (location.hash || "").replace("#", "");
+    setView(["twin", "map", "camera", "replay"].indexOf(n) >= 0 ? n : "overview");
+  });
+}
+
 /* -- bootstrap ------------------------------------------------------------ */
 initControls();
+initViews();
 initTwin();
+renderTwinLegend();
 loadRecordings();
 poll();
 // One timer for the whole page. No second telemetry loop, no duplicate fetch.

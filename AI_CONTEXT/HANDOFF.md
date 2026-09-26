@@ -5,6 +5,104 @@
 
 ---
 
+## Session: C5d — Command Center visual verification + hardware-ready UI
+
+**Date:** 2026-09-26 · **Branch:** `main` · **Tests: 1261 passed, 2 skipped,
+0 failed** (1257 at C15c + 4 C5d regression tests)
+
+### What this session found and fixed
+
+Two defects, both discovered by *watching* the demo rather than trusting a
+passing suite. Neither was visible to any existing test.
+
+**1. A camera-panel deadlock (functional).** The panel only requested
+`/camera/frame` when telemetry said `has_frame`, but `has_frame` only becomes
+true *after* something reads a frame — so the panel could never light up. The
+frame is now requested whenever the camera is not `UNAVAILABLE`/`ERROR`, with
+`onerror` collapsing back to the notice. The panel is now a real visual area
+with a genuine empty state, not a text card.
+
+**2. The AMR oscillated instead of driving (behavioural).** `run_web` ran its
+own 1 Hz loop calling `mgr.tick()` and `mission.process(dt=1.0)` while the
+server's `_control_loop` was already ticking at 5–10 Hz. Two consequences:
+
+- the robot was integrated **twice** per second, and
+- the planner's clock ran 5–10× too fast, so the goal outran the robot.
+
+The visible symptom was the robot reversing back and forth along its route
+(`x: -0.2 → -0.32 → 0.17 → 0.41`) instead of tracking the path. The fix follows
+the C14b/C14c/C15c precedent: the mission is stepped by the **existing**
+`_tick_once` with the loop's own `interval`, and `run_web` now only keeps the
+process alive. `AMRWebApp._run_warehouse` had been set and never read — a dead
+flag — so it is now backed by a real `self._warehouse` reference.
+
+Measured after the fix (24 s live run, mock mission):
+
+| | before | after |
+|---|---|---|
+| in-leg direction reversals | 3 | **0** |
+| steady-state step | erratic 0.06–0.45 m | **0.50 m** |
+| total path length | — | 7.12 m |
+| final pose | oscillating | (−0.008, 0.048) ≈ dock, `COMPLETED` |
+
+`docs/command_center.md` records the full method, including the two measurement
+mistakes worth avoiding: a naive "sign of dx" test flags legitimate diagonal
+travel as oscillation, and a static grep of the HTML cannot confirm a badge that
+is filled at runtime.
+
+### Visual verification actually performed
+
+Not "the route returned 200". All eleven endpoints checked over real HTTP
+(`/command-center`, both static assets, `/dashboard/state`, `/replay/status`,
+`/map`, `/digital-twin`, `/telemetry`, `/health`, `/camera/status`,
+`/camera/frame` → 200, `/camera/frame` → `image/png`), then every render
+function executed against a **real** `/dashboard/state` payload through a DOM
+shim — all 15 render paths OK, no `TypeError`. Confirmed visually:
+
+- `hw-text = SIMULATION` (never claims hardware), `r-batt = n/a` (no fabrication)
+- map SVG carries real geometry (1 polygon, 2 polylines, 6 circles, 5 texts)
+- 3D twin model has 4 wheels, camera, sensor, chassis 0.6×0.4×0.28, `forward_axis +x`
+- camera overlay draws a bbox and labels it **`1 (image-space)`** — the C13 rule
+  that image coordinates never become world coordinates
+- 12 event-log rows populated
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `raspberry_pi/amr/web/server.py` | mission stepped by `_tick_once`; real `_warehouse` ref |
+| `raspberry_pi/amr/main.py` | removed the competing tick loop; passes `run_warehouse` |
+| `raspberry_pi/amr/web/static/command_center.js` | camera frame fix, robot shapes, overlay, nav/views |
+| `raspberry_pi/amr/web/static/command_center.html` | nav, badges, camera frame area, view sections |
+| `raspberry_pi/amr/web/static/command_center.css` | layout for the above |
+| `raspberry_pi/tests/test_command_center.py` | +4 regression tests (57 total) |
+| `docs/command_center.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+
+### Regression tests added
+
+`TestMissionRidesTheControlLoop` — the loop may be stepped only by `_tick_once`;
+it must use the loop's `interval` (never a fixed 1.0 s); it must not run at all
+without `run_warehouse`; and `run_web` must contain no `mgr.tick()` /
+`.process(dt=)` after `app.start` (comment-stripped source scan).
+
+### Safety
+
+Unchanged. `/command` remains the only actuator path. The Command Center
+issues only GETs plus the pre-existing replay routes; `read_only: true` is
+reported by `/dashboard/state`. Replay still never overwrites live telemetry.
+
+### Hardware
+
+**Hardware / firmware / camera: NOT TESTED.** No physical robot, no Pi, no
+camera. The Pi Camera V2 8MP still needs a 15-pin → 22-pin adapter for a Pi 5.
+All results above are mock/simulation.
+
+### Next
+
+Nothing outstanding for C5d. See `TASK_BOARD.md`.
+
+---
+
 ## Session: C15c — AMR Command Center
 
 **Date:** 2026-09-26 · **Branch:** `main` · **Status:** complete, tested, committed

@@ -247,6 +247,9 @@ class AMRWebApp:
         # bounded; the defaults suit a 1 Hz dashboard on a Raspberry Pi.
         history_capacity: int = 150,
         event_capacity: int = 200,
+        # C15d: step the warehouse mission from this app's control loop, so the
+        # mission advances in step with the robot instead of racing ahead of it.
+        run_warehouse: bool = False,
     ):
         self._mgr = mgr
         # C13: the detection identity of the camera, used only to pair a frame
@@ -259,6 +262,17 @@ class AMRWebApp:
         # recording written by the runtime is immediately discoverable by
         # GET /replay/recordings. No-op unless a directory is configured.
         self._auto = AutoRecorder(recordings_dir, enabled=auto_record)
+        # C15d: whether this app also drives the warehouse mission. When set, the
+        # mission is stepped inside the EXISTING control loop (see _tick_once).
+        # A plain boolean rather than a callback, so the web layer holds no
+        # opinion about how tasks are run.
+        self._run_warehouse = bool(run_warehouse) and warehouse is not None
+        # C5d: the mission is stepped by THIS app's control loop, so the demo
+        # can never run a second tick loop of its own (which would double-integrate
+        # the robot). Kept as a real reference, not just a flag: `_run_warehouse`
+        # used to be set and never read, so `--mission-demo` silently did nothing
+        # here and the robot only moved because main.py ticked it separately.
+        self._warehouse = warehouse if self._run_warehouse else None
         # C15c: bounded time-series + event log for the Command Center charts.
         # Server-side on purpose: a long-running Pi must not accumulate history
         # in the browser, and the server is then the single owner of the past.
@@ -373,6 +387,16 @@ class AMRWebApp:
                 self._mgr.tick()
             except Exception as exc:  # noqa: BLE001 - loop must survive
                 self.log.error("tick failed: %s", exc)
+            # C5d: the warehouse mission rides THIS loop. Stepping it here with
+            # the loop's own `interval` is what keeps the planner and the robot
+            # in the same time base: a caller that stepped the mission once per
+            # second while the control loop ran at 5-10 Hz made the goal outrun
+            # the robot, and the AMR visibly oscillated along its route.
+            if self._warehouse is not None:
+                try:
+                    self._warehouse.process(dt=interval)
+                except Exception as exc:  # noqa: BLE001 - loop must survive
+                    self.log.warning("warehouse step failed: %s", exc)
             # C14b: replay rides the loop that already exists. No second
             # timer, no thread: the controller is a no-op unless a recording
             # is loaded and playing, so live behaviour is untouched.

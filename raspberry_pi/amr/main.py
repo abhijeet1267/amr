@@ -327,6 +327,13 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
         camera=camera,
         navigator=nav,
         warehouse=wh,
+        # C5d: hand the mission to the server's EXISTING control loop instead of
+        # ticking it here. run_web used to run a second, 1 Hz loop that called
+        # mgr.tick() and mission.process(dt=1.0) while the server's loop was
+        # already ticking at 5-10 Hz — the robot was integrated twice and the
+        # planner's clock was 5-10x too fast, which showed up as the AMR
+        # visibly oscillating back and forth along its route.
+        run_warehouse=mission is not None,
         # C7: the dashboard is told the truth about where its numbers come
         # from. A mock run is tagged SIMULATION everywhere, so the UI can never
         # present simulated telemetry as a physical measurement.
@@ -347,14 +354,11 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
               "(mock only)")
     get_logger("main").info("web control listening on %s:%d", args.host, port)
     try:
+        # C5d: this loop only keeps the process alive. The server's own control
+        # loop drives mgr.tick(), the mission and the recorder; ticking here too
+        # would double-integrate the robot.
         while True:
             time.sleep(1.0)
-            # C12: step the mission once per second, using the same manager the
-            # warehouse demo uses. The dashboard itself remains read-only — it
-            # only observes the result of this loop.
-            if mission is not None:
-                mgr.tick()
-                mission.process(dt=1.0)
     except KeyboardInterrupt:
         pass
     finally:

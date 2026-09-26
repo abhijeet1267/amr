@@ -501,6 +501,51 @@ robot, camera, sensor or motor controller.
 
 ---
 
+## C5d — [x] Command Center visual verification + hardware-ready UI
+
+**Goal:** make the Command Center visibly *work* — robot that drives, camera
+panel that lights up, map/twin/mission/telemetry/replay all updating live — and
+verify it by looking at it rather than trusting a 200.
+
+**Two real defects were found by watching the demo** (neither was visible to
+any existing test):
+
+1. **Camera-panel deadlock.** The panel only requested `/camera/frame` when
+   telemetry said `has_frame`, but `has_frame` only becomes true *after*
+   something reads a frame — so the panel could never light up. The frame is now
+   requested whenever the camera is not `UNAVAILABLE`/`ERROR`, with `onerror`
+   collapsing back to an honest empty state.
+
+2. **The AMR oscillated instead of driving.** `run_web` ran its own 1 Hz loop
+   calling `mgr.tick()` and `mission.process(dt=1.0)` while the server's
+   `_control_loop` was already ticking at 5–10 Hz. The robot was integrated
+   twice and the planner's clock ran 5–10× too fast, so the goal outran the
+   robot (`x: -0.2 → -0.32 → 0.17 → 0.41`). Fixed by stepping the mission from
+   the **existing** `_tick_once` with the loop's own `interval`; `run_web` now
+   only keeps the process alive. `AMRWebApp._run_warehouse` was a dead flag
+   (set, never read) and is now backed by a real reference.
+
+   Measured after: **0** in-leg direction reversals, steady 0.50 m step,
+   7.12 m round trip, arrives at the dock, phase `COMPLETED`.
+
+**Verification performed:** all 11 endpoints over real HTTP (200, correct
+content types, `/camera/frame` → `image/png`), then every render function
+executed against a real `/dashboard/state` payload via a DOM shim — 15 render
+paths OK, no `TypeError`. Confirmed: `hw-text = SIMULATION`, `r-batt = n/a`,
+map SVG carries real geometry, twin model has 4 wheels + camera + sensor, the
+camera overlay draws a bbox labelled `1 (image-space)`, 12 event-log rows.
+
+**Tests:** 4 new (`TestMissionRidesTheControlLoop`). Full suite **1261 passed,
+2 skipped, 0 failed** (1257 before).
+
+**Safety:** unchanged. `/command` remains the only actuator path; the console
+issues only GETs plus the pre-existing replay routes; `read_only: true`.
+
+**Hardware / firmware / camera: NOT TESTED.** The Pi Camera V2 8MP still needs a
+15-pin → 22-pin adapter for a Pi 5.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

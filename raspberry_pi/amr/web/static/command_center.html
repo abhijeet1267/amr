@@ -15,9 +15,17 @@
     <span class="sub">Autonomous Warehouse Robot</span>
   </div>
   <span class="spacer"></span>
+  <nav class="tabs" role="tablist" aria-label="Command Center views">
+    <button type="button" role="tab" data-view="overview" aria-selected="true">Overview</button>
+    <button type="button" role="tab" data-view="twin" aria-selected="false">3D Twin</button>
+    <button type="button" role="tab" data-view="map" aria-selected="false">Map</button>
+    <button type="button" role="tab" data-view="camera" aria-selected="false">Camera</button>
+    <button type="button" role="tab" data-view="replay" aria-selected="false">Replay</button>
+  </nav>
   <!-- LIVE / REPLAY is a first-class visual distinction: the badge and the
        banner change together so the mode can never be ambiguous. -->
   <span class="chip info" id="mode-badge"><span class="dot"></span><span id="mode-text">CONNECTING</span></span>
+  <span class="chip" id="hw-badge"><span class="dot"></span><span id="hw-text">&mdash;</span></span>
   <span class="chip" id="src-badge"><span class="lbl">SOURCE</span><span id="src-text">&mdash;</span></span>
   <span class="chip" id="conn-badge"><span class="dot"></span><span id="conn-text">&mdash;</span></span>
   <span class="chip" id="safety-badge"><span class="lbl">SAFETY</span><span id="safety-text">&mdash;</span></span>
@@ -29,7 +37,7 @@
 <main id="main">
 
   <!-- 3D DIGITAL TWIN (C10 payload) -->
-  <section class="card span-5" aria-labelledby="h-twin">
+  <section class="card span-5" id="sec-twin" data-section="twin" aria-labelledby="h-twin">
     <h2 id="h-twin">3D Digital Twin <span class="count" id="twin-src"></span></h2>
     <div class="toolbar" role="group" aria-label="3D view controls">
       <button type="button" id="t-iso">Isometric</button>
@@ -44,7 +52,7 @@
     <div class="stage twin">
       <canvas id="t-canvas" aria-label="3D digital twin of the AMR. Robot pose, route and hazards follow live telemetry."></canvas>
       <span class="overlay-badge" id="t-badge">NO DATA</span>
-      <div class="legend" id="t-legend" hidden></div>
+      <div class="legend" id="t-legend"></div>
       <div class="empty" id="t-fallback" hidden>
         3D rendering is unavailable (WebGL not supported). Map, telemetry and
         every other panel remain fully functional.
@@ -53,10 +61,11 @@
   </section>
 
   <!-- LIVE CAMERA (C8 / C15b payload) -->
-  <section class="card span-4" aria-labelledby="h-cam">
+  <section class="card span-4" id="sec-camera" data-section="camera" aria-labelledby="h-cam">
     <h2 id="h-cam">Live Camera <span class="count" id="cam-src"></span></h2>
     <div class="stage cam">
       <img id="cam-img" alt="Latest camera frame with hazard overlays" hidden>
+      <div id="cam-overlay" class="ov-layer" hidden aria-hidden="true"></div>
       <span class="overlay-badge" id="cam-badge">&mdash;</span>
       <div class="empty" id="cam-empty">Waiting for camera&hellip;</div>
     </div>
@@ -106,7 +115,7 @@
   </section>
 
   <!-- WAREHOUSE MAP (C9 payload) -->
-  <section class="card span-12" aria-labelledby="h-map">
+  <section class="card span-12" id="sec-map" data-section="map" aria-labelledby="h-map">
     <h2 id="h-map">Warehouse Map <span class="count" id="map-note"></span></h2>
     <div class="toolbar" role="group" aria-label="Map controls">
       <button type="button" id="m-fit">Fit</button>
@@ -181,7 +190,7 @@
   </section>
 
   <!-- RECORDING / REPLAY (C14 / C14b) -->
-  <section class="card span-5" aria-labelledby="h-replay">
+  <section class="card span-5" id="sec-replay" data-section="replay" aria-labelledby="h-replay">
     <h2 id="h-replay">Record &amp; Replay</h2>
     <div class="toolbar">
       <select id="rec-select" aria-label="Select recording"><option value="">No recordings</option></select>

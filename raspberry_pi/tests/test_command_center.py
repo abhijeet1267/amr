@@ -484,5 +484,104 @@ class TestHistoryIsReadOnly:
             h.to_dict()
 
 
+# --------------------------------------------------------------------------- #
+# C5d: the mission must ride the EXISTING control loop
+# --------------------------------------------------------------------------- #
+class TestMissionRidesTheControlLoop:
+    """Regression cover for a real defect found by watching the demo.
+
+    ``run_web`` used to run its own 1 Hz loop that called ``mgr.tick()`` and
+    ``mission.process(dt=1.0)`` while the server's own control loop was already
+    ticking at 5-10 Hz. The robot was therefore integrated twice, and the
+    planner's clock ran 5-10x too fast, so the goal outran the robot and the AMR
+    visibly oscillated along its route instead of driving to it.
+    """
+
+    def test_web_app_steps_the_mission_itself(self, config_dir):
+        """``_tick_once`` drives the warehouse with the loop's own interval."""
+        from amr.robot import RobotManager
+        from amr.utils.config import load_config
+        from amr.web import AMRWebApp
+
+        config = load_config(config_dir)
+        mgr, _ = RobotManager.create_mock(config)
+
+        seen = []
+
+        class RecordingWarehouse:
+            def process(self, dt=None):
+                seen.append(dt)
+
+        wh = RecordingWarehouse()
+        app = AMRWebApp(mgr, warehouse=wh, run_warehouse=True, simulated=True)
+        assert app._warehouse is wh, "mission was not handed to the control loop"
+        app._tick_once(0.1)
+        app._tick_once(0.1)
+        assert seen == [0.1, 0.1], "mission must be stepped by _tick_once"
+        assert app._tick_hz == 5.0
+
+    def test_mission_is_not_stepped_when_not_requested(self, config_dir):
+        """The default (no --mission-demo) must not drive the warehouse."""
+        from amr.robot import RobotManager
+        from amr.utils.config import load_config
+        from amr.web import AMRWebApp
+
+        config = load_config(config_dir)
+        mgr, _ = RobotManager.create_mock(config)
+
+        class Warehouse:
+            def process(self, dt=None):  # pragma: no cover - must not run
+                raise AssertionError("mission must not be stepped")
+
+        app = AMRWebApp(mgr, warehouse=Warehouse(), simulated=True)
+        assert app._warehouse is None
+        app._tick_once(0.1)      # must not raise
+
+    def test_run_web_does_not_tick_the_robot_itself(self):
+        """`run_web` must keep the process alive WITHOUT a second tick loop.
+
+        Source-level: a second `mgr.tick()` / `mission.process()` in main.py is
+        exactly the defect, and it is invisible in a unit test of the web app.
+        Comments are stripped first — the fix's own explanatory comment
+        mentions ``mgr.tick()`` by name, and a naive substring scan would flag
+        the very comment that documents the bug.
+        """
+        import inspect
+
+        from amr.main import run_web
+        src = inspect.getsource(run_web)
+        # Drop comment-only lines before scanning: the fix's own explanatory
+        # comment mentions ``mgr.tick()`` by name, and a naive substring scan
+        # would flag the very comment that documents the bug.
+        code = "\n".join(
+            ln for ln in src.splitlines() if not ln.lstrip().startswith("#"))
+        body = code.split("port = app.start", 1)[1]
+        assert "mgr.tick()" not in body, "run_web must not tick the robot"
+        assert ".process(dt=" not in body, "run_web must not step the mission"
+        # It must still hand the mission to the app's loop.
+        assert "run_warehouse=" in code
+
+    def test_stepping_uses_the_loop_interval_not_a_fixed_second(self, config_dir):
+        """A 1.0 dt on a 10 Hz loop is the bug; dt must equal the interval."""
+        from amr.robot import RobotManager
+        from amr.utils.config import load_config
+        from amr.web import AMRWebApp
+
+        config = load_config(config_dir)
+        mgr, _ = RobotManager.create_mock(config)
+        dts = []
+
+        class Warehouse:
+            def process(self, dt=None):
+                dts.append(dt)
+
+        app = AMRWebApp(mgr, warehouse=Warehouse(), run_warehouse=True,
+                        tick_hz=10.0, simulated=True)
+        app._tick_once(1.0 / app._tick_hz)
+        assert dts == [pytest.approx(0.1)]
+        assert dts[0] != 1.0
+
+
+
 
 

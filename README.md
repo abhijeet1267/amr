@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1257 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **1261 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -105,6 +105,18 @@ python -m amr.hazard.vision
 #    Deterministic, offline, mock only. Hardware NOT tested.
 python -m amr.demo
 ```
+
+**To watch the AMR move:** open the printed URL and append
+**`/command-center`**, e.g. `http://127.0.0.1:8080/command-center`. The `2c`
+form additionally runs the warehouse mission, so you can watch the robot drive:
+it navigates to a shelf, picks, drops at the station and returns to the dock,
+with the 3D twin, map, mission panel, telemetry charts and event log all
+updating once per second.
+
+The console labels itself honestly while doing this: the header shows
+**● SIMULATION**, the battery reads `n/a` rather than a made-up percentage, and
+any camera detection is drawn as an **image-space** bounding box that is never
+converted into warehouse coordinates. See `docs/command_center.md`.
 
 Against the real robot the same entry points work without `--mock`; the camera
 degrades gracefully if absent.

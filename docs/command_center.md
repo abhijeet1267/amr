@@ -140,3 +140,78 @@ Camera V2 needs a 15-pin to 22-pin adapter for the Raspberry Pi 5 before any
 real frame can be captured. The legacy `/dashboard` page remains available and
 unchanged; the Command Center is an additional view, not a replacement.
 
+## C5d — visual verification, and two defects it caught
+
+A route returning 200 proves the server responded. It does not prove the page
+shows anything useful. C5d verified the console by *watching* it, which found
+two defects that no existing test could see.
+
+### 1. The camera panel could never light up
+
+The panel requested `/camera/frame` only when telemetry reported
+`has_frame` — but `has_frame` only becomes true *after* something reads a
+frame. Nothing read one, so nothing ever lit up: a self-blocked panel.
+
+The frame is now requested whenever the camera is not
+`UNAVAILABLE`/`ERROR`, and `onerror` collapses back to the notice, so a dead
+camera still reads as dead rather than as a broken image. The panel is now a
+real visual area with an honest empty state, not a text card.
+
+### 2. The AMR oscillated instead of driving
+
+`run_web` ran its own 1 Hz loop:
+
+```python
+while True:
+    time.sleep(1.0)
+    mgr.tick()
+    mission.process(dt=1.0)
+```
+
+while the server's `_control_loop` was already calling `mgr.tick()` at
+`tick_hz` (5–10 Hz by default). Two things went wrong at once:
+
+- the robot was integrated **twice** per second, and
+- the planner's clock ran 5–10× too fast, so the goal outran the robot.
+
+The visible symptom was the robot reversing back and forth along its route
+(`x: -0.2 → -0.32 → 0.17 → 0.41`) rather than tracking the path.
+
+The fix follows the precedent already set by C14b/C14c/C15c: the mission is
+stepped by the **existing** `_tick_once`, using that loop's own `interval`,
+and `run_web` now only keeps the process alive. `AMRWebApp._run_warehouse` had
+been set and never read — a dead flag, which is why `--mission-demo` did
+nothing inside the server — and is now backed by a real `self._warehouse`
+reference.
+
+| | before | after |
+|---|---|---|
+| in-leg direction reversals | 3 | **0** |
+| steady-state step | erratic 0.06–0.45 m | **0.50 m** |
+| total path length | — | 7.12 m |
+| final pose | oscillating | (−0.008, 0.048) ≈ dock, phase `COMPLETED` |
+
+### Verification actually performed
+
+* All eleven endpoints over real HTTP — `/command-center`, both static assets,
+  `/dashboard/state`, `/replay/status`, `/map`, `/digital-twin`, `/telemetry`,
+  `/health`, `/camera/status`, `/camera/frame` (→ `image/png`).
+* Every render function executed against a **real** `/dashboard/state` payload
+  through a small DOM shim: 15 render paths OK, no `TypeError`.
+* Confirmed in the rendered output: `hw-text = SIMULATION` (never claims
+  hardware), `r-batt = n/a` (no fabricated value), map SVG carrying real
+  geometry, a 4-wheel twin model with camera and sensor, the camera overlay
+  labelled `1 (image-space)`, and 12 event-log rows.
+
+### Two measurement traps worth recording
+
+* **"Sign of `dx`" is not an oscillation test.** The AMR drives diagonally, so
+  its x-component legitimately changes sign as the heading arc curves. The
+  first version of this check reported `OSCILLATING` on a perfectly smooth run.
+  A valid test measures per-step *speed* consistency and backtracking, not the
+  sign of a single axis.
+* **A static grep cannot confirm a runtime-filled badge.** The
+  `SIMULATION` badge is populated by JavaScript from live state, so it does
+  not appear in the served HTML. It has to be checked after render.
+
+

@@ -285,6 +285,47 @@ main {
 .dim { color: var(--dim); }
 .na { color: var(--dim); font-style: italic; }
 .nowrap { white-space: nowrap; }
+
+/* --- C15d: top navigation + focused views --------------------------------- */
+.tabs { display: flex; gap: 3px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: 3px; }
+.tabs button {
+  border: none; background: transparent; padding: 5px 12px;
+  font-size: 12px; color: var(--muted); border-radius: 5px;
+}
+.tabs button:hover { background: var(--card-2); color: var(--text); border: none; }
+.tabs button[aria-selected="true"] {
+  background: #10334a; color: var(--accent); font-weight: 700;
+}
+/* A focused view promotes its section to the full grid width. */
+main.view-twin .card, main.view-map .card, main.view-camera .card,
+main.view-replay .card { grid-column: span 12 !important; }
+main.view-twin .stage.twin, main.view-camera .stage.cam, main.view-replay .card {
+  max-width: 1400px; margin: 0 auto; width: 100%;
+}
+main.view-twin .stage.twin { aspect-ratio: 16 / 10; }
+main.view-camera .stage.cam { aspect-ratio: 16 / 9; }
+/* In a focused view the non-target panels step aside rather than disappear, so
+   the operator never loses the safety or status context entirely. */
+main[data-view]:not([data-view="overview"]) .card { opacity: .35; }
+main.view-twin #sec-twin, main.view-camera #sec-camera,
+main.view-map #sec-map, main.view-replay #sec-replay {
+  opacity: 1; order: -1;
+}
+
+/* --- C15d: camera detection overlay -------------------------------------- */
+.ov-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.ov-box {
+  position: absolute; border: 2px solid var(--warn);
+  border-radius: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5);
+}
+.ov-label {
+  position: absolute; top: -20px; left: -2px;
+  background: var(--warn); color: #17110a;
+  font: 700 10px/1.5 var(--mono); padding: 1px 5px;
+  border-radius: 3px; white-space: nowrap;
+}
+
 .sim-banner {
   background: #1e170c; border: 1px solid #5a4220; color: var(--warn);
   padding: 7px 14px; font-size: 12px; text-align: center; font-weight: 600;
