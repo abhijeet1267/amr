@@ -463,6 +463,44 @@ control path of its own.
 
 ---
 
+### C15c — AMR Command Center `[x]` (complete)
+**Touches:** `raspberry_pi/amr/web/static/` (new, 3 files),
+`raspberry_pi/amr/telemetry/series.py` (new), `amr/web/server.py`,
+`tests/test_command_center.py` (new), `tests/conftest.py`,
+`tests/test_web_server.py`, `docs/command_center.md`, `README.md`
+
+A real browser operator console at `GET /command-center`: 3D twin, live camera,
+2D map, robot status, safety, mission, telemetry charts, filterable event log
+and record/replay — a **view** over the existing backend, not a second robot.
+
+Two things genuinely did not exist before:
+
+1. **Bounded history** (`amr/telemetry/series.py`) — a fixed-length time-series
+   buffer and a change-driven event stream, filled inside the *existing* control
+   loop from the same telemetry snapshot everything else reads. Server-side on
+   purpose, so a long-running Pi never grows its heap and the charts and event
+   log cannot disagree.
+2. **Real static files** — the console is HTML/CSS/JS on disk instead of Python
+   strings, served through a whitelist so `/static/../../etc/passwd` 404s.
+
+No new dependency, no framework, no build step: the 3D view is hand-written
+WebGL and the charts are 2D canvas, both built into every browser.
+
+**Honesty properties tested, not just documented:** a missing value is never
+`0`; `NaN`/`inf`/bool are not numbers; no timestamp means no sample; a camera
+bbox stays image-space and is labelled as such in the UI; a missing camera
+produces no detections; `SIMULATION` is never shown as `LIVE`; replay never
+overwrites live telemetry.
+
+**Tests:** 53 new in `tests/test_command_center.py`. Full suite **1257 passed,
+2 skipped, 0 failed** (1204 before). The `web` / `web_no_camera` fixtures moved
+to `conftest.py` so both suites drive the *same* running app.
+
+**Hardware / firmware: NOT TESTED.** Mock and simulated data only; no physical
+robot, camera, sensor or motor controller.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

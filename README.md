@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1100%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1257%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1204 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **1257 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -80,6 +80,13 @@ python -m amr.main --mock
 
 # 2. Web control panel + mock camera (open the printed URL)
 python -m amr.main --mock --web
+
+# 2b. AMR Command Center — the full operator console
+#     http://localhost:8080/command-center
+python -m amr.main --mock --web
+
+# 2c. Command Center driving a live mission (mock-only; refused without --mock)
+python -m amr.main --mock --web --mission-demo
 
 # 3. A scripted autonomous warehouse round-trip: dock -> shelf (pick) -> station (place) -> dock
 python -m amr.warehouse --mock
@@ -116,6 +123,46 @@ loop that must not miss a beat. They speak a plain-text serial protocol. The
 Arduino **boots stopped**, moves only on explicit commands, and can force a
 stop on its own via the watchdog or a close obstacle — so a Pi crash, reboot, or
 pulled cable can never leave the robot driving.
+
+### The software stack, end to end
+
+```mermaid
+flowchart TD
+    CAM[Camera Source<br/>C8 / C15b] --> FRAME[CameraFrame]
+    FRAME --> DET[VisionDetector<br/>C5 / C15b]
+    DET --> HZ[HazardManager<br/>C5]
+    HZ --> SAFE[SafetyManager<br/>C1]
+    SAFE --> NAV[Navigation<br/>C9]
+    NAV --> MGR[RobotManager<br/>gated API]
+    MGR --> ARD[Arduino UNO<br/>watchdog + reflexes]
+
+    MGR --> TEL[TelemetrySnapshot<br/>C7]
+    TEL --> MAP[MapSnapshot<br/>C9]
+    MAP --> SNAP[DigitalTwinState<br/>C10]
+
+    TEL --> CC[AMR Command Center<br/>C15c]
+    MAP --> CC
+    SNAP --> CC
+    CC --> V2D[2D Map]
+    CC --> V3D[3D Twin]
+    CC --> VCAM[Camera + overlays]
+    CC --> VCHART[Charts + Event Log]
+
+    TEL --> REC[TelemetryRecorder<br/>C14 / C14c]
+    REC --> STORE[(RecordingStore)]
+    STORE --> REP[ReplayPlayer<br/>C14b]
+    REP --> CC
+
+    classDef view fill:#1a2534,stroke:#22d3ee,color:#e6edf7
+    classDef safety fill:#2a1418,stroke:#ef4d5a,color:#e6edf7
+    class V2D,V3D,VCAM,VCHART,CC view
+    class SAFE,HZ safety
+```
+
+The **Command Center is a view**. Nothing in the browser decides safety, runs
+navigation, or issues a motor command; it renders the same authoritative
+payloads the rest of the system already produces. `POST /command` remains the
+only actuator path, and the console never calls it.
 
 ---
 
@@ -261,6 +308,9 @@ veto, illegal mode transition, or a dropped link all surface as `HTTP 400`.
 | GET | `/map` | C9 map state: warehouse, robot, goal, route, path, hazards, safety (JSON) |
 | GET | `/map.svg` | C9 server-rendered 2D map (`image/svg+xml`; `?width=&height=&zoom=`) |
 | GET | `/dashboard` | Monitoring dashboard page (C7 + C9 live 2D map) |
+| GET | `/command-center` | **AMR Command Center** operator console (C15c) |
+| GET | `/static/command_center.css` | Command Center stylesheet (whitelisted) |
+| GET | `/static/command_center.js` | Command Center script (whitelisted) |
 | POST | `/command` | Execute one command (JSON in/out) |
 | POST | `/hazard/acknowledge` | Release a latched hazard `EMERGENCY` (step 1 of the two-step release; never resets the robot mode) |
 
@@ -377,6 +427,50 @@ before `/command` and never calls `dispatch()`, verified as zero actuator writes
 over real HTTP.
 
 > [`docs/replay_dashboard.md`](docs/replay_dashboard.md).
+
+### AMR Command Center (C15c)
+
+`GET /command-center` is the full operator console — a dark, dense, responsive
+layout for a laptop, a desktop monitor or a tablet. It is a **view**: it renders
+payloads the rest of the system already produces and adds no robot logic of its
+own.
+
+| Panel | Source |
+|---|---|
+| 3D Digital Twin | `GET /digital-twin` (C10), raw WebGL |
+| Live Camera + detection overlay | `GET /camera/frame` (C8) + hazard metadata (C13) |
+| Warehouse Map | `GET /map` (C9), rendered as SVG in-browser |
+| Robot Status / Safety / Mission | `/dashboard/state` (C7/C11/C12) |
+| Telemetry charts + Event Log | `history` (C15c) |
+| Record & Replay | C14 / C14b |
+
+Everything arrives in **one** request per second, so there is a single polling
+loop and no second timer.
+
+**What it deliberately does not do**
+
+* **No fabricated numbers.** A missing sensor reads `n/a`; a chart with no data
+  says `NOT AVAILABLE`. An absent battery is never drawn as `0%` — a
+  server-side test asserts the `null` survives all the way to the payload.
+* **No image-to-world conversion.** A camera bounding box stays image-space. The
+  hazard panel *says so in words* ("image-space only — not placed on the map"),
+  and only world-located hazards are drawn on the map or in the 3D scene.
+* **No invented warehouse.** The project has no surveyed shelf, rack, boundary
+  or static-obstacle geometry, so the map draws the data extent and labels it as
+  such rather than inventing a floor plan.
+* **No actuation.** The only write the page makes is the existing replay
+  transport. `POST /command` is never called, and the script is source-checked
+  for that.
+* **Honest mode.** A `SIMULATED DATA` banner is shown whenever the backend is
+  mock-backed, and `LIVE` / `REPLAY` is a first-class badge plus banner rather
+  than a subtle colour change.
+
+Accessibility: semantic landmarks, a skip link, `aria-live` on the safety banner
+and event log, `aria-pressed` on every toggle, visible focus rings, and status
+text alongside every colour. Charts carry `aria-label`s; the map is a labelled
+`role="img"`.
+
+> [`docs/command_center.md`](docs/command_center.md).
 
 ---
 

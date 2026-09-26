@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** the C15b working tree — full suite
-**1204 passed, 2 skipped, 0 failed** (1157 at C15 + 47 real-camera-backend tests).
+**Last verified:** the C15c working tree — full suite
+**1257 passed, 2 skipped, 0 failed** (1204 at C15b + 53 Command Center tests).
 Re-verify with the commands below before trusting these numbers.
 
 ---

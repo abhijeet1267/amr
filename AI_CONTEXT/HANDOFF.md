@@ -5,6 +5,126 @@
 
 ---
 
+## Session: C15c — AMR Command Center
+
+**Date:** 2026-09-26 · **Branch:** `main` · **Status:** complete, tested, committed
+
+### What it is
+
+A real browser operator console at `GET /command-center`: 3D digital twin, live
+camera, 2D warehouse map, robot status, safety, mission, telemetry charts, a
+filterable event log and record/replay — a **view** over the existing backend,
+never a second robot.
+
+### Architecture
+
+```
+AMR runtime (authoritative, unchanged)
+   └─ existing control loop → telemetry snapshot
+        └─ amr/telemetry/series.py  (bounded series + change-driven events)
+             └─ GET /dashboard/state  (one request per second)
+                  └─ amr/web/static/command_center.{html,css,js}
+```
+
+Only **two** things were genuinely missing and are new:
+
+1. `amr/telemetry/series.py` — bounded time-series + event stream. Earlier
+   dashboards showed current values only; an operator needs trends and one
+   ordered feed. It is fed from the **same** snapshot the rest of the dashboard
+   reads, inside the existing control loop, so there is no second collection
+   path and no second timer.
+2. `amr/web/static/` — the console as real files, replacing 125 KB of embedded
+   Python strings with something a browser can lint and a human can edit.
+
+Everything else is C7–C15b, consumed rather than reimplemented.
+
+### Files
+
+| Path | Change |
+|---|---|
+| `raspberry_pi/amr/telemetry/series.py` | **new** — `TelemetrySeries`, `EventStream`, `CommandCenterHistory` |
+| `raspberry_pi/amr/web/static/command_center.html` | **new** — console markup |
+| `raspberry_pi/amr/web/static/command_center.css` | **new** — operator-console styling |
+| `raspberry_pi/amr/web/static/command_center.js` | **new** — renderer + 1 Hz poll |
+| `raspberry_pi/amr/web/server.py` | `/command-center`, whitelisted `/static/*`, history in `console_state()` |
+| `raspberry_pi/tests/test_command_center.py` | **new** — 53 tests |
+| `raspberry_pi/tests/conftest.py` | `web` / `web_no_camera` fixtures moved here |
+| `raspberry_pi/tests/test_web_server.py` | local fixtures removed (now shared) |
+| `docs/command_center.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+
+### Two real bugs found and fixed
+
+1. **`Content-Length` mismatch on static assets.** `_send_bytes` computes the
+   length from the payload, but the static files were passed as `str`, so a
+   character count was sent as a byte count and the browser got a truncated
+   response. Caught by a live HTTP smoke test, not by unit tests. Now encoded to
+   bytes first.
+2. **Fixture duplication.** The C15c tests initially could not see the `web`
+   fixtures because they lived in `test_web_server.py`. Rather than build a
+   second server, the fixtures were moved to `conftest.py` so both suites drive
+   the *same* running app.
+
+### Tests
+
+| Check | Result |
+|---|---|
+| `python -m pytest` | **1257 passed, 2 skipped, 0 failed** (1204 before, +53) |
+| `tests/test_command_center.py` | 53 passed |
+| `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` / `amr.demo` | all exit 0 |
+
+Live HTTP smoke: every route 200, four path-traversal attempts 404, history
+growing 29 → 52 samples, `read_only: true`.
+
+### Safety
+
+* The console **never** calls `POST /command`; its only write is the existing
+  display-only `POST /replay/control`. Asserted in tests and by source check.
+* `series.py` imports no hardware; checked for `gpio` / `RPi` / `serial` /
+  `estop` at source level.
+* Every console read runs inside the existing `NoActuation` guard — zero
+  actuator writes over real HTTP.
+* `/static/*` is a **whitelist**, not a directory join, so traversal 404s.
+
+### Honesty, enforced by tests
+
+A missing value is never `0`; `NaN` / `inf` / bool are not numbers; a snapshot
+without a timestamp is skipped rather than backdated; a camera bbox stays
+image-space and the UI *says so*; a missing camera yields no detections;
+`SIMULATION` is never shown as `LIVE`; replay never overwrites live telemetry.
+
+### Dependencies added: **none**
+
+No npm, no CDN, no framework, no build step. The 3D view is hand-written WebGL
+and the charts are 2D canvas — both built into every browser, so the console
+runs on a Pi with no network access.
+
+### Hardware / firmware
+
+**NOT TESTED.** Mock and simulated data only. No physical robot, camera, sensor
+or motor controller was involved. The C15b caveat still applies: the Pi Camera
+V2 needs a 15-pin to 22-pin adapter for the Raspberry Pi 5.
+
+### Known limitations
+
+* Charts cover speed and battery only — those are the metrics that exist. More
+  need real sources first, and the panel shows `NOT AVAILABLE` rather than
+  inventing a line.
+* No screenshots are committed; the brief asked not to add a browser-automation
+  stack just for images. The documented way to capture them is to open the URL
+  and use the OS screenshot tool.
+* The legacy `/dashboard` page is untouched and still embeds its own copy of the
+  twin/map renderers. Consolidating it onto the static files is a worthwhile
+  follow-up, but it was deliberately left alone to avoid regressing C9–C15b.
+
+### Next milestone
+
+The remaining roadmap is hardware-bound (C1 geometry/thresholds, C4 gas sensor,
+a real camera model, firmware). The best software-only follow-up is
+**consolidating the legacy `/dashboard` onto the new static files**, which would
+remove the duplicated renderers and shrink `server.py` substantially.
+
+---
+
 ## Session: C15b — Real camera backend
 
 **Date:** 2026-09-26 · **Branch:** `main` · **Status:** complete, tested, committed
