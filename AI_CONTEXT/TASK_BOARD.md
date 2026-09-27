@@ -546,6 +546,64 @@ issues only GETs plus the pre-existing replay routes; `read_only: true`.
 
 ---
 
+## Phase C — Applications Hub wired into the server `[x]` (complete, 2026-09-27)
+
+**Goal:** make the Phase-B registry *reachable*. Expose it over HTTP and put it
+in front of an operator, without widening the one real safety boundary in this
+codebase — `POST /command` stays the sole actuator path and everything else
+reads.
+
+**Delivered**
+
+* `GET /applications` — a 4th HTML page on the same server
+  (`amr/web/static/applications.{html,css,js}`), read once at import and served
+  from the same whitelist as the console's assets. It renders
+  `GET /applications/state` and deep-links into existing views instead of
+  re-implementing them.
+* `GET /applications/state` — `ApplicationRegistry.payload(RuntimeContext)`,
+  where the context is derived from the running process: `mock_mode` from the
+  existing C7 `simulated` flag, `camera_available` from a single
+  `is_available()` probe (a camera that raises answers "unavailable" rather
+  than 500-ing the hub), `server_running` from whether this app is serving.
+* `AMRWebApp(applications=...)` — injectable, loaded once at construction. A
+  missing `applications.yaml` yields an empty hub, not a boot failure.
+* Command Center integration: a topbar icon link and a sidebar link to
+  `/applications`, as plain anchors (leaving the console is not a `setView()`
+  transition).
+* `config/applications.yaml` gains the hub's own card (`applications_hub`,
+  `reference`, `AVAILABLE`) — deliberately the one entry that stays AVAILABLE in
+  mock mode, because the page makes no claim about the robot.
+
+**Verification performed — live HTTP against the mock stack**
+
+| Observation | Result |
+|---|---|
+| `GET /applications` | 200 `text/html`, 4108 B, contains `Applications Hub` |
+| `GET /applications/state` | 200 `application/json`, `count: 16`, 8 categories |
+| `GET /static/applications.{css,js}` | 200 `text/css` 6156 B · `application/javascript` 12347 B |
+| `/command-center` | 200, two links to `/applications` (topbar + sidebar) |
+| Mock robot, no camera | `command_center → MOCK / mock-robot`; `camera_monitor → HARDWARE REQUIRED / no-camera` |
+| **Mock camera attached** | `camera_monitor` still **HARDWARE REQUIRED** (reason becomes `declared`) — statuses are never promoted |
+| Clients | `mobile_client → NOT INSTALLED`, `desktop_client → BUILD NOT AVAILABLE`, both `url: null` → rendered as “API — no interface”, never as dead links |
+
+**Tests:** `tests/test_applications_hub.py` (21 new). Full suite **1354 passed,
+2 skipped, 0 failed** (1333 at Phase B).
+
+**Safety:** unchanged. The hub issues exactly one GET; a source-level test
+asserts the page has no `POST`, no `<form>` and no `/command` path and that
+every link on it points at a read-only destination, and
+`test_hub_reads_never_actuate` proves over the mock transport that neither route
+writes an actuator line.
+
+**Doc debt found:** `AI_CONTEXT/CURRENT_STATUS.md` still records the 1261-test
+C15c snapshot and section 5 still claims there is "no live dashboard" — it is
+stale and queued for a refresh.
+
+**Hardware / firmware / camera: NOT TESTED.** Everything above is mock and
+simulated data.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

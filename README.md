@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1257%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1354%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1261 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **1354 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -323,6 +323,10 @@ veto, illegal mode transition, or a dropped link all surface as `HTTP 400`.
 | GET | `/command-center` | **AMR Command Center** operator console (C15c) |
 | GET | `/static/command_center.css` | Command Center stylesheet (whitelisted) |
 | GET | `/static/command_center.js` | Command Center script (whitelisted) |
+| GET | `/applications` | **Applications Hub** — directory of every interface, with live statuses (Phase C) |
+| GET | `/applications/state` | Registry payload: every entry + the status it has now (JSON, read-only) |
+| GET | `/static/applications.css` | Applications Hub stylesheet (whitelisted) |
+| GET | `/static/applications.js` | Applications Hub script (whitelisted) |
 | POST | `/command` | Execute one command (JSON in/out) |
 | POST | `/hazard/acknowledge` | Release a latched hazard `EMERGENCY` (step 1 of the two-step release; never resets the robot mode) |
 
@@ -484,6 +488,34 @@ text alongside every colour. Charts carry `aria-label`s; the map is a labelled
 
 > [`docs/command_center.md`](docs/command_center.md).
 
+### Applications Hub (Phase C)
+
+`GET /applications` is the directory of everything this repository ships: the
+Command Center and each of its deep-linkable views, the legacy panel and
+dashboard, the HTTP API, and the mobile/desktop clients that **do not exist
+yet**. It is one page, served by the same process, rendering
+`GET /applications/state`.
+
+The statuses come from [`config/applications.yaml`](config/applications.yaml)
+via [`amr/apps/registry.py`](raspberry_pi/amr/apps/registry.py), and the rule
+that matters is enforced there:
+
+* **A runtime can only make a status worse.** `resolve_status()` may downgrade
+  `AVAILABLE` → `MOCK` (only a simulated robot is answering) or `OFFLINE`
+  (server unreachable), and a camera-dependent card resolves to
+  `HARDWARE REQUIRED` because no camera has ever been verified here. It may
+  **never upgrade** a declared status, so attaching a mock camera cannot turn
+  `HARDWARE REQUIRED` into `AVAILABLE`.
+* **No dead links and no invented downloads.** An entry with `url: null` renders
+  as “API — no interface” rather than as a broken application; the mobile client
+  is `NOT INSTALLED` and the desktop client is `BUILD NOT AVAILABLE` (`cargo`
+  is absent, so a Tauri bundle cannot be built or verified here).
+* **Read-only, like everything else.** The hub issues one `GET` and nothing
+  else; a test asserts the page has no `POST`, no form and no `/command` path,
+  and every link on it points at a read-only destination. A separate test reads
+  the route table out of `server.py` and refuses any registry URL that is not a
+  route the server actually serves.
+
 ---
 
 ## Configuration
@@ -496,6 +528,7 @@ All config lives in [`config/`](config) and is loaded by `amr/utils/config.py`.
 | `safety.yaml` | `watchdog_timeout_ms` 1000, stop distances F/R 20 · L/R 15, valid window 2–400 cm, `status: NOT_VERIFIED` |
 | `serial.yaml` | `port` `/dev/ttyACM0`, `baudrate` 9600, per-command timeouts, `protocol_version` `1.0` |
 | `warehouse.yaml` | `enabled`, `dock`, task/turn speed, `wheel_base_m`, `queue_max` 16, `manipulator: mock`, `locations` map |
+| `applications.yaml` | Phase B/C interface registry: ids, categories, platforms, declared status, `url` / `api_base` / `launch_command`, `read_only` flags (read by `amr/apps/registry.py`) |
 
 Values marked `null` / `TODO_VERIFY` / `NOT_VERIFIED` are placeholders that must
 be filled from the physical robot before autonomous use is trusted.
@@ -553,12 +586,14 @@ python -m pytest -q                 # full suite
 python -m pytest -q tests/test_web_server.py   # one area
 ```
 
-The 18 test files cover protocol parsing, the mode state machine, the safety
+The 34 test files cover protocol parsing, the mode state machine, the safety
 policy (including the C6 obstacle-avoidance policy
 `tests/test_avoidance.py` — turn/replan, stop priority, loop guard,
 determinism), differential-drive math, odometry/navigation, the warehouse task
 manager, the camera manager, the hazard layer, the vision-to-hazard pipeline
-(`tests/test_vision.py`, simulated detections only), and a real
+(`tests/test_vision.py`, simulated detections only), the interface registry and
+the applications hub (`tests/test_app_registry.py`, `tests/test_applications_hub.py`),
+and a real
 `ThreadingHTTPServer` driven against the
 mock stack (mode gating, safety rejection, speed bounds, E-STOP, camera
 endpoints). Everything runs on the mocks under `amr/mocks/`.
@@ -575,7 +610,8 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   ├── safety.yaml             # watchdog + stop distances (NOT_VERIFIED)
 │   ├── serial.yaml             # Pi <-> Arduino link
 │   ├── warehouse.yaml          # map, task tuning, manipulator
-│   └── hazard.yaml             # hazard thresholds, kinds, zones (NOT_VERIFIED)
+│   ├── hazard.yaml             # hazard thresholds, kinds, zones (NOT_VERIFIED)
+│   └── applications.yaml       # interface registry: urls, statuses, platforms
 ├── docs/
 │   ├── safety.md               # layered safety model
 │   ├── serial_protocol.md      # wire protocol reference
@@ -593,7 +629,8 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   │   ├── robot/  control/  communication/
 │   │   ├── safety/  hazard/  sensors/  navigation/
 │   │   ├── warehouse/  camera/  web/  mocks/  utils/
-│   ├── tests/                  # pytest suite (16 files)
+│   │   ├── apps/                # interface registry + applications hub data
+│   ├── tests/                  # pytest suite (34 files)
 │   └── pyproject.toml          # packaging + [dev] extras
 ├── .github/workflows/ci.yml    # pytest matrix + ruff
 ├── LICENSE

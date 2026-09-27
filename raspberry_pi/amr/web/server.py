@@ -9,6 +9,12 @@ GET  /camera    — camera status (JSON; ``{"available": false}`` when none)
 GET  /image     — one JPEG frame (200 image/jpeg, or 503 when unavailable)
 GET  /hazard    — hazard layer status (JSON; ``{"attached": false, ...}`` when
                   no hazard layer is wired into the RobotManager)
+GET  /applications       — the applications hub (HTML; Phase C). Rendered from
+                  ``config/applications.yaml`` through :mod:`amr.apps.registry`;
+                  the page itself only ever GETs.
+GET  /applications/state — every interface this project ships, with the status
+                  it has *right now* (JSON). A declared status may be downgraded
+                  by the runtime; it is never upgraded.
 POST /command   — ``{"cmd": "...", ...}`` (JSON in, JSON out)
 POST /hazard/acknowledge — release a *latched* hazard EMERGENCY (step 1 of the
                   two-step release; optional empty/``{}`` JSON body)
@@ -68,6 +74,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 
+from ..apps import ApplicationRegistry, RuntimeContext, load_applications
 from ..camera import CameraManager, build_camera_overlay
 from ..camera.frame import CameraFrame, CameraStatus
 from ..hazard import HazardSeverity, HazardState
@@ -97,8 +104,13 @@ def _load_static(name: str) -> str:
 _STATIC_FILES = {
     "command_center.css": _load_static("command_center.css"),
     "command_center.js": _load_static("command_center.js"),
+    # Phase C — the applications hub's own assets. Same rule as the console:
+    # real files, read once, served from this whitelist and nothing else.
+    "applications.css": _load_static("applications.css"),
+    "applications.js": _load_static("applications.js"),
 }
 COMMAND_CENTER_HTML = _load_static("command_center.html")
+APPLICATIONS_HTML = _load_static("applications.html")
 
 #: motion commands accepted by /command and their default speeds
 _MOTION = {
@@ -255,6 +267,12 @@ class AMRWebApp:
         # actually watching instead of printing a placeholder. Read-only: it is
         # passed to the telemetry projection and never used for control.
         robot_id: Optional[str] = None,
+        # Phase C: the applications hub's data source. Injectable so a test (or
+        # a future client) can drive the hub from a fixed registry; when omitted
+        # the same ``config/applications.yaml`` every other client reads is
+        # loaded once, at construction. Read-only by construction: a registry
+        # describes interfaces, it cannot command the robot.
+        applications: Optional[ApplicationRegistry] = None,
     ):
         self._mgr = mgr
         # C13: the detection identity of the camera, used only to pair a frame
@@ -319,6 +337,16 @@ class AMRWebApp:
             telemetry=self.telemetry,
             simulated=simulated,
         )
+        # Phase C: the registry is loaded exactly once, here, and is never
+        # re-read per request. ``load_applications()`` returns an EMPTY registry
+        # rather than raising when the file is missing, so deleting a config
+        # file cannot stop the robot from booting — the hub then simply reports
+        # that it knows of no applications.
+        self._applications = (
+            applications if applications is not None else load_applications()
+        )
+        self.log.info("applications hub: %d interfaces registered",
+                      len(self._applications))
 
     # ------------------------------------------------------------------ #
     # Lifecycle
@@ -761,6 +789,59 @@ class AMRWebApp:
         return body, (200 if running else 503)
 
     # ------------------------------------------------------------------ #
+    # Phase C — applications hub (read-only: describes, never commands)
+    # ------------------------------------------------------------------ #
+    def applications(self) -> ApplicationRegistry:
+        """The registry this process reports: every interface it ships."""
+        return self._applications
+
+    def runtime_context(self) -> RuntimeContext:
+        """What is true about *this* process, as far as it can be established.
+
+        Deliberately conservative. ``mock_mode`` comes from the existing C7
+        flag (the one that already tags every reading SIMULATION), and camera
+        availability is True only when an attached camera reports a device. A
+        broken camera answers ``False`` rather than raising: an honesty layer
+        that can 500 the hub would be worse than one that says "camera
+        unavailable", and it is the *worse* answer anyway — which is the only
+        kind this method is allowed to give.
+        """
+        available = False
+        cam = self._camera
+        if cam is not None:
+            try:
+                check = getattr(cam, "is_available", None)
+                if callable(check):
+                    available = bool(check())
+                else:
+                    describe = getattr(cam, "describe", None)
+                    info = describe() if callable(describe) else None
+                    available = (bool(info.get("available"))
+                                 if isinstance(info, dict) else False)
+            except Exception as exc:  # noqa: BLE001 - never fatal, see above
+                self.log.warning("camera availability check failed: %s", exc)
+                available = False
+        return RuntimeContext(
+            mock_mode=bool(self.telemetry.simulated),
+            # The hub is served *by* this server, so this is True in every
+            # response a client can receive; a direct call before start()
+            # truthfully reports the server as not serving yet.
+            server_running=self._server is not None,
+            camera_available=available,
+        )
+
+    def applications_state(self) -> dict:
+        """Payload for ``GET /applications/state``.
+
+        One read of the registry through the process's own runtime context: the
+        same declared baseline for every client, adjusted only downwards. It
+        never touches the robot, the camera or the hazard layer beyond the
+        single availability probe in :meth:`runtime_context`.
+        """
+        with self._lock:
+            return self._applications.payload(self.runtime_context())
+
+    # ------------------------------------------------------------------ #
     # Hazard layer (Layer 3.5) — read + acknowledge only
     # ------------------------------------------------------------------ #
     def hazard_status(self) -> dict:
@@ -1056,6 +1137,15 @@ class _Handler(BaseHTTPRequestHandler):
             # this is a different *presentation* of /dashboard/state, not a
             # second robot architecture.
             self._send_html(COMMAND_CENTER_HTML)
+        elif path == "/applications":
+            # Phase C: the applications hub. A *directory* of the interfaces in
+            # this repository — it deep-links into the console's existing views
+            # rather than reimplementing any of them.
+            self._send_html(APPLICATIONS_HTML)
+        elif path == "/applications/state":
+            # Phase C: the hub's only data source. Read-only, and the single
+            # place where runtime context is folded into the declared baseline.
+            self._send_json(self.app.applications_state())
         elif path.startswith("/static/"):
             # C15c: the console's own assets. Strictly limited to the three
             # known files, so a crafted path cannot read arbitrary disk content.
@@ -1164,27 +1254,32 @@ INDEX_HTML = """<!doctype html>
   :root { --bg:#0f1420; --panel:#1a2233; --line:#2a3550; --text:#e6ecf7;
           --dim:#8b98b8; --ok:#2ecc71; --warn:#f1c40f; --err:#e74c3c; --acc:#4da3ff; }
   * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
   body { margin:0; background:var(--bg); color:var(--text);
-         font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+         font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+         text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
   .wrap { max-width:860px; margin:0 auto; padding:16px; }
   header { display:flex; align-items:center; gap:12px; padding:12px 16px;
            background:var(--panel); border:1px solid var(--line); border-radius:10px; }
   header h1 { font-size:18px; margin:0; letter-spacing:.5px; }
   .badge { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600;
-           background:var(--line); }
+           background:var(--line); transition:background-color .2s ease, color .2s ease; }
   .badge.ok { background:rgba(46,204,113,.18); color:var(--ok); }
   .badge.warn { background:rgba(241,196,15,.18); color:var(--warn); }
   .badge.err { background:rgba(231,76,60,.18); color:var(--err); }
   .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
   @media (max-width:680px){ .grid { grid-template-columns:1fr; } }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
-          padding:14px 16px; }
+          padding:14px 16px; transition:border-color .2s ease, box-shadow .2s ease;
+          box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .card:hover { border-color:rgba(77,163,255,.3); box-shadow:0 4px 12px rgba(0,0,0,.25); }
   .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px;
              color:var(--dim); margin:0 0 10px; }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   button { background:#243050; color:var(--text); border:1px solid var(--line);
-           border-radius:8px; padding:10px 14px; font-size:14px; cursor:pointer; }
-  button:hover { background:#2d3b63; }
+           border-radius:8px; padding:10px 14px; font-size:14px; cursor:pointer;
+           transition:background-color .18s ease, border-color .18s ease, color .18s ease, transform .1s ease, box-shadow .18s ease; }
+  button:hover { background:#2d3b63; border-color:var(--acc); box-shadow:0 2px 6px rgba(0,0,0,.2); }
   button:active { transform:translateY(1px); }
   button.moving { background:var(--acc); border-color:var(--acc); color:#08101d; font-weight:700; }
   button.estop { background:var(--err); border-color:var(--err); color:#fff;
@@ -1195,7 +1290,8 @@ INDEX_HTML = """<!doctype html>
   .speed-val { min-width:38px; text-align:right; font-variant-numeric:tabular-nums; }
   .sensors { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
   .sensors div { background:#141b2b; border:1px solid var(--line); border-radius:8px;
-                 padding:8px; text-align:center; }
+                 padding:8px; text-align:center; transition:border-color .2s ease; }
+  .sensors div:hover { border-color:var(--acc); }
   .sensors .v { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
   .sensors .k { font-size:11px; color:var(--dim); text-transform:uppercase; }
   .kv { display:flex; justify-content:space-between; padding:4px 0;
@@ -1209,7 +1305,7 @@ INDEX_HTML = """<!doctype html>
   #toast.err { background:rgba(231,76,60,.25); border-color:var(--err); }
   .badge.crit { background:var(--err); color:#fff; animation:critblink 1s step-end infinite; }
   @keyframes critblink { 50% { background:#7a1e16; } }
-  @media (prefers-reduced-motion:reduce){ .badge.crit { animation:none; } }
+  @media (prefers-reduced-motion:reduce){ html { scroll-behavior:auto; } *, *::before, *::after { animation-duration:0.01ms !important; transition-duration:0.01ms !important; } .badge.crit { animation:none; } }
   button.ack { background:#5a3a12; border-color:var(--warn); color:var(--warn);
                font-weight:700; }
   button.ack:hover { background:#7a4e18; }

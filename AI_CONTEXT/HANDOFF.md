@@ -5,6 +5,112 @@
 
 ---
 
+## Session: Phase C — Applications Hub wired into the server
+
+**Date:** 2026-09-27 · **Branch:** `main` · **Tests: 1354 passed, 2 skipped,
+0 failed** (1333 at Phase B + 21 hub tests)
+
+Phase B built the registry (`config/applications.yaml` +
+`amr/apps/registry.py`) but nothing served it. This session made it reachable
+and put it in front of an operator — without adding a second command path.
+
+### What was built
+
+| Piece | Where |
+|---|---|
+| `GET /applications` (4th HTML page) | `amr/web/server.py` route + `amr/web/static/applications.html` |
+| `GET /applications/state` (registry payload) | `amr/web/server.py` route + `AMRWebApp.applications_state()` |
+| Hub stylesheet / script | `amr/web/static/applications.css`, `applications.js` (whitelisted static, read once at import) |
+| Runtime context from *this* process | `AMRWebApp.runtime_context()` → `RuntimeContext` |
+| Console links | `amr/web/static/command_center.html` (topbar icon + sidebar link), `command_center.css` |
+| Registry entry for the hub itself | `config/applications.yaml` → `applications_hub` (`reference`, `AVAILABLE`) |
+| Tests | `tests/test_applications_hub.py` (21) |
+
+### Design decisions worth keeping
+
+* **`runtime_context()` is deliberately conservative.** `mock_mode` comes from
+  the existing C7 `simulated` flag (the one that already tags readings
+  `SIMULATION`); `camera_available` is one `is_available()` probe wrapped so a
+  camera that *raises* answers "unavailable" instead of 500-ing the page. Every
+  uncertain answer is the worse one, which is what makes the registry's
+  never-upgrade rule hold in practice.
+* **The registry is injected, not global.** `AMRWebApp(applications=...)`,
+  loaded once at construction. Injection is what makes the hub testable, and it
+  is asserted (`test_an_injected_registry_is_the_one_served`).
+* **The hub is a document, not a dashboard.** It borrows the console's design
+  tokens by linking `command_center.css` first and adds only its own layout in
+  `applications.css`, so the two pages cannot disagree about what "warning"
+  looks like. Its poll is 30 s — it is not a 1 Hz instrument and does not
+  pretend to be.
+* **A failed read is shown as a failed read.** If `/applications/state` cannot
+  be fetched, the freshness chip reads `STALE` (with the time of the last good
+  read) or `UNREACHABLE` when there is none, and the banner says the cards are
+  not current. An old status presented as current would be the exact lie this
+  subsystem exists to prevent.
+* **No dead links.** `url: null` renders “API — no interface”; the mobile and
+  desktop clients stay `NOT INSTALLED` / `BUILD NOT AVAILABLE` with no download
+  link.
+
+### Verification actually performed (live HTTP, mock stack)
+
+| Observation | Result |
+|---|---|
+| `GET /applications` | 200 `text/html; charset=utf-8`, 4108 B, `Applications Hub` present |
+| `GET /applications/state` | 200 `application/json`, `count: 16`, 8 categories |
+| `/static/applications.css` · `.js` | 200 `text/css` 6156 B · `application/javascript` 12347 B |
+| `/command-center` | 200, **2** links to `/applications` |
+| No camera | `camera_monitor → HARDWARE REQUIRED`, reason `no-camera` |
+| **Mock camera attached** | `camera_monitor` still **HARDWARE REQUIRED** (reason `declared`) — never promoted to AVAILABLE |
+| Mock robot | `command_center → MOCK`, `reason: mock-robot` (declared `AVAILABLE`) |
+| Direct call before `start()` | `server_running: false` → pages read `OFFLINE` / `server-unreachable` |
+
+### Regression tests added (21)
+
+* **Serves:** page + assets 200, `/applications/nope` and
+  `/applications/state/extra` still 404 (the route table was not widened), the
+  console really links to the hub (≥2 anchors).
+* **Payload honesty:** shape, ids identical to `load_applications()`, status
+  ranked ≥ declared for every entry, `MOCK` in a mock run, camera card never
+  promoted, `no-camera` reason without a camera, `url: null` handled.
+* **Read-only:** no actuator line on the mock transport for either route; no
+  `POST` / `method:` / `<form>` / `/command` in the page source (comments
+  stripped first — the file's own comment names `POST`); exactly one `fetch`,
+  and every `href` is a read-only destination; the only non-read-only card in
+  the whole registry is still `control_panel`.
+* **Degradation:** empty registry still serves; an injected registry is the one
+  served; a camera whose `is_available()` raises does not break the page; a
+  direct call before `start()` reports the server as down.
+
+### Safety
+
+Unchanged and re-proven. `POST /command` is still the only actuator path; the
+hub issues GETs only; the registry is a *description* of interfaces and has no
+method that touches the robot. `read_only: true` for every card except the
+legacy control panel, asserted by test.
+
+### Hardware
+
+**NOT TESTED.** No camera, no motors, no Arduino. Everything above is mock and
+simulated data; the camera card stays `HARDWARE REQUIRED` on purpose.
+
+### Known doc debt (found this session, not fixed)
+
+* `AI_CONTEXT/CURRENT_STATUS.md` is stale: it records the **1261-test C15c**
+  snapshot (and a 592 figure in section 1), section 2 misses `amr/apps`, and
+  section 5 still says there is no live dashboard. The README badge/table were
+  updated to the measured **1354** here; `CURRENT_STATUS.md` needs its own pass.
+* The README roadmap still lists obstacle avoidance and hazard telemetry as
+  “next” although C6 and C2/C7 shipped.
+
+### Next
+
+* Refresh `AI_CONTEXT/CURRENT_STATUS.md` against a fresh `pytest --collect-only`
+  pass.
+* Phase D of the ecosystem audit (mobile/desktop clients) — the registry and hub
+  are the seam they consume; nothing else is required to start it.
+
+---
+
 ## Session: C5d — Command Center visual verification + hardware-ready UI
 
 **Date:** 2026-09-26 · **Branch:** `main` · **Tests: 1261 passed, 2 skipped,

@@ -28,12 +28,19 @@
 
 * { box-sizing: border-box; }
 
+html {
+  scroll-behavior: smooth;
+}
+
 html, body {
   margin: 0;
   padding: 0;
   background: var(--bg);
   color: var(--text);
   font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Visible focus for keyboard operators — restyled, never removed. */
@@ -73,6 +80,7 @@ html, body {
   background: var(--card); border: 1px solid var(--line);
   font-size: 12px; font-weight: 600; letter-spacing: .03em;
   white-space: nowrap;
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
 }
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
 .chip .lbl {
@@ -95,12 +103,20 @@ button, select {
   color: var(--text); background: var(--card);
   border: 1px solid var(--line); border-radius: 6px;
   padding: 6px 11px; cursor: pointer;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .1s ease, box-shadow .18s ease;
 }
-button:hover, select:hover { background: var(--card-2); border-color: var(--accent); }
+button:hover, select:hover {
+  background: var(--card-2);
+  border-color: var(--accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+}
+button:active {
+  transform: translateY(1px);
+}
 button[aria-pressed="true"] {
   background: #10334a; border-color: var(--accent); color: var(--accent);
 }
-button:disabled { opacity: .4; cursor: not-allowed; }
+button:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
 
 /* --- layout --------------------------------------------------------------- */
 main {
@@ -112,6 +128,12 @@ main {
   background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 12px 14px;
   min-width: 0; display: flex; flex-direction: column;
+  transition: border-color .2s ease, box-shadow .2s ease, opacity .25s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+}
+.card:hover {
+  border-color: rgba(34, 211, 238, .3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
 }
 .card > h2 {
   margin: 0 0 10px; font-size: 11px; font-weight: 700;
@@ -292,8 +314,10 @@ main {
 .tabs button {
   border: none; background: transparent; padding: 5px 12px;
   font-size: 12px; color: var(--muted); border-radius: 5px;
+  transition: background-color .18s ease, color .18s ease, transform .1s ease;
 }
 .tabs button:hover { background: var(--card-2); color: var(--text); border: none; }
+.tabs button:active { transform: translateY(1px); }
 .tabs button[aria-selected="true"] {
   background: #10334a; color: var(--accent); font-weight: 700;
 }
@@ -371,19 +395,36 @@ main.view-map #sec-map, main.view-replay #sec-replay {
 .sidenav button { display: flex; flex-direction: column; align-items: flex-start;
   gap: 1px; text-align: left; padding: 7px 9px; border-radius: 7px;
   background: transparent; border: 1px solid transparent; color: var(--text);
-  cursor: pointer; font-size: 12px; }
-.sidenav button small { color: var(--dim); font-size: 10px; }
-.sidenav button:hover { background: rgba(127, 160, 200, .10); }
+  cursor: pointer; font-size: 12px;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .1s ease; }
+.sidenav button small { color: var(--dim); font-size: 10px; transition: color .18s ease; }
+.sidenav button:hover { background: rgba(127, 160, 200, .10); transform: translateX(2px); }
+.sidenav button:active { transform: translateX(1px); }
 .sidenav button[aria-selected="true"] { background: rgba(34, 197, 94, .12);
   border-color: rgba(34, 197, 94, .38); }
 .sidenav button:focus-visible, .icon-btn:focus-visible, .bell:focus-visible {
   outline: 2px solid #38bdf8; outline-offset: 2px; }
 .side-foot { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
 .kbd-hint { color: var(--dim); font-size: 10px; line-height: 1.5; }
+/* Phase C: the applications hub is one click away from every view. It is an
+   anchor, not a tab: leaving the console is not a setView() transition. */
+a.icon-btn { display: inline-flex; align-items: center; text-decoration: none; }
+/* Two classes so this beats the shared `.bell, .icon-btn { color: ... }` rule
+   that is declared later in this file. */
+a.icon-btn.hub-link { color: var(--accent); }
+.side-link {
+  display: block; margin-top: 8px; padding: 6px 8px; text-align: center;
+  border: 1px solid var(--line); border-radius: 6px; text-decoration: none;
+  color: var(--accent); font-size: 11px; font-weight: 600; letter-spacing: .03em;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+}
+.side-link:hover { background: rgba(34, 211, 238, .10); border-color: var(--accent); }
 .bell, .icon-btn { position: relative; background: transparent; cursor: pointer;
   color: var(--text); border: 1px solid var(--line); border-radius: 7px;
-  font-size: 15px; line-height: 1; padding: 6px 8px; }
-.bell:hover, .icon-btn:hover { background: rgba(127, 160, 200, .12); }
+  font-size: 15px; line-height: 1; padding: 6px 8px;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .1s ease; }
+.bell:hover, .icon-btn:hover { background: rgba(127, 160, 200, .12); transform: scale(1.04); }
+.bell:active, .icon-btn:active { transform: scale(0.96); }
 .bell-count { position: absolute; top: -5px; right: -5px; min-width: 16px;
   padding: 1px 4px; border-radius: 9px; background: #ef4d5a; color: #fff;
   font: 600 10px/14px var(--mono, ui-monospace, monospace); text-align: center; }
@@ -441,7 +482,12 @@ main.view-map #sec-map, main.view-replay #sec-replay {
 .alert-center { position: fixed; top: 56px; right: 16px; z-index: 40;
   width: 320px; max-height: 60vh; overflow-y: auto;
   background: var(--panel, #0f1622); border: 1px solid var(--line);
-  border-radius: 10px; padding: 10px 12px; box-shadow: 0 16px 40px rgba(0,0,0,.5); }
+  border-radius: 10px; padding: 10px 12px; box-shadow: 0 16px 40px rgba(0,0,0,.5);
+  animation: fadeIn .2s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .ac-head { display: flex; justify-content: space-between; align-items: center; }
 .ac-head h2 { font-size: 12px; margin: 0 0 6px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -463,7 +509,35 @@ body.light { --bg: #f4f6fa; --panel: #fff; --text: #0f172a; --dim: #5b6b80;
   .tabs { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
   .twin-card, .bar > i { transition: none; animation: none; }
 }
+
+/* --- Smooth, sleek scrollbars -------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--dim);
+}
+
 
 

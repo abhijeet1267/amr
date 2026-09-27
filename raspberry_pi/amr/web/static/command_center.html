@@ -22,6 +22,13 @@
     <button type="button" role="tab" data-view="camera" aria-selected="false">Camera</button>
     <button type="button" role="tab" data-view="replay" aria-selected="false">Replay</button>
   </nav>
+  <!-- Phase C: the hub is a separate page, so it is an anchor rather than a
+       tab — setView() state must not be involved in leaving the console. -->
+  <a class="icon-btn hub-link" id="hub-link" href="/applications"
+     title="Applications hub — every interface this robot ships"
+     aria-label="Open the applications hub">
+    <span aria-hidden="true">&#9638;</span>
+  </a>
   <!-- C5e alert centre. Read/unread state is browser-only on purpose: nothing
        has to be persisted on the server for the console to remember nothing. -->
   <button type="button" class="bell" id="alert-bell" aria-expanded="false"
@@ -78,6 +85,11 @@
     </nav>
     <div class="side-foot">
       <div class="kbd-hint">Keys 1&#8211;8 switch view &middot; T theme &middot; F fullscreen</div>
+      <!-- Phase C: the directory of everything this robot ships, including the
+           views that are not tabs here. -->
+      <a class="side-link" id="hub-side-link" href="/applications">
+        Applications hub &rarr;
+      </a>
     </div>
   </aside>
 

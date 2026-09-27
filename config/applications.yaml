@@ -238,6 +238,30 @@ applications:
     requires_camera: false
     requires_hardware: false
   # ------------------------------------------------------------------ #
+  # The hub itself. It is a page served by this process, and it renders
+  # with no robot, no camera and no network — which is why this is the one
+  # entry that stays AVAILABLE in mock mode: it makes no claim about the
+  # robot, only about itself.
+  # ------------------------------------------------------------------ #
+  - id: applications_hub
+    name: Applications Hub
+    description: >-
+      This page: every interface in the repository, grouped by category and
+      labelled with the status it has right now. It deep-links into the
+      existing views instead of reimplementing any of them.
+    category: reference
+    platforms: [web]
+    status: AVAILABLE
+    url: /applications
+    api_base: /applications/state
+    launch_command: python -m amr.main --mock --web
+    icon: grid
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: false
+
+  # ------------------------------------------------------------------ #
   # API surface. Not a page: /map, /digital-twin, /telemetry and the rest
   # are JSON endpoints. Listing them as pages would put dead links in the
   # hub, so the hub renders this entry as "API — no interface".
