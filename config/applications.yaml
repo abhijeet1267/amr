@@ -1,0 +1,308 @@
+# =====================================================================
+# AMR application registry
+# =====================================================================
+# Machine-readable description of every interface this project actually
+# ships. The hub page (/applications) and the JSON feed
+# (/applications/state) are rendered from this file, so a new client is a
+# change here rather than a change in three places.
+#
+# RULES (enforced by tests/test_app_registry.py — do not relax them):
+#   * `url` MUST be a route amr/web/server.py really serves, or null.
+#     This file is derived from the audit in
+#     AI_CONTEXT/APPLICATION_ECOSYSTEM_AUDIT.md; inventing a URL fails CI.
+#   * `status` is the VERIFIED baseline, never an aspiration. A route that
+#     exists but has never been exercised on real hardware is at best
+#     MOCK / HARDWARE REQUIRED, and resolve_status() may only downgrade it.
+#   * `read_only: true` means the client never issues a motion command. It
+#     is a statement about the safety architecture, not a UI description.
+# =====================================================================
+
+version: 1
+
+applications:
+  # ------------------------------------------------------------------ #
+  # Primary operator interfaces (HTML pages served by this same process)
+  # ------------------------------------------------------------------ #
+  - id: command_center
+    name: AMR Command Center
+    description: >-
+      The primary operator console. Twelve views over one read-only
+      /dashboard/state feed: overview, twin, camera, map, mission,
+      telemetry, safety, sensors, hazards, replay, events, diagnostics.
+    category: monitoring
+    platforms: [web, android, ios, macos, windows]
+    status: AVAILABLE
+    url: /command-center
+    api_base: /dashboard/state
+    launch_command: python -m amr.main --mock --web
+    icon: console
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  - id: telemetry_dashboard
+    name: Telemetry Dashboard (legacy)
+    description: >-
+      The original C7/C11 three-panel telemetry console. Kept working for
+      anyone whose bookmarks or scripts depend on it; the Command Center is
+      the recommended surface.
+    category: monitoring
+    platforms: [web]
+    status: AVAILABLE
+    url: /dashboard
+    api_base: /dashboard/state
+    launch_command: python -m amr.main --mock --web
+    icon: chart
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  - id: control_panel
+    name: Web Control Panel
+    description: >-
+      The original Phase-10 panel and the ONLY client in the project that
+      posts motion commands. Every command still passes through
+      RobotManager and SafetyManager, so a veto returns HTTP 400 and the
+      robot does not move.
+    category: control
+    platforms: [web]
+    status: AVAILABLE
+    url: /
+    api_base: /status
+    launch_command: python -m amr.main --mock --web
+    icon: joystick
+    # The one honest `false` in the file. Everything else is read-only.
+    read_only: false
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  # ------------------------------------------------------------------ #
+  # Views of the Command Center. Deep-linked through the URL hash that
+  # initViews()/fromHash() already supports — not separate servers.
+  # ------------------------------------------------------------------ #
+  - id: map_2d
+    name: 2D Map
+    description: >-
+      Top-down warehouse map with robot pose, planned path and hazard zones.
+      World coordinates only; the browser renders, it never computes map
+      semantics.
+    category: visualization
+    platforms: [web, android, ios, macos, windows]
+    status: AVAILABLE
+    url: /command-center#map
+    api_base: /map
+    launch_command: python -m amr.main --mock --web
+    icon: map
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  - id: digital_twin
+    name: 3D Digital Twin
+    description: >-
+      Three-dimensional representation derived from the same MapSnapshot as
+      the 2D map, so the two can never disagree about where the robot is.
+    category: visualization
+    platforms: [web, macos, windows]
+    status: AVAILABLE
+    url: /command-center#twin
+    api_base: /digital-twin
+    launch_command: python -m amr.main --mock --web
+  - id: camera_monitor
+    name: Camera Monitor
+    description: >-
+      Live frame with C13 hazard overlays drawn in image space. Overlay
+      boxes are image coordinates and are never promoted to world
+      coordinates.
+    category: visualization
+    platforms: [web, android, ios, macos, windows]
+    # NOT AVAILABLE until a camera is attached: without one every frame
+    # route returns 503 and the panel correctly says CAMERA OFFLINE. There
+    # is no verified camera hardware in this project yet (see docs/camera.md
+    # and AI_CONTEXT/CURRENT_STATUS.md), so this must not read AVAILABLE.
+    status: HARDWARE REQUIRED
+    url: /command-center#camera
+    api_base: /camera/status
+    launch_command: python -m amr.main --mock --web
+    icon: camera
+    read_only: true
+    requires_robot: false
+    requires_camera: true
+    requires_hardware: true
+
+  - id: hazard_monitor
+    name: Hazard Monitor
+    description: >-
+      Active hazards, severity, source and recent events. Reading is pure;
+      acknowledging a latch is step 1 of a two-step release that cannot
+      bypass evidence that is still present.
+    category: safety
+    platforms: [web, android, ios, macos, windows]
+    status: AVAILABLE
+    url: /command-center#hazards
+    api_base: /hazard
+    launch_command: python -m amr.main --mock --web
+    icon: warning
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  - id: mission_monitor
+    name: Mission Monitor
+    description: >-
+      Task queue, current task, progress and the mission timeline, driven by
+      the warehouse task manager when a mission is actually running.
+    category: monitoring
+    platforms: [web, android, ios, macos, windows]
+    status: AVAILABLE
+    url: /command-center#mission
+    api_base: /dashboard/state
+    launch_command: python -m amr.main --mock --web --mission-demo
+    icon: route
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  - id: telemetry
+    name: Telemetry
+    description: >-
+      Velocity, battery, ultrasonic and system readings plus the C5e
+      operations projection (health scorecard, sensor matrix, performance).
+    category: analysis
+    platforms: [web, android, ios, macos, windows]
+    status: AVAILABLE
+    url: /command-center#telemetry
+    api_base: /telemetry
+    launch_command: python -m amr.main --mock --web
+    icon: activity
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  - id: telemetry_replay
+    name: Telemetry Replay
+    description: >-
+      Scrub, play and step through a recorded run. Replayed data is always
+      labelled REPLAY so it can never be mistaken for live telemetry.
+    category: analysis
+    platforms: [web, macos, windows]
+    status: AVAILABLE
+    url: /command-center#replay
+    api_base: /replay/recordings
+    launch_command: python -m amr.main --mock --web
+    icon: rewind
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: false
+
+  - id: safety_view
+    name: Safety Status
+    description: >-
+      Safety state, active reasons, speed scale and the emergency-stop
+      affordance. Deliberately the most prominent panel in the console.
+    category: safety
+    platforms: [web, android, ios, macos, windows]
+    status: AVAILABLE
+    url: /command-center#safety
+    api_base: /status
+    launch_command: python -m amr.main --mock --web
+    icon: shield
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  - id: system_diagnostics
+    name: System Diagnostics
+    description: >-
+      Connection layers, poll rates and deduplicated alerts. The Arduino and
+      Pi hardware layers always report NOT TESTED: nothing in this project
+      has been run against a physical board.
+    category: diagnostics
+    platforms: [web, macos, windows]
+    status: AVAILABLE
+    url: /command-center#diagnostics
+    api_base: /health
+    launch_command: python -m amr.main --mock --web
+    icon: heartbeat
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+  # ------------------------------------------------------------------ #
+  # API surface. Not a page: /map, /digital-twin, /telemetry and the rest
+  # are JSON endpoints. Listing them as pages would put dead links in the
+  # hub, so the hub renders this entry as "API — no interface".
+  # ------------------------------------------------------------------ #
+  - id: api_reference
+    name: HTTP API
+    description: >-
+      The JSON and binary endpoints every client above is built on:
+      /status, /telemetry, /dashboard/state, /hazard, /map, /map.svg,
+      /digital-twin, /camera/*, /replay/*, /health, plus POST /command,
+      /hazard/acknowledge and /replay/load.
+    category: reference
+    platforms: [web, android, ios, macos, windows]
+    status: AVAILABLE
+    # No URL on purpose. This is an API, not an interface to open.
+    url: null
+    api_base: /dashboard/state
+    launch_command: python -m amr.main --mock --web
+    icon: code
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  # ------------------------------------------------------------------ #
+  # Clients that are NOT built. Their presence here is the honest answer
+  # to "does this exist?", and the hub is allowed to print these statuses
+  # verbatim because they are the truth.
+  # ------------------------------------------------------------------ #
+  - id: mobile_client
+    name: Mobile Client
+    description: >-
+      Monitoring-only companion for Android and iOS. It is a consumer of
+      /dashboard/state over the LAN and has no motor path, so it cannot
+      move the robot even if the UI is patched.
+    category: client
+    platforms: [android, ios]
+    # Nothing is installed, no APK, no TestFlight build. The hub says so.
+    status: NOT INSTALLED
+    url: null
+    api_base: /dashboard/state
+    launch_command: null
+    icon: phone
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
+  - id: desktop_client
+    name: Desktop Client
+    description: >-
+      Native shell around the same web console for macOS and Windows,
+      sharing the UI and the safety model rather than reimplementing them.
+    category: client
+    platforms: [macos, windows]
+    # Verified, not assumed: cargo and rustc are absent from this machine,
+    # so a Tauri bundle cannot be produced here. BUILD NOT AVAILABLE is the
+    # accurate status, and no download link may be shown.
+    status: BUILD NOT AVAILABLE
+    url: null
+    api_base: /dashboard/state
+    launch_command: null
+    icon: desktop
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
