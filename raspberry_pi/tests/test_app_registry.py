@@ -60,6 +60,38 @@ def test_server_source_actually_parsed():
     assert "/command-center" in routes
 
 
+def test_every_fragment_is_a_view_the_console_actually_has(registry):
+    """``#map`` must name a real view, not merely a real page.
+
+    ``test_every_url_is_a_real_route`` strips the fragment and checks the path,
+    which is the right thing for the *server* — it never sees the hash. But the
+    browser does, and ``fromHash()`` silently falls back to ``overview`` for a
+    name it does not recognise. A typo'd ``#mapp`` would therefore be a link
+    that opens the console on the wrong view with no error anywhere: exactly the
+    kind of quietly-wrong link this registry is meant to prevent.
+
+    So the fragments are checked against ``VIEW_KEYS`` read out of the *served*
+    JavaScript rather than against a list restated here, which would be a second
+    thing able to go stale.
+    """
+    from amr.web import server
+
+    js = server._STATIC_FILES["command_center.js"]
+    match = re.search(r"var\s+VIEW_KEYS\s*=\s*\[(.*?)\]", js, re.S)
+    assert match, "could not find VIEW_KEYS in the served console script"
+    views = set(re.findall(r'"([a-z]+)"', match.group(1)))
+    assert len(views) > 5, f"VIEW_KEYS scrape looks wrong: {sorted(views)}"
+
+    for app in registry.all():
+        if not app.url or "#" not in app.url:
+            continue
+        fragment = app.url.split("#", 1)[1]
+        assert fragment in views, (
+            f"{app.id}: {app.url!r} targets a view the console does not have "
+            f"(known: {sorted(views)}) — it would silently open Overview"
+        )
+
+
 def test_every_url_is_a_real_route(registry):
     """No registry entry may point at a route that does not exist.
 
