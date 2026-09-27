@@ -108,6 +108,43 @@ class TestHubServes:
         assert html.count('href="/applications"') >= 2, "topbar + sidebar link"
         assert '"/applications/state"' in _hub_source("applications.js")
 
+    def test_every_page_links_to_the_hub(self, web):
+        """The hub must be reachable from wherever a session can *start*.
+
+        The console is not the only entry point: ``/`` is the legacy control
+        panel and ``/dashboard`` is the older read-only monitor, and both are
+        what a user actually opens. A directory reachable only from one page is
+        effectively hidden, so every served HTML surface carries a link.
+        """
+        _app, port, _mgr = web
+        # The hub itself is excluded: a page does not link to itself, it *is*
+        # the destination.
+        for path in ("/", "/dashboard", "/command-center"):
+            html = _get(port, path)[1].decode()
+            assert 'href="/applications"' in html, (
+                f"{path} offers no link to the applications hub")
+
+    def test_the_hub_links_back_to_the_other_pages(self, web):
+        """Leaving the hub must not be a dead end."""
+        _app, port, _mgr = web
+        hrefs = set(re.findall(r'href="([^"]+)"', _hub_source("applications.html")))
+        for target in ("/", "/dashboard", "/command-center"):
+            assert target in hrefs, f"the hub never links back to {target}"
+
+    def test_nav_links_are_anchors_not_fetches(self, web):
+        """Navigation must not become an API call or a second control path."""
+        _app, port, _mgr = web
+        for path in ("/", "/dashboard"):
+            html = _get(port, path)[1].decode()
+            assert 'href="/applications"' in html
+            # A nav anchor is markup only: the page must not fetch the hub.
+            assert "/applications/state" not in html, (
+                f"{path} fetches the hub instead of linking to it")
+        # Comments stripped, so prose that *names* the endpoint it says is
+        # absent does not fail the very scan that documents it.
+        hub_js = _strip_comments(_hub_source("applications.js"))
+        assert "/command" not in hub_js
+
 
 # --------------------------------------------------------------------------- #
 # The payload is the registry's, unedited
@@ -193,13 +230,27 @@ class TestHubIsReadOnly:
         assert "fetch(" in js, "the scrape must be looking at real fetches"
         assert "/command" not in js
         assert js.count("fetch(") == 1
-        # Every link on the page is a read-only destination (the skip link is
-        # an in-page fragment, the rest are pages or this process's own assets).
+        # Every link on the page is a read-only destination: this project's own
+        # pages, its own state endpoint, its own assets, or an in-page fragment.
+        # The legacy panel "/" is a *page* here, not the /command endpoint --
+        # the substring check above is what keeps that distinction honest.
         hrefs = set(re.findall(r'href="([^"]+)"', html))
         assert hrefs, "no links scraped"
-        assert all(h.startswith(("/applications", "/command-center", "/static/", "#"))
+        assert all(h == "/" or h.startswith(
+            ("/applications", "/command-center", "/dashboard", "/static/", "#"))
                    for h in hrefs), hrefs
         assert re.findall(r'<script src="([^"]+)"', html) == ["/static/applications.js"]
+
+    def test_every_link_on_the_hub_actually_resolves(self, web):
+        """A directory full of 404s is worse than no directory."""
+        _app, port, _mgr = web
+        html = _strip_comments(_hub_source("applications.html"))
+        hrefs = sorted(set(re.findall(r'href="([^"]+)"', html)))
+        assert hrefs
+        for href in hrefs:
+            if href.startswith("#") or href.startswith("/static/"):
+                continue          # assets are covered by test_hub_assets_are_served
+            assert _code(port, href) == 200, f"{href} is linked but not served"
 
     def test_the_hub_issues_only_get_requests(self, web):
         """One fetch, no options that could change the verb."""

@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1354%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1358%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1354 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **1358 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -495,6 +495,12 @@ Command Center and each of its deep-linkable views, the legacy panel and
 dashboard, the HTTP API, and the mobile/desktop clients that **do not exist
 yet**. It is one page, served by the same process, rendering
 `GET /applications/state`.
+
+Every HTML page links it — the legacy panel `/`, the read-only monitor
+`/dashboard`, the Command Center `/command-center` and the hub's own footer
+(console, dashboard, panel, raw JSON) — so the directory is reachable from
+wherever a session starts, not only from the newest page. Those are plain
+anchors: navigating to the hub is a page load, never a background fetch.
 
 The statuses come from [`config/applications.yaml`](config/applications.yaml)
 via [`amr/apps/registry.py`](raspberry_pi/amr/apps/registry.py), and the rule

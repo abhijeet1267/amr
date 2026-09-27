@@ -586,8 +586,33 @@ reads.
 | **Mock camera attached** | `camera_monitor` still **HARDWARE REQUIRED** (reason becomes `declared`) — statuses are never promoted |
 | Clients | `mobile_client → NOT INSTALLED`, `desktop_client → BUILD NOT AVAILABLE`, both `url: null` → rendered as “API — no interface”, never as dead links |
 
-**Tests:** `tests/test_applications_hub.py` (21 new). Full suite **1354 passed,
+**Tests:** `tests/test_applications_hub.py` (25 new). Full suite **1358 passed,
 2 skipped, 0 failed** (1333 at Phase B).
+
+**Follow-up fix — the hub was invisible from the pages people open.** The only
+link to `/applications` was on the Command Center. The two surfaces a session
+actually starts on — `/` (the legacy control panel) and `/dashboard` (the older
+read-only monitor) — had none, so from either one the directory could not be
+found. All four HTML pages now link it:
+
+| Page | Link to the hub |
+|---|---|
+| `/` | header nav pill (alongside a Command Center pill) |
+| `/dashboard` | header nav pill **and** a footer line |
+| `/command-center` | topbar icon + sidebar link (already there) |
+| `/applications` | footer nav: console, `/dashboard`, `/`, raw JSON |
+
+The nav links are **anchors, not fetches**: `/` and `/dashboard` never request
+`/applications/state`. `/dashboard` deliberately gets **no** console link, because
+that page keeps the invariant that the actuator endpoint's path never appears in
+its source and the console route begins with that substring — a constraint that
+already caught the explanatory comment written alongside it.
+
+Live check against the mock stack: all four pages 200, `dead links: none`.
+Covered by `test_every_page_links_to_the_hub`,
+`test_the_hub_links_back_to_the_other_pages`,
+`test_nav_links_are_anchors_not_fetches` and
+`test_every_link_on_the_hub_actually_resolves`.
 
 **Safety:** unchanged. The hub issues exactly one GET; a source-level test
 asserts the page has no `POST`, no `<form>` and no `/command` path and that

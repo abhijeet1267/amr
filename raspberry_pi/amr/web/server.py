@@ -1309,6 +1309,18 @@ INDEX_HTML = """<!doctype html>
   button.ack { background:#5a3a12; border-color:var(--warn); color:var(--warn);
                font-weight:700; }
   button.ack:hover { background:#7a4e18; }
+  /* Phase C: the panel is where a session starts, so it links the other two
+     pages. Plain anchors, styled like badges so they read as navigation and
+     not as another status chip. */
+  .navlink { margin-left:auto; display:inline-flex; align-items:center; gap:6px;
+             padding:5px 12px; border-radius:999px; font-size:12px; font-weight:600;
+             text-decoration:none; white-space:nowrap;
+             background:#243050; border:1px solid var(--line); color:var(--text);
+             transition:background-color .18s ease, border-color .18s ease, color .18s ease; }
+  .navlink:hover { background:#2d3b63; border-color:var(--acc); color:#fff; }
+  .navlink:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  .navlink + .navlink { margin-left:0; }
+  @media (max-width:680px){ .navlink { margin-left:0; } }
 </style>
 </head>
 <body>
@@ -1319,6 +1331,8 @@ INDEX_HTML = """<!doctype html>
     <span id="safety" class="badge">--</span>
     <span id="link" class="badge">--</span>
     <span id="hazBadge" class="badge">HAZARD --</span>
+    <a class="navlink" href="/command-center" title="Read-only monitoring console">Command Center</a>
+    <a class="navlink" href="/applications" title="Every interface this AMR ships, and whether it works">Applications</a>
   </header>
 
   <div class="grid">
@@ -1679,6 +1693,17 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
   border-radius: 6px; line-height: 1.5; pointer-events: none; }
 footer { padding: 10px 20px 24px; color: var(--dim); font-size: 12px; }
 a { color: var(--sim); }
+/* Phase C: nav pill in the header. Anchors only, styled like the badges so it
+   reads as navigation and not as another status chip. */
+.navlink { margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-decoration: none;
+  color: var(--ink); background: #1a2333; white-space: nowrap;
+  transition: border-color .18s ease, background-color .18s ease; }
+.navlink:hover { border-color: var(--sim); background: #20293a; }
+.navlink:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
+.navlink + .navlink { margin-left: 0; }
+@media (max-width: 600px) { .navlink { margin-left: 0; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 </style>
 </head>
@@ -1688,6 +1713,17 @@ a { color: var(--sim); }
   <span id="mode" class="badge b-dim">MODE &mdash;</span>
   <span id="sim" class="badge b-dim">SOURCE &mdash;</span>
   <span id="conn" class="badge b-dim">CONNECTING</span>
+  <!-- Phase C: the hub is reachable from every page a session can start on, not
+       only from the newer console. Plain anchors: leaving this read-only page
+       is a navigation, never a fetch.
+
+       There is deliberately *no* "CONSOLE" link here. This page keeps the
+       invariant that the actuator endpoint's path never appears in its source
+       (a stray comment can break it as easily as a stray fetch), and linking
+       the newer console would reintroduce that substring, since its route
+       begins with it. The footer below is the route back to the legacy panel. -->
+  <a class="navlink" href="/applications"
+     title="Every interface this AMR ships, and whether it works right now">APPLICATIONS</a>
 </header>
 
 <!-- C11: global operations status bar. One glance: source, robot, navigation,
@@ -1915,7 +1951,8 @@ a { color: var(--sim); }
 
 <footer>
   Read-only monitoring. This page issues GET requests only and has no motor
-  control path. Legacy control panel: <a href="/">/</a>.
+  control path. Directory of every interface: <a href="/applications">/applications</a>.
+  Legacy control panel: <a href="/">/</a>.
 </footer>
 __DASHBOARD_JS__
 </body>
