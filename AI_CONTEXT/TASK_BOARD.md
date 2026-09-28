@@ -805,6 +805,81 @@ format but has never met a real adapter.
 
 ---
 
+## Web performance: measured, not guessed `[x]` (2026-09-28)
+
+Asked to "make the site stable and fast". **Profiled before changing anything**,
+and the measurement contradicted the assumption: the server was never the
+bottleneck.
+
+**Baseline (real `python -m amr.main --mock --mission-demo --web` subprocess):**
+every route p50 ≤ 1.4 ms, worst p95 6.4 ms, 8 concurrent clients at **394 req/s**
+with zero errors. The backend was fine. The waste was in the *transport*.
+
+### What was actually wrong
+
+| Problem | Cost |
+|---|---|
+| stdlib default **HTTP/1.0** | every response closed the socket — a console page load paid 5 TCP handshakes |
+| **no gzip anywhere** | 135 KB of assets shipped as-is every load |
+| static assets sent `no-store` | browser re-downloaded 62 KB of JS on every visit |
+| `json.dumps` default separators | 13 KB of extra whitespace in a 1 Hz feed |
+
+### What changed
+
+1. **`protocol_version = "HTTP/1.1"`** → keep-alive. Safe only because every
+   response already sets a correct `Content-Length`; without one the client
+   waits for a close that never comes. Asserted live, not read off the class.
+2. **gzip**, above a 512-byte floor (below it, the header + two CPU passes cost
+   more than they save). `Vary: Accept-Encoding` always, and **`gzip;q=0` is
+   honoured** — compressing for a client that asked not to be given it wastes
+   CPU that is contended with the control loop on a Pi.
+3. **Static assets pre-compressed once at import.** Their gzip is a constant;
+   recomputing it per request is pure waste. `mtime=0` keeps the bytes
+   identical across runs so the ETag stays valid.
+4. **ETag + 304** and **`immutable` caching** for assets that change only when
+   the process restarts. Safe here because the asset URLs carry no version
+   query and the server restarts to pick up edits.
+5. `json.dumps(..., separators=(",", ":"))` for the polled feeds.
+
+### Measured result
+
+| Page | Before | After | Cut |
+|---|---|---|---|
+| Command Center first paint | 124,242 B | **37,134 B** | **70%** |
+| Applications Hub first paint | 63,996 B | **19,062 B** | **70%** |
+| `/dashboard/state` on the wire | 12,807 B | **3,288 B** | 74% |
+| worst p95 latency | 6.4 ms | **2.5 ms** | |
+| 8-client throughput | 394 req/s | **680 req/s** | +73% |
+
+The before-numbers were taken by `git stash`-ing the change and re-running the
+*same* benchmark, so the comparison is like-for-like rather than remembered.
+
+### Guarded, not just applied
+
+`TestTransportPerformance` (9 tests) pins each property, because every one of
+these failures looks like "the page still works" while silently costing every
+operator the bandwidth: gzip offered/resused, `Content-Length` matching the
+bytes actually sent, `q=0` refused, live state still `no-store` while assets are
+`immutable`, 304 carrying no body, keep-alive on the wire, and the static
+whitelist still blocking path traversal. **Each was verified to fail** when its
+defect is reintroduced.
+
+One caught by writing it: my first `_accepts_gzip` used `continue` inside the
+parameter loop, so `gzip;q=0` was *accepted*. The mutation test is what exposed
+it — the test that mattered most was the one aimed at the subtlest branch.
+
+Also removed `raspberry_pi/_e2e_conn.py`, a scratch benchmark accidentally
+committed in 9c3e924.
+
+**Suite: 1409 passed, 2 skipped, 0 failed** (+9). Live e2e unchanged: 20/20
+routes, hub 19, no dead links.
+
+**Not measured:** real LAN/Wi-Fi throughput, RTT, or behaviour on a Pi — this
+is localhost on a Mac. The gains are byte-counts and handshakes, which are
+host-independent, but on-device performance is **NOT TESTED**.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

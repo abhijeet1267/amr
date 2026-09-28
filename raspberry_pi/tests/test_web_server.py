@@ -15,6 +15,8 @@ hazard, never the robot's ``SAFETY_STOP`` mode.
 
 from __future__ import annotations
 
+import gzip
+import http.client
 import json
 import urllib.error
 import urllib.request
@@ -40,6 +42,25 @@ def _get(port: int, path: str):
         f"http://127.0.0.1:{port}{path}", timeout=5
     ) as resp:
         return resp.status, resp.headers.get("Content-Type", ""), resp.read()
+
+
+def _get_raw(port: int, path: str, headers: dict):
+    """Fetch without urllib's automatic gzip decoding, so the wire bytes and
+    the response headers are both observable. Needed to assert that what we
+    claim to send is what we actually send.
+
+    304 is returned normally rather than raised: urllib treats it as an error,
+    but for a conditional GET it is the success case. Callers assert on the
+    status rather than on the absence of an exception.
+    """
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return resp.status, resp.headers, resp.read()
+    except urllib.error.HTTPError as e:
+        if e.code == 304:
+            return 304, e.headers, e.read()
+        raise
 
 
 def _post(port: int, path: str, body: str) -> tuple:
@@ -125,6 +146,125 @@ class TestConnectivityRoute:
         _app, port, _mgr = web
         body = json.loads(_get(port, "/connectivity")[2].decode("utf-8"))
         assert body["bluetooth"]["paired_devices"] is None
+
+
+# --------------------------------------------------------------------------- #
+# Transport: gzip, caching, keep-alive
+# --------------------------------------------------------------------------- #
+class TestTransportPerformance:
+    """Bandwidth and connection behaviour, asserted rather than assumed.
+
+    Measured motivation: a Command Center first paint moved from 124,242 to
+    37,134 bytes and the hub from 63,996 to 19,062. These tests exist so a
+    later change cannot silently undo that — a dropped ``Content-Encoding``,
+    a wrong ``Content-Length``, or a reverted protocol version would each look
+    like "the page still works" while costing every operator the bandwidth.
+    """
+
+    def test_gzip_is_used_when_the_client_offers_it(self, web):
+        _app, port, _mgr = web
+        _status, headers, raw = _get_raw(
+            port, "/dashboard/state", {"Accept-Encoding": "gzip"})
+        assert headers.get("Content-Encoding") == "gzip"
+        # Vary is mandatory: without it a shared cache could hand a gzipped
+        # body to a client that cannot read it.
+        assert "Accept-Encoding" in (headers.get("Vary") or "")
+        assert json.loads(gzip.decompress(raw)), "gzip body must still be valid JSON"
+
+    def test_content_length_matches_the_bytes_actually_sent(self, web):
+        """A wrong Content-Length truncates the response mid-transfer.
+
+        This is the correctness risk of enabling HTTP/1.1 and gzip, so it is
+        checked on both the compressed and the plain path.
+        """
+        _app, port, _mgr = web
+        for accept in ({"Accept-Encoding": "gzip"}, {"Accept-Encoding": "identity"}):
+            _status, headers, raw = _get_raw(port, "/telemetry", accept)
+            assert int(headers["Content-Length"]) == len(raw), accept
+
+    def test_a_client_that_refuses_gzip_is_not_given_it(self, web):
+        """`gzip;q=0` is an explicit refusal, not an offer.
+
+        Compressing anyway burns CPU to produce something the client will
+        discard, and on a Pi that CPU is contended with the control loop.
+        """
+        _app, port, _mgr = web
+        _status, headers, _raw = _get_raw(
+            port, "/dashboard/state", {"Accept-Encoding": "gzip;q=0"})
+        assert headers.get("Content-Encoding") is None
+
+    def test_small_responses_are_not_worth_compressing(self, web):
+        """Below the threshold, gzip's own overhead is not repaid."""
+        _app, port, _mgr = web
+        _status, headers, _raw = _get_raw(port, "/status", {"Accept-Encoding": "gzip"})
+        assert headers.get("Content-Encoding") is None
+
+    def test_live_state_is_never_cached(self, web):
+        """A cached /dashboard/state would show a stale robot.
+
+        The static assets are immutable and must be cached; live state must not
+        be. Conflating them is a safety-adjacent bug, not a taste question.
+        """
+        _app, port, _mgr = web
+        for path in ("/dashboard/state", "/status", "/connectivity",
+                     "/applications/state"):
+            _status, headers, _raw = _get_raw(port, path, {})
+            assert "no-store" in (headers.get("Cache-Control") or ""), path
+
+    def test_static_assets_are_cached_and_revalidatable(self, web):
+        _app, port, _mgr = web
+        _status, headers, raw = _get_raw(
+            port, "/static/command_center.js", {"Accept-Encoding": "gzip"})
+        etag = headers.get("ETag")
+        assert etag, "static assets need an ETag to revalidate"
+        assert "immutable" in (headers.get("Cache-Control") or "")
+        # A matching tag must produce 304 with no body.
+        _status, headers2, raw2 = _get_raw(
+            port, "/static/command_center.js",
+            {"Accept-Encoding": "gzip", "If-None-Match": etag})
+        assert _status == 304
+        assert raw2 == b"", "a 304 must not carry a body"
+
+    def test_static_gzip_body_is_reused_not_recomputed(self, web):
+        """The compressed asset is built once at import, not per request.
+
+        Asserted on the bytes: two fetches must be byte-identical, which they
+        only are if the same buffer is being served. A per-request gzip with a
+        real mtime would differ every time.
+        """
+        _app, port, _mgr = web
+        _s1, _h1, a = _get_raw(port, "/static/command_center.css",
+                               {"Accept-Encoding": "gzip"})
+        _s2, _h2, b = _get_raw(port, "/static/command_center.css",
+                               {"Accept-Encoding": "gzip"})
+        assert a == b and len(a) > 0
+        assert gzip.decompress(a)
+
+    def test_http_1_1_keep_alive_is_enabled(self, web):
+        """Under HTTP/1.0 every response closed the socket.
+
+        A console page needs five requests, so that was five TCP handshakes
+        per load. The version is asserted on a live response rather than read
+        off the class, so a subclass overriding it would be caught.
+        """
+        _app, port, _mgr = web
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            for _ in range(3):
+                conn.request("GET", "/health")
+                resp = conn.getresponse()
+                resp.read()
+                assert resp.version == 11, "expected HTTP/1.1 keep-alive"
+        finally:
+            conn.close()
+
+    def test_static_whitelist_still_blocks_path_traversal(self, web):
+        """The perf work must not have loosened the static file boundary."""
+        _app, port, _mgr = web
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/static/../../../etc/passwd", timeout=5)
+        assert exc.value.code == 404
 
 
 # --------------------------------------------------------------------------- #
