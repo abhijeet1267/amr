@@ -62,6 +62,10 @@
        hand-maintained copy of the README, which is how the two used to drift. -->
   <section class="card hub-start" aria-labelledby="hub-start-h">
     <h2 id="hub-start-h">Start here</h2>
+    <p class="hub-fine">
+      This page only answers while the server is running. If it loads, you are
+      already past the hard part.
+    </p>
     <ol class="hub-steps">
       <li>Open a terminal in the <code>raspberry_pi/</code> folder.</li>
       <li>Run <code>python -m amr.main --mock --web</code> and leave it running.</li>
@@ -72,6 +76,26 @@
       run against a real robot, but read the README first: the hazard and safety
       layers are off by default and their thresholds are unverified.
     </p>
+    <details class="hub-help">
+      <summary>Something not working?</summary>
+      <dl class="kv">
+        <dt>Blank page, link does nothing</dt>
+        <dd>The server stopped. <code>Ctrl-C</code> stops it; rerun the command
+          above and the links work again.</dd>
+        <dt>Site cannot be reached</dt>
+        <dd>You are on a different machine. Use the Pi's IP instead of
+          <code>localhost</code>, e.g. <code>http://192.168.1.42:8080/applications</code>.</dd>
+        <dt><code>No module named 'yaml'</code></dt>
+        <dd>Dependencies are not installed. Run
+          <code>pip install -e ".[dev]"</code> inside the virtualenv.</dd>
+        <dt>Port 8080 already in use</dt>
+        <dd>Start with <code>--port 8090</code> and change <code>8080</code> to
+          <code>8090</code> in the link.</dd>
+        <dt>Page looks broken or unstyled</dt>
+        <dd>Hard-refresh: <code>Ctrl-Shift-R</code>. The browser is holding an
+          older cached copy of the CSS.</dd>
+      </dl>
+    </details>
     <h3 class="sub-h">Or run a demo in your terminal</h3>
     <p class="hub-fine">
       Every command below was executed and exits 0. All are mock or simulated:

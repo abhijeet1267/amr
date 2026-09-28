@@ -85,6 +85,31 @@
 .hub-copy.copied { border-color: var(--ok); color: var(--ok); }
 .hub-copy.copy-failed { border-color: var(--crit); color: var(--crit); }
 
+/* Troubleshooting. Collapsed by default so it does not compete with the task,
+   but it is IN the page rather than only in the README: someone staring at a
+   dead link needs the answer where they are looking, not in another file. */
+.hub-help {
+  margin-top: 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--card-2);
+}
+.hub-help > summary {
+  padding: 8px 12px; cursor: pointer; font-size: 12px; font-weight: 600;
+  color: var(--muted); list-style-position: inside;
+}
+.hub-help > summary:hover { color: var(--text); }
+.hub-help[open] > summary { border-bottom: 1px solid var(--line); }
+.hub-help .kv { padding: 10px 12px; margin: 0; }
+.hub-help dt { color: var(--warn); }
+.hub-help dd {
+  font-family: inherit; margin-bottom: 8px; line-height: 1.55;
+}
+.hub-help dd:last-child { margin-bottom: 0; }
+.hub-help code {
+  font-family: var(--mono); font-size: 11.5px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 5px;
+}
+
 /* --- filters -------------------------------------------------------------- */
 .hub-controls {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

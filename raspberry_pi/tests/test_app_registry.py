@@ -300,6 +300,61 @@ def test_every_runnable_demo_is_registered(registry):
     )
 
 
+README_MD = Path(__file__).resolve().parents[2] / "README.md"
+
+
+def test_readme_publishes_links_that_are_real_routes():
+    """Every ``http://localhost:8080/...`` link in the README must be served.
+
+    A broken link in the README is the first thing a new user clicks. They have
+    no way to tell a typo from a server that simply is not running, so the
+    cheapest possible failure to diagnose is the one to rule out here.
+
+    The port in the link is stripped: the path is what the server routes.
+    """
+    text = README_MD.read_text(encoding="utf-8")
+    links = set(re.findall(r"http://localhost:\d+(/[^\s)\"'|]*)", text))
+    assert links, "no localhost links found in the README - did it change?"
+    routes = _served_routes()
+    for link in sorted(links):
+        base = link.split("#", 1)[0]
+        assert base in routes, (
+            f"README links to {link!r}, which server.py does not serve"
+        )
+
+
+def test_readme_says_how_to_install_the_dependencies():
+    """`python -m amr.main` fails with ``No module named 'yaml'`` on a fresh
+    checkout, because the dependencies live in the venv and not on the system
+    Python.
+
+    That is exactly what happened: the run instructions assumed a working
+    environment a first-time user does not have, so the very first command in
+    the README died on a stack trace. The install step has to appear BEFORE the
+    first runnable command, not only in "Installing & running" further down.
+
+    Compared against the ``python -m amr.main`` *inside a code fence* rather
+    than the first mention of those words anywhere: the prose above the block
+    names the error on purpose, and matching that would make the test fail for
+    the right content.
+    """
+    text = README_MD.read_text(encoding="utf-8")
+    see_it_work = text.split("## See it work", 1)[1]
+    blocks = re.findall(r"```bash\n(.*?)```", see_it_work, re.S)
+    assert blocks, "no bash blocks in the See it work section"
+
+    first_run = next((i for i, b in enumerate(blocks)
+                      if "python -m amr.main" in b), None)
+    assert first_run is not None, "no runnable command in See it work"
+    install = next((i for i, b in enumerate(blocks)
+                    if "pip install" in b), None)
+    assert install is not None, "no pip install in the See it work section"
+    assert install < first_run, (
+        "the install block must come before the first run command, or a new "
+        "user hits ModuleNotFoundError before being told how to fix it"
+    )
+
+
 def test_demos_are_commands_not_pages(registry):
     """A demo is run in a terminal, so it must have a command and no URL.
 

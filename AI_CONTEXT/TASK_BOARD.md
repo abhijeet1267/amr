@@ -942,6 +942,75 @@ clipboard round-trip is **NOT TESTED**.
 
 ---
 
+## Bug: "sites are not working" — the README's first command was a trap `[x]` (2026-09-28)
+
+Reported as broken links. **The server was never broken** — every route returned
+200 — so the cause had to be outside the code, and the first instinct (a blank
+page from a JS error) was wrong. Ruled out by measurement: all four links
+served, `/applications/state` returned 24 apps, and `logs/amr.log` had zero
+errors or warnings.
+
+### Root cause
+
+The README's own instructions do not work on a fresh machine:
+
+```
+$ python3 -m amr.main --mock --web
+ModuleNotFoundError: No module named 'yaml'
+```
+
+`pyyaml` and the other dependencies live in `raspberry_pi/.venv`, not in the
+system Python. Every run command in the README said `python -m amr.main`, and
+the `pip install` step existed only much further down under "Installing &
+running". So a new user followed the first thing the README told them, hit a
+stack trace, and reasonably concluded the sites were broken. My own instructions
+from the previous session made this worse: I added a table of links *above* the
+install step, so the very first clickable thing in the README assumed an
+environment the reader did not have yet.
+
+Worth recording what was **not** the cause, since two plausible theories were
+tested and rejected: stdout buffering (a line-buffered print to a pipe survives
+`SIGTERM`; proven with a control experiment) and a hidden exception in
+`run_web` (in-process tracing shows the banner prints correctly and
+`AMRWebApp.start` returns the bound port).
+
+### Fixes
+
+1. **README "See it work" leads with the install** (`python3 -m venv .venv`,
+   `source .venv/bin/activate`, `pip install -e ".[dev]"`) and *then* the run
+   command, naming the exact error a user would otherwise hit.
+2. **Stated the two conditions that make a link fail**, which are invisible from
+   a browser: the server must still be running (`Ctrl-C` stops it), and
+   `localhost` must become the Pi's IP when opening from a phone. Also
+   `--port 8090` for when 8080 is taken.
+3. **A troubleshooting block inside the Hub page itself**, collapsed by default.
+   Someone staring at a dead link needs the answer where they are looking, not in
+   a different file. It names the real error, the localhost swap, the port
+   conflict, and the hard-refresh for stale cached CSS.
+
+### Guarded
+
+Two new tests, both **verified to fail** when their defect is reintroduced:
+
+* `test_readme_publishes_links_that_are_real_routes` — scrapes every
+  `http://localhost:8080/...` link in the README and checks each against the
+  server's own dispatch chain. Caught a typo'd link when mutated.
+* `test_readme_says_how_to_install_the_dependencies` — the install block must
+  precede the first runnable command, compared *inside code fences* so the prose
+  that names the error is not mistaken for a command. Caught when the blocks
+  were swapped.
+
+The second test initially passed against a broken README because my mutation
+regex never matched; the second attempt was a no-op that also passed. Only a
+direct line-swap proved it had teeth — a reminder that a test which has never
+been observed failing is not yet a test.
+
+**Suite: 1415 passed, 2 skipped, 0 failed** (+2). Live check of the exact user
+path: all four published links 200, all troubleshooting entries present, all
+static assets 200.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.
