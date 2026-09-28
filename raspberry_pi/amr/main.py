@@ -352,10 +352,34 @@ def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> i
     )
     port = app.start(host=args.host, port=args.port)
     shown = "localhost" if args.host in ("0.0.0.0", "") else args.host
-    print(f"AMR web control: http://{shown}:{port}  (Ctrl-C to stop)")
+
+    # The startup banner, flushed explicitly.
+    #
+    # This is not cosmetic. The README says "open the printed URL", and this
+    # print used to reach nobody: stdout is block-buffered (~8 KB) whenever it is
+    # not a terminal, so a two-line banner sat in the buffer and was lost the
+    # moment the process was signalled rather than exiting cleanly. Verified
+    # directly: 0 bytes captured from a plain print() under SIGTERM, 57 bytes
+    # from the same print with flush=True.
+    #
+    # It bites exactly the deployment this project targets. On a real Pi over
+    # SSH, on systemd, or under `nohup`, stdout is a pipe, and the operator is
+    # told to open a URL nobody printed. `python -m amr.main` in an interactive
+    # terminal is line-buffered and always worked, which is why this hid for so
+    # long: the only way to see the bug is to not be on a TTY.
+    print(f"AMR web control: http://{shown}:{port}  (Ctrl-C to stop)", flush=True)
+    print("  Command Center : "
+          f"http://{shown}:{port}/command-center", flush=True)
+    print("  Applications   : "
+          f"http://{shown}:{port}/applications", flush=True)
+    if shown != "localhost":
+        # Binding 0.0.0.0 is the LAN default on a Pi, so print the address that
+        # will actually work from a phone rather than a loopback URL.
+        print(f"  From another device, use this machine's IP address on port "
+              f"{port}.", flush=True)
     if mission is not None:
         print("mission demo: pick shelf_a -> place station -> return to dock "
-              "(mock only)")
+              "(mock only)", flush=True)
     get_logger("main").info("web control listening on %s:%d", args.host, port)
     try:
         # C5d: this loop only keeps the process alive. The server's own control

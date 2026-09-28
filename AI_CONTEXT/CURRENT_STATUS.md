@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
 **Last verified:** 2026-09-28, health pass — full suite
-**1415 passed, 2 skipped, 0 failed**.
+**1417 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,8 +10,8 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **1415 passed, 2 skipped, 0 failed** |
-| Test files | 36 (`tests/test_*.py`) |
+| `cd raspberry_pi && python -m pytest` | **1417 passed, 2 skipped, 0 failed** |
+| Test files | 37 (`tests/test_*.py`) |
 | `python -m compileall amr` | clean |
 | Orphan scan (every module imported by prod or tests) | none — no dead modules |
 | CI | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff` |

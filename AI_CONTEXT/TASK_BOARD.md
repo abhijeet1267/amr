@@ -1011,6 +1011,74 @@ static assets 200.
 
 ---
 
+## Bug: the startup banner was never printed `[x]` (2026-09-28)
+
+Second pass on "sites are not working", and the previous fix was **incomplete**.
+
+### The first pass was wrong about one thing
+
+Last session I concluded buffering was "not the cause" and said so in the task
+board. That conclusion came from a control experiment that was **invalid**: both
+trials shared a single code string ending in `sys.stdout.flush()`, so the
+"without flush" case flushed everything anyway and both reported 69 bytes. A
+control that cannot fail proved nothing. Redone with one code string per trial
+and `SIGTERM` instead of a clean exit:
+
+```
+print(), SIGTERM             ->   0 bytes captured
+print(flush=True), SIGTERM   ->  57 bytes captured
+```
+
+Buffering **was** the cause.
+
+### The real defect
+
+`main.py` printed `AMR web control: http://...` with no `flush=True`. Measured:
+**0 bytes** on stdout — even at process exit — while the `get_logger("main")`
+line *immediately after it* appeared in `amr.log` correctly.
+
+Python block-buffers stdout (~8 KB) whenever it is not a TTY, so the banner sat
+in the buffer and was discarded when the process was signalled rather than
+exiting. This hits precisely the deployment this project targets: a Pi over
+SSH, under systemd, or with `nohup`. In an interactive terminal stdout is
+line-buffered and it always worked — which is exactly why it survived, because
+**the only way to see this bug is to not be on a TTY**, and every developer runs
+it on one.
+
+The README said "open the printed URL". On the intended hardware, nobody was
+ever shown a URL.
+
+### Fix
+
+`flush=True` on every banner print, plus the two URLs an operator actually wants
+(`/command-center` and `/applications`) and a note about swapping `localhost`
+for the machine's IP when the bind address is not loopback.
+
+Measured under the exact condition that hid it (stdout redirected, not a TTY):
+**0 → 167 bytes**, and all four links it advertises return 200.
+
+### Guarded, and the test was wrong first
+
+`tests/test_startup_banner.py` (2 tests) starts the server with stdout on a
+pipe, `SIGTERM`s it, and asserts the banner names a real route; a second test
+fetches every URL the banner advertises.
+
+The first mutation I tried **removed only the first `flush=True` and the test
+still passed** — the remaining prints share one stdout buffer, so any one
+`flush` flushes them all. Stripping all of them gives 0 bytes and the test
+fails, which is what finally proved it had teeth. Recorded because the first
+"verified" claim would have been false.
+
+**Clean-room test** (`/tmp/cleanroom.sh`, not committed): fresh venv, README
+commands typed verbatim, then every published link fetched. **PASS** — install
+exit 0, banner printed, 24 applications, all links 200. That is the check that
+would have caught the original `ModuleNotFoundError`, and it caught this one too
+by flagging `banner: MISSING`.
+
+**Suite: 1417 passed, 2 skipped, 0 failed** (+2).
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.
