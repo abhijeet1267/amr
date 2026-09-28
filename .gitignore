@@ -29,7 +29,11 @@ envs/
 .DS_Store
 
 # --- Logs / databases / artifacts ---
+# `*.log` does NOT match rotated backups (amr.log.1, amr.log.2), so the runtime
+# log directory is ignored by name. setup_logging() writes there by default, and
+# a robot left running for a week would otherwise commit its own logs.
 *.log
+logs/
 *.db
 *.sqlite
 *.sqlite3

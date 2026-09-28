@@ -496,10 +496,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    # A robot you cannot diagnose is not a working robot, so the log file is not
+    # optional here: log_dir=None resolves to $AMR_LOG_DIR or ./logs. If it
+    # cannot be created the process continues, but says so on stderr, because a
+    # silent failure to log is how this bug hid for so long.
     try:
         setup_logging(console=False)
-    except Exception:  # noqa: BLE001 - logging is best-effort
-        get_logger("main").warning("logging setup failed; continuing without file log")
+    except Exception as exc:  # noqa: BLE001 - logging is best-effort
+        print(f"warning: could not open the log file ({exc}); "
+              f"continuing without it", file=sys.stderr)
+        setup_logging(log_dir=False, console=True)
 
     try:
         config = load_config(args.config_dir)

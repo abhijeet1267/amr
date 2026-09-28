@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from logging.handlers import RotatingFileHandler
 
-from amr.logging import get_logger, setup_logging
+from amr.logging import default_log_dir, get_logger, setup_logging
 from amr.logging.logger import log_event
 
 
@@ -52,11 +52,23 @@ def test_setup_logging_creates_file_handler(tmp_path):
     assert file_handlers[0].baseFilename.endswith("amr.log")
 
 
-def test_setup_logging_console_only_when_no_dir(tmp_path):
-    lg = setup_logging(console=True)  # log_dir=None
-    assert any(isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler)
+def test_setup_logging_console_and_file_when_no_dir_given(tmp_path, monkeypatch):
+    """``log_dir=None`` now means the *default* directory, not "no file".
+
+    This assertion changed on purpose. It used to require that a None
+    ``log_dir`` install no file handler, which is precisely the behaviour that
+    let ``main.py`` end up with a logger that discarded everything. ``None`` now
+    resolves to :func:`default_log_dir`, and opting out is explicit
+    (``log_dir=False``). See ``test_console_false_still_installs_a_handler``.
+    """
+    monkeypatch.setenv("AMR_LOG_DIR", str(tmp_path / "logs"))
+    lg = setup_logging(console=True)             # log_dir=None -> default dir
+    assert any(isinstance(h, logging.StreamHandler)
+               and not isinstance(h, RotatingFileHandler)
                for h in lg.handlers)
-    assert not any(isinstance(h, RotatingFileHandler) for h in lg.handlers)
+    assert any(isinstance(h, RotatingFileHandler) for h in lg.handlers), (
+        "console=True with the default dir should get BOTH, so a robot that is "
+        "run headless still leaves a file to read")
 
 
 def test_setup_logging_idempotent(tmp_path):
@@ -71,6 +83,60 @@ def test_setup_logging_idempotent(tmp_path):
 def test_setup_logging_custom_level(tmp_path):
     lg = setup_logging(log_dir=str(tmp_path), level=logging.DEBUG, console=False)
     assert lg.level == logging.DEBUG
+
+
+# --------------------------------------------------------------------------- #
+# The bug: setup_logging(console=False) used to install *zero* handlers
+#
+# main.py called exactly that, so the ``if log_dir:`` branch never ran and the
+# console branch was off — leaving a logger that silently discards every record.
+# On the Pi that meant a mission could fail with an empty log. The tests below
+# are written to fail against that behaviour.
+# --------------------------------------------------------------------------- #
+def test_console_false_still_installs_a_handler(tmp_path, monkeypatch):
+    """The production call shape must not produce a black hole."""
+    monkeypatch.setenv("AMR_LOG_DIR", str(tmp_path / "logs"))
+    lg = setup_logging(console=False)          # exactly what main.py does
+    assert lg.handlers, (
+        "a logger with no handlers discards every record — a mission that "
+        "fails with an empty log cannot be diagnosed")
+
+
+def test_default_dir_actually_receives_the_records(tmp_path, monkeypatch):
+    """Not just 'a handler exists': the log line must land on disk."""
+    monkeypatch.setenv("AMR_LOG_DIR", str(tmp_path / "logs"))
+    lg = setup_logging(console=False)
+    get_logger("selftest").warning("mission aborted: E_STUCK")
+    for h in lg.handlers:
+        h.flush()
+    log_file = tmp_path / "logs" / "amr.log"
+    assert log_file.exists(), "setup_logging advertised a file but wrote none"
+    assert "E_STUCK" in log_file.read_text(encoding="utf-8")
+
+
+def test_default_log_dir_env_var(monkeypatch, tmp_path):
+    monkeypatch.setenv("AMR_LOG_DIR", str(tmp_path / "elsewhere"))
+    assert default_log_dir() == str(tmp_path / "elsewhere")
+    monkeypatch.delenv("AMR_LOG_DIR")
+    assert default_log_dir() == "logs"
+
+
+def test_log_dir_false_is_the_explicit_opt_out(tmp_path):
+    """``log_dir=False`` means no file; ``None`` no longer does."""
+    lg = setup_logging(log_dir=False, console=False)
+    assert not any(isinstance(h, RotatingFileHandler) for h in lg.handlers)
+
+
+def test_main_entry_point_configures_a_usable_logger(tmp_path, monkeypatch):
+    """Run the real argparse path from main.py, not a hand-made call."""
+    monkeypatch.setenv("AMR_LOG_DIR", str(tmp_path / "logs"))
+    from amr import main as main_mod
+
+    try:
+        main_mod.main(["--help"])
+    except SystemExit:
+        pass
+    assert get_logger("amr").handlers, "main.py left the logger with no handlers"
 
 
 def test_setup_logging_rotates(tmp_path):

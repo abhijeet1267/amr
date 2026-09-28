@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1359%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1370%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1359 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **1370 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -316,7 +316,7 @@ veto, illegal mode transition, or a dropped link all surface as `HTTP 400`.
 | GET | `/camera/frame` | C8 latest encoded frame (`image/png`/`image/jpeg`, or `503`) |
 | GET | `/hazard` | Hazard layer status (JSON; `attached: false` when not wired) |
 | GET | `/telemetry` | Full read-only telemetry snapshot (C7) |
-| GET | `/health` | Liveness / degradation report (C7) |
+| GET | `/health` | Liveness / degradation report, plus live logging status (C7) |
 | GET | `/map` | C9 map state: warehouse, robot, goal, route, path, hazards, safety (JSON) |
 | GET | `/map.svg` | C9 server-rendered 2D map (`image/svg+xml`; `?width=&height=&zoom=`) |
 | GET | `/dashboard` | Monitoring dashboard page (C7 + C9 live 2D map) |
@@ -581,6 +581,39 @@ python -m amr.main --mock --web --mission-demo
 
 Camera is optional: the panel, tests, and mock all work with **no** camera. On a
 real Pi, `device: "pi"` uses `libcamera-still`; `"v4l2"` uses OpenCV.
+
+### Logs
+
+Everything the robot does is written to `raspberry_pi/logs/amr.log` (5 MB, three
+rotated backups). Set `AMR_LOG_DIR` to put it somewhere else — a Pi with an SD
+card generally wants a tmpfs or an external disk:
+
+```bash
+AMR_LOG_DIR=/var/log/amr python -m amr.main --mock --web
+tail -f logs/amr.log
+```
+
+Motion commands get a compact, greppable line — the format
+`AI_CONTEXT/ARCHITECTURE.md` documents:
+
+```
+11:49:18 INFO  [amr.robot] COMMAND FORWARD L=100 R=100
+11:49:18 INFO  [amr.robot] COMMAND ROTATE_RIGHT L=80 R=-80
+```
+
+Those speeds are what the controller was actually **sent**, not what was
+requested — when the hazard layer is in `SLOW` it scales every command, and the
+log shows the scaled value so the record matches the hardware.
+
+`GET /health` reports the logging state, so you can confirm a running process is
+actually logging rather than assuming it:
+
+```json
+"logging": {"active": true, "file": "amr.log", "writable": true, "level": "INFO"}
+```
+
+`"active": false` means the process has no log handler at all and its output is
+being discarded — treat that as a fault, not a style choice.
 
 ---
 

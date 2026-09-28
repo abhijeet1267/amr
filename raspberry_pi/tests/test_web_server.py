@@ -719,6 +719,87 @@ class TestDashboardAPI:
                         "sensors", "safety", "battery", "system"):
             assert sources[section] in ("LIVE", "SIMULATION", "UNAVAILABLE")
 
+    # ------------------------------------------------------------------ #
+    # Logging is reported, because it used to be silently dead
+    # ------------------------------------------------------------------ #
+    def test_health_reports_the_logging_configuration(self, web):
+        """An operator must be able to find the log, and to see it is live.
+
+        The suite runs with a file handler installed, so ``active`` is True and
+        the file is named. This is the observable half of the
+        ``setup_logging(console=False)`` fix: if logging ever silently dies
+        again, this fails instead of the robot quietly losing its history.
+        """
+        from amr.logging import setup_logging
+
+        _app, port, _mgr = web
+        try:
+            setup_logging(console=False)
+            # _get returns (status, content_type, body).
+            body = json.loads(_get(port, "/health")[2].decode("utf-8"))
+            assert "logging" in body
+            log = body["logging"]
+            assert log["active"] is True
+            assert log["file"] == "amr.log"
+            assert log["writable"] is True
+            assert log["level"] in ("INFO", "DEBUG", "WARNING", "ERROR")
+        finally:
+            setup_logging(log_dir=False, console=False)
+
+    def test_health_says_so_when_there_is_no_handler_at_all(self, web):
+        """The old broken state must be *reported*, not hidden."""
+        from amr.logging import setup_logging
+
+        _app, port, _mgr = web
+        try:
+            setup_logging(log_dir=False, console=False)   # zero handlers
+            log = json.loads(_get(port, "/health")[2].decode("utf-8"))["logging"]
+            assert log["active"] is False, (
+                "a logger with no handlers discards every record")
+            assert log["file"] is None
+            assert log["writable"] is False
+        finally:
+            setup_logging(log_dir=False, console=False)
+
+    def test_health_explains_a_log_file_it_cannot_write(self, web, tmp_path):
+        """``writable: false`` alone is not actionable; the reason is included.
+
+        Observed for real: deleting the log directory out from under a running
+        process leaves the handler holding an unopenable path, and a bare
+        ``writable: false`` gives an operator no way to tell that apart from a
+        full or read-only card.
+        """
+        import shutil
+
+        from amr.logging import setup_logging
+
+        _app, port, _mgr = web
+        gone = tmp_path / "vanishing" / "logs"
+        try:
+            setup_logging(log_dir=str(gone), console=False)
+            gone.mkdir(parents=True, exist_ok=True)
+            shutil.rmtree(gone)          # the handler's directory, deleted
+            log = json.loads(_get(port, "/health")[2].decode("utf-8"))["logging"]
+            assert log["active"] is True, "a handler is still installed"
+            assert log["writable"] is False
+            assert "detail" in log, "an unwritable log must say why"
+            assert log["detail"]
+        finally:
+            setup_logging(log_dir=False, console=False)
+
+    def test_health_still_answers_200_when_logging_is_off(self, web):
+        """Logging being broken must not take the dashboard down with it."""
+        from amr.logging import setup_logging
+
+        _app, port, _mgr = web
+        try:
+            setup_logging(log_dir=False, console=False)
+            code, _ctype, body = _get(port, "/health")
+            assert code == 200
+            assert json.loads(body.decode("utf-8"))["serving"] is True
+        finally:
+            setup_logging(log_dir=False, console=False)
+
     def test_telemetry_returns_the_full_contract(self, web):
         _app, port, _mgr = web
         code, ctype, body = _get(port, "/telemetry")

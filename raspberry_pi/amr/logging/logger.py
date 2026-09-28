@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import os
 from logging.handlers import RotatingFileHandler
-from typing import Optional
+from typing import Optional, Union
 
 _ROOT_NAME = "amr"
 _DEFAULT_FORMAT = "%(asctime)s %(levelname)-7s [%(name)s] %(message)s"
@@ -28,12 +28,17 @@ _DEFAULT_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 _DEFAULT_BACKUP_COUNT = 3
 
 
-def _default_log_dir() -> str:
+def default_log_dir() -> str:
+    """Where log files go when no directory is given: ``$AMR_LOG_DIR`` or ``./logs``."""
     return os.environ.get("AMR_LOG_DIR", "logs")
 
 
+#: Backwards-compatible private alias.
+_default_log_dir = default_log_dir
+
+
 def setup_logging(
-    log_dir: Optional[str] = None,
+    log_dir: Optional[Union[str, bool]] = None,
     level: int = logging.INFO,
     max_bytes: int = _DEFAULT_MAX_BYTES,
     backup_count: int = _DEFAULT_BACKUP_COUNT,
@@ -44,7 +49,22 @@ def setup_logging(
 
     Safe to call more than once: existing handlers are replaced so re-runs
     (e.g. tests, restarts) do not stack duplicate handlers.
+
+    ``log_dir=None`` means "the default location" (:func:`default_log_dir`, i.e.
+    ``$AMR_LOG_DIR`` or ``./logs``), *not* "no file". Passing ``log_dir=False``
+    is how a caller explicitly asks for no file handler at all.
+
+    That distinction is load-bearing. The alternative — treating ``None`` as
+    "console only" — lets ``setup_logging(console=False)`` install **zero**
+    handlers, and a logger with no handlers silently discards every record. That
+    is what the entry point used to do, so a long mission could fail with nothing
+    in the log to explain it. A robot that cannot be diagnosed is not a working
+    robot, so the default now writes the file and ``main.py`` relies on that.
     """
+    if log_dir is None:
+        log_dir = default_log_dir()
+    if log_dir is False:            # explicit opt-out (tests, embedding)
+        log_dir = None
     root = logging.getLogger(_ROOT_NAME)
     root.setLevel(level)
     root.propagate = False

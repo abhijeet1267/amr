@@ -40,7 +40,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
 from ..communication.arduino_serial import ArduinoSerial, SerialTimeout
 from ..control import ArduinoMotorDriver, DifferentialDrive
 from ..control.motor_controller import MotorError
-from ..logging import get_logger
+from ..logging import get_logger, log_event
 from ..safety import SafetyAction, SafetyDecision, SafetyManager
 from ..sensors import UltrasonicManager, UltrasonicReading
 from ..utils.config import AppConfig
@@ -303,37 +303,51 @@ class RobotManager:
         if self.hazard is not None and self.hazard.status.blocks_motion:
             raise RobotCommandError(f"hazard veto: {self.hazard.status}")
 
-    def _apply(self, fn) -> None:
-        """Gate, run a drive command, publish the commanded speeds."""
+    def _apply(self, fn, event: str = "MOVE") -> None:
+        """Gate, run a drive command, publish the commanded speeds.
+
+        ``event`` is the tag used for the compact log line. Every motion command
+        funnels through here, so this is the one place that can emit the
+        documented ``COMMAND MOVE L=150 R=150`` record — previously
+        :func:`amr.logging.log_event` existed and was documented in
+        ``AI_CONTEXT/ARCHITECTURE.md`` but nothing ever called it, so the format
+        the architecture promised was not in any log.
+        """
         self._gate()
         fn()
         left, right = self.drive.last_commanded
         self.state.left_speed = left
         self.state.right_speed = right
         self.state.updated_at = time.time()
+        # The *commanded* speeds, which is what the controller was actually
+        # told — not the requested ones, which a hazard layer may have scaled.
+        log_event(self.log, "command", f"{event} L={left} R={right}")
 
     # NOTE: speeds pass through _scaled(), which is the identity function unless a
     # hazard layer is attached and currently reports SLOW (see attach_hazard).
+    # The `event=` tag is what makes the log greppable per action
+    # ("grep COMMAND logs" then "grep ROTATE logs").
     def forward(self, speed: int = 100) -> None:
-        self._apply(lambda: self.drive.forward(self._scaled(speed)))
+        self._apply(lambda: self.drive.forward(self._scaled(speed)), "FORWARD")
 
     def backward(self, speed: int = 100) -> None:
-        self._apply(lambda: self.drive.backward(self._scaled(speed)))
+        self._apply(lambda: self.drive.backward(self._scaled(speed)), "BACKWARD")
 
     def rotate_left(self, speed: int = 100) -> None:
-        self._apply(lambda: self.drive.rotate_left(self._scaled(speed)))
+        self._apply(lambda: self.drive.rotate_left(self._scaled(speed)), "ROTATE_LEFT")
 
     def rotate_right(self, speed: int = 100) -> None:
-        self._apply(lambda: self.drive.rotate_right(self._scaled(speed)))
+        self._apply(lambda: self.drive.rotate_right(self._scaled(speed)), "ROTATE_RIGHT")
 
     def turn_left(self, speed: int = 80) -> None:
-        self._apply(lambda: self.drive.turn_left(self._scaled(speed)))
+        self._apply(lambda: self.drive.turn_left(self._scaled(speed)), "TURN_LEFT")
 
     def turn_right(self, speed: int = 80) -> None:
-        self._apply(lambda: self.drive.turn_right(self._scaled(speed)))
+        self._apply(lambda: self.drive.turn_right(self._scaled(speed)), "TURN_RIGHT")
 
     def move(self, left: int, right: int) -> None:
-        self._apply(lambda: self.drive.move(self._scaled(left), self._scaled(right)))
+        self._apply(lambda: self.drive.move(self._scaled(left), self._scaled(right)),
+                    "MOVE")
 
     def stop(self) -> None:
         """Command a motion stop. Never gated — always allowed."""

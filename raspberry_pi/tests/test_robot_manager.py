@@ -7,6 +7,8 @@ execute in hardware mode (only the transport differs).
 from __future__ import annotations
 
 import json
+import logging
+from contextlib import contextmanager
 
 import pytest
 
@@ -229,3 +231,82 @@ def test_demo_reports_step_results(app_config):
     assert parsed[0]["step"] == "start"
     assert parsed[-1]["step"] == "snapshot"
     assert all(p["ok"] for p in parsed)
+
+
+# --------------------------------------------------------------------------- #
+# The compact event log
+#
+# log_event() is documented in AI_CONTEXT/ARCHITECTURE.md and promised the
+# format "COMMAND MOVE L=150 R=150", but nothing in production called it, so
+# that format appeared in no log at all. These tests assert it is real.
+# --------------------------------------------------------------------------- #
+class _Capture(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+@contextmanager
+def _capture_amr_log():
+    """Collect ``amr.*`` INFO records for the duration of the block.
+
+    The level is set explicitly because ``amr`` is NOTSET unless
+    :func:`setup_logging` has run, which means INFO records are dropped — the
+    test must not depend on some other test having configured logging first.
+    """
+    cap = _Capture()
+    log = logging.getLogger("amr")
+    previous = log.level
+    log.setLevel(logging.INFO)
+    log.addHandler(cap)
+    try:
+        yield cap
+    finally:
+        log.removeHandler(cap)
+        log.setLevel(previous)
+
+
+def test_motion_emits_the_documented_command_event(robot):
+    mgr, _ = robot
+    with _capture_amr_log() as cap:
+        mgr.request_mode(RobotMode.MANUAL)
+        mgr.forward(150)
+    lines = [r.getMessage() for r in cap.records]
+    assert "COMMAND FORWARD L=150 R=150" in lines, lines
+
+
+def test_each_motion_command_is_distinguishable(robot):
+    """The tag must name the action, or the log is not greppable per action."""
+    mgr, _ = robot
+    with _capture_amr_log() as cap:
+        mgr.request_mode(RobotMode.MANUAL)
+        mgr.forward(100)
+        mgr.backward(60)
+        mgr.rotate_left(80)
+        mgr.move(30, 40)
+    lines = [r.getMessage() for r in cap.records]
+    for expected in ("COMMAND FORWARD", "COMMAND BACKWARD",
+                     "COMMAND ROTATE_LEFT", "COMMAND MOVE L=30 R=40"):
+        assert any(expected in ln for ln in lines), (expected, lines)
+
+
+def test_command_event_reports_the_commanded_speed_not_the_requested_one(robot):
+    """A hazard layer may scale a request; the log must show what was sent."""
+    mgr, _ = robot
+    with _capture_amr_log() as cap:
+        mgr.request_mode(RobotMode.MANUAL)
+        mgr.forward(200)
+        # Pretend a hazard layer halves every request.
+        original = mgr._scaled
+        mgr._scaled = lambda s: s // 2
+        try:
+            mgr.forward(200)
+        finally:
+            mgr._scaled = original
+    lines = [r.getMessage() for r in cap.records if "COMMAND" in r.getMessage()]
+    assert "COMMAND FORWARD L=200 R=200" in lines, lines
+    assert "COMMAND FORWARD L=100 R=100" in lines, (
+        f"the scaled command must be logged as sent, not as requested: {lines}")

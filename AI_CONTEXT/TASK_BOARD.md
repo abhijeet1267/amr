@@ -641,6 +641,56 @@ simulated data.
 
 ---
 
+## Full-project health pass `[x]` (2026-09-28)
+
+A whole-project audit rather than another feature: baseline, wiring, and a real
+boot of the application (not a test fixture).
+
+**Method.** Full suite; `compileall` over `amr/`; orphan scan (every module
+imported by production code or tests — **none**); `python -m amr.main --mock
+--mission-demo --web` booted as a subprocess and all 20 routes exercised live.
+
+**Two real defects found and fixed.**
+
+1. **Logging was silently dead.** `main.py` called `setup_logging(console=False)`
+   with no `log_dir`, so `if log_dir:` never ran and `console=False` skipped the
+   other branch — installing **zero** handlers. A logger with no handlers
+   discards every record without complaint. `_default_log_dir()` existed,
+   honoured `AMR_LOG_DIR`, and was **never called by anything**. Proven by
+   running the real app before the fix: no `logs/` directory was ever created.
+   Fixed by making `log_dir=None` mean *the default directory* (opt out
+   explicitly with `log_dir=False`), and by having `main.py` report a failure to
+   stderr instead of swallowing it.
+2. **Rotated logs were not git-ignored.** `*.log` does not match `amr.log.1`, so
+   now that logging actually writes, a robot left running would commit its own
+   logs. `.gitignore` now excludes `logs/`.
+
+**Two features added where a gap was demonstrated, not invented.**
+
+3. **`GET /health` now reports logging state** —
+   `{"active", "file", "writable", "level", "detail"?}`. A fix nobody can observe
+   is a fix that can silently regress. `active: false` means output is being
+   discarded, and `detail` explains an unwritable file (observed for real when a
+   log directory was deleted under a running process).
+4. **`log_event` is now actually used.** It is documented in `ARCHITECTURE.md`
+   with the format `COMMAND MOVE L=150 R=150`, but no production code called it,
+   so that format appeared in no log at all. `RobotManager._apply` — the single
+   choke point for every motion command — now emits it, tagged per action, with
+   the **commanded** speed (what the controller was sent, after hazard scaling)
+   rather than the requested one.
+
+**Also documented:** README gained a *Logs* section (where the log is,
+`AMR_LOG_DIR`, the grep format, and the `/health` check). It had none before.
+
+**Suite: 1370 passed, 2 skipped, 0 failed.** Live e2e: all 20 routes 200, hub
+count 16, no dead links, no deep link landing on the wrong view.
+
+**Hardware / firmware / camera: still NOT TESTED.** `hazard.enabled: false` in
+`config/hazard.yaml` is deliberate and stays false; `/hazard` reporting
+`attached: false` is honest, not a defect.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

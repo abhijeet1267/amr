@@ -67,11 +67,13 @@ The hazard endpoints are read/acknowledge only:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from logging.handlers import RotatingFileHandler
 from typing import Any, Dict, Optional, Tuple
 
 from ..apps import ApplicationRegistry, RuntimeContext, load_applications
@@ -150,6 +152,53 @@ _IMAGE_CONTENT_TYPES = {
     "webp": "image/webp",
     "bmp": "image/bmp",
 }
+
+
+def _logging_status() -> dict:
+    """What ``/health`` says about logging: where it goes, and is it live.
+
+    Added because logging used to be silently dead — ``main.py`` called
+    ``setup_logging(console=False)`` with no directory, which installed *zero*
+    handlers, and a logger with no handlers discards every record without
+    complaint. The fix is in :mod:`amr.logging`, but a fix nobody can observe is
+    a fix that can silently regress, so ``/health`` now reports it.
+
+    Every field here is measured, never assumed. ``active`` is False when there
+    is no handler at all, and the file is only called ``writable`` if it is
+    genuinely openable right now.
+    """
+    root = logging.getLogger("amr")
+    handlers = list(root.handlers)
+    files = [h for h in handlers if isinstance(h, RotatingFileHandler)]
+    path = None
+    writable = False
+    detail = None
+    if files:
+        path = os.path.basename(files[0].baseFilename)
+        full = files[0].baseFilename
+        try:
+            # Opened for append, the same access the handler itself uses. If the
+            # directory is gone or the card is read-only this raises, and that
+            # is exactly the condition worth reporting.
+            with open(full, "a", encoding="utf-8"):
+                pass
+            writable = True
+        except OSError as exc:
+            # The reason is included because "not writable" and "no log at all"
+            # are very different faults and an operator has to tell them apart.
+            detail = f"{type(exc).__name__}: {exc}"
+    body = {
+        # A handler exists at all — the difference between a log and a void.
+        "active": bool(handlers),
+        "file": path,
+        "writable": writable,
+        "level": logging.getLevelName(root.level),
+    }
+    # Only present when something is wrong, so a healthy response stays small.
+    # Its absence means "no problem", not "unknown".
+    if detail is not None:
+        body["detail"] = detail
+    return body
 
 
 def _cached_frame(cam: Any) -> Optional[CameraFrame]:
@@ -784,6 +833,7 @@ class AMRWebApp:
         body["read_only"] = True
         body["server"] = "amr-dashboard"
         body["serving"] = running
+        body["logging"] = _logging_status()
         if not running:
             body["status"] = "STOPPED"
         return body, (200 if running else 503)
