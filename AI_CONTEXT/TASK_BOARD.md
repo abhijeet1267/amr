@@ -742,6 +742,69 @@ plus a live HTTP fetch of the assets. That is a real limitation, stated plainly.
 
 ---
 
+## Applications: Wi-Fi / Bluetooth connectivity `[x]` (2026-09-28)
+
+Three new hub cards and a real read-only probe behind them. The design question
+was not "how do we draw a Wi-Fi card" but **"what can we honestly say is
+connected?"** — and the answer had to survive a machine with no radio at all.
+
+### The central distinction
+
+These report the radio of the **host running the process**, not of the robot.
+The AMR has no radio of its own in this codebase, so a card implying "the
+robot's Wi-Fi" would be fiction. What can honestly be said is whether the
+machine the operator is talking to is reachable — which is exactly what makes
+the console stop working. So `requires_robot: false` on all three, and a test
+pins that.
+
+### What it actually measures
+
+`amr/net/connectivity.py` reads `/sys/class/net` (Linux, where the Pi runs),
+with a portable `socket` fallback elsewhere. **stdlib only** — a test greps the
+module to assert it never imports `subprocess` or names `nmcli`/`bluetoothctl`,
+because shelling out would add an external, version-dependent dependency to a
+probe that must never fail.
+
+Honesty rules, each with a test:
+
+* **`UNAVAILABLE` ≠ `DISCONNECTED`.** No wireless hardware and a dead link are
+  different operator problems and are reported differently, with a `note`.
+* **SSID is always `null`.** Reading one needs a privileged ioctl; a
+  plausible-looking network name would be a fabrication the operator cannot
+  distinguish from a real reading.
+* **`paired_devices` is `null`, never `0`.** `0` says "we looked and found
+  none"; `null` says "we did not look". No scan is run, so only the second is
+  true. Discovery is privileged and disruptive, and running it from a
+  read-only endpoint would make the web layer an actuator.
+* **Loopback is never read as a radio.** `lo` is always up and says nothing.
+* **A failed poll is not a down link** — the console says the probe failed and
+  leaves the last reading visible.
+
+### Deliverables
+
+* `GET /connectivity` (read-only; POST returns 404/405, asserted) and
+  `AMRWebApp.connectivity()`.
+* Command Center view `connectivity` — tab, panel, 5 s poll, 1 Hz robot state
+  untouched. A re-entrancy guard stops `renderAll` (1 Hz) and the self-
+  rescheduling timer from stacking into two probe chains a second.
+* Three registry cards: **AVAILABLE** (overview), **PARTIAL** (`wifi_link` —
+  SSID and signal are genuinely not measured, so AVAILABLE would oversell),
+  **HARDWARE REQUIRED** (`bluetooth_link` — never run against a real adapter).
+
+Statuses were chosen to be unflattering where that is the truth. The tempting
+value in every case was the higher one.
+
+**Suite: 1400 passed, 2 skipped, 0 failed** (+24). Live e2e: 20/20 routes, hub
+now **19** applications, every deep link resolves to a real view.
+
+**Not tested on real hardware.** macOS has no `/sys/class/net`, so the verified
+path is the `UNAVAILABLE` degradation plus fixture-driven sysfs trees
+(`tests/test_connectivity.py`, 14 tests). A Pi with a real `wlan0`/`hci0` is
+**NOT TESTED** — the sysfs parsing is written against the documented kernel
+format but has never met a real adapter.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

@@ -287,6 +287,84 @@ applications:
     requires_hardware: false
 
   # ------------------------------------------------------------------ #
+  # Connectivity. NEW: these report the radio of the HOST running the
+  # process, not of the robot. The distinction is the point — the AMR has
+  # no radio of its own in this codebase, so a card claiming "the robot's
+  # Wi-Fi" would be a fiction. What it can honestly say is whether the
+  # machine the operator is talking to is reachable, which is what makes
+  # the console stop working.
+  #
+  # Statuses below are deliberately conservative. On a non-Linux host (or a
+  # Pi with no adapter) the probe reports UNAVAILABLE and the console prints
+  # "n/a" — it never falls back to "connected".
+  # ------------------------------------------------------------------ #
+  - id: connectivity_overview
+    name: Connectivity (Wi-Fi / Bluetooth)
+    description: >-
+      Read-only view of the host's network interfaces, sourced from
+      GET /connectivity. Shows which interfaces exist, which are up, and
+      what Wi-Fi and Bluetooth the machine actually reports. It never
+      associates, scans, or changes a link, so it cannot be a second
+      actuation path. On a host with no adapter the panel says UNAVAILABLE
+      rather than guessing.
+    category: diagnostics
+    platforms: [web]
+    status: AVAILABLE
+    url: /command-center#connectivity
+    api_base: /connectivity
+    launch_command: python -m amr.main --mock --web
+    icon: wifi
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: false
+
+  - id: wifi_link
+    name: Wi-Fi Link
+    description: >-
+      Whether a wireless interface exists on this host and whether its link
+      is up. Read from /sys/class/net where the kernel exposes it. SSID and
+      signal strength are reported as n/a: reading them needs a privileged
+      ioctl, and this read-only path will not invent a network name.
+    category: diagnostics
+    platforms: [web]
+    # PARTIAL, not AVAILABLE, and deliberately: interface presence and link
+    # state are genuinely verified, but the two fields an operator usually
+    # wants (SSID, signal) are not measured. Saying AVAILABLE here would
+    # oversell what this card shows.
+    status: PARTIAL
+    url: /command-center#connectivity
+    api_base: /connectivity
+    launch_command: python -m amr.main --mock --web
+    icon: wifi
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: false
+
+  - id: bluetooth_link
+    name: Bluetooth Adapter
+    description: >-
+      Whether the host reports a Bluetooth adapter. Presence only — no
+      device discovery, because scanning is privileged and disruptive and
+      belongs nowhere near a read-only endpoint. paired_devices is therefore
+      always null, not 0: this card has not counted anything.
+    category: diagnostics
+    platforms: [web]
+    # HARDWARE REQUIRED, not AVAILABLE: verified on hardware this project does
+    # not have. The absence of a Bluetooth radio on the development machine
+    # is a real result, and the status says exactly that.
+    status: HARDWARE REQUIRED
+    url: /command-center#connectivity
+    api_base: /connectivity
+    launch_command: python -m amr.main --mock --web
+    icon: bluetooth
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: true
+
+  # ------------------------------------------------------------------ #
   # Clients that are NOT built. Their presence here is the honest answer
   # to "does this exist?", and the hub is allowed to print these statuses
   # verbatim because they are the truth.

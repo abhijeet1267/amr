@@ -20,6 +20,7 @@
     <button type="button" role="tab" data-view="twin" aria-selected="false">3D Twin</button>
     <button type="button" role="tab" data-view="map" aria-selected="false">Map</button>
     <button type="button" role="tab" data-view="camera" aria-selected="false">Camera</button>
+    <button type="button" role="tab" data-view="connectivity" aria-selected="false">Connectivity</button>
     <button type="button" role="tab" data-view="replay" aria-selected="false">Replay</button>
   </nav>
   <!-- Phase C: the hub is a separate page, so it is an anchor rather than a
@@ -383,6 +384,26 @@
       <dt>Detector</dt><dd id="cd-det">n/a</dd>
       <dt>Detections</dt><dd id="cd-count">n/a</dd>
       <dt>Last frame</dt><dd id="cd-last">n/a</dd>
+    </dl>
+  </section>
+
+  <!-- CONNECTIVITY: Wi-Fi / Bluetooth on the host running this process.
+       Populated from GET /connectivity, which is a separate read-only probe.
+       Every value here is measured; "n/a" means the host would not say. -->
+  <section class="card span-4" id="sec-conn" data-section="connectivity"
+           aria-labelledby="h-conn">
+    <h2 id="h-conn">Connectivity</h2>
+    <dl class="kv">
+      <dt>Wi-Fi</dt><dd id="cn-wifi">n/a</dd>
+      <dt>Wi-Fi link</dt><dd id="cn-wifilink">n/a</dd>
+      <dt>SSID</dt><dd id="cn-ssid">n/a</dd>
+      <dt>Bluetooth</dt><dd id="cn-bt">n/a</dd>
+      <dt>Adapters</dt><dd id="cn-btcount">n/a</dd>
+    </dl>
+    <p class="mini" id="cn-note">n/a</p>
+    <h3 class="sub-h">Interfaces</h3>
+    <dl class="kv" id="cn-ifs">
+      <dt>Probing</dt><dd>n/a</dd>
     </dl>
   </section>
 

@@ -233,6 +233,56 @@ def test_exactly_one_application_can_command_motion(registry):
     assert writable == ["control_panel"], writable
 
 
+def test_connectivity_cards_are_about_the_host_not_the_robot(registry):
+    """Wi-Fi/Bluetooth here describe the *machine running the process*.
+
+    The AMR has no radio of its own in this codebase, so a card implying the
+    robot has one would be the exact kind of fiction this file exists to stop.
+    ``requires_robot`` is therefore False: losing the link breaks the operator
+    console, it does not disable a robot capability.
+    """
+    for app_id in ("connectivity_overview", "wifi_link", "bluetooth_link"):
+        app = registry.by_id(app_id)
+        assert app is not None, f"{app_id} missing from the registry"
+        assert app.requires_robot is False, (
+            f"{app_id} claims a robot dependency; this is a host property"
+        )
+        assert app.read_only is True
+
+
+def test_connectivity_cards_are_not_oversold(registry):
+    """Statuses must not claim more than was actually verified.
+
+    ``wifi_link`` reports presence and link state but never the SSID, so
+    PARTIAL is the truthful status. ``bluetooth_link`` was never exercised on
+    real hardware, so it cannot be AVAILABLE. Both assertions exist because the
+    tempting value is the flattering one.
+    """
+    wifi = registry.by_id("wifi_link")
+    assert wifi.status == "PARTIAL", (
+        "wifi_link measures presence and link state but not SSID/signal; "
+        "AVAILABLE would overstate it"
+    )
+    bt = registry.by_id("bluetooth_link")
+    assert bt.status == "HARDWARE REQUIRED", (
+        "bluetooth_link has never been run against a real adapter"
+    )
+
+
+def test_bluetooth_never_claims_a_device_count(registry):
+    """No device discovery is performed, so no count may be implied.
+
+    Discovery needs a privileged scan; doing it from a read-only endpoint would
+    also make the web layer an actuator. The payload reports ``None`` and the
+    card must not imply otherwise.
+    """
+    bt = registry.by_id("bluetooth_link")
+    assert "null" in bt.description or "not counted" in bt.description.lower() or \
+        "always null" in bt.description.lower(), (
+        "bluetooth_link should state that it does not count paired devices"
+    )
+
+
 
 # --------------------------------------------------------------------------- #
 # Validation rejects the mistakes that actually happen

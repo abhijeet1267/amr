@@ -61,6 +61,73 @@ def _cmd(port: int, payload: dict) -> tuple:
 
 
 # --------------------------------------------------------------------------- #
+# GET /connectivity — host Wi-Fi / Bluetooth
+# --------------------------------------------------------------------------- #
+class TestConnectivityRoute:
+    """The endpoint must report the host, read-only, without ever guessing.
+
+    These run against the real host rather than a fixture: a machine with no
+    wireless interface is itself the interesting case, and it must produce
+    UNAVAILABLE with a reason rather than a cheerful "connected".
+    """
+
+    def test_returns_200_with_the_documented_shape(self, web):
+        _app, port, _mgr = web
+        body = json.loads(_get(port, "/connectivity")[2].decode("utf-8"))
+        assert body["version"] == 1
+        assert body["read_only"] is True
+        for key in ("interfaces", "counts", "wifi", "bluetooth"):
+            assert key in body, key
+
+    def test_wifi_and_bluetooth_are_never_optimistically_connected(self, web):
+        """The core honesty property, over HTTP.
+
+        Whatever the host looks like, a radio may not be reported CONNECTED
+        unless a wireless interface was actually found and its link is up.
+        """
+        _app, port, _mgr = web
+        body = json.loads(_get(port, "/connectivity")[2].decode("utf-8"))
+        w = body["wifi"]
+        if w["status"] == "CONNECTED":
+            assert w["connected"] is True
+            assert w["interface"] is not None
+            assert w["interface"]["kind"] == "wireless"
+            assert w["interface"]["up"] is True
+        else:
+            assert w["connected"] is False
+        if w["status"] == "UNAVAILABLE":
+            assert w["note"], "an unavailable radio must explain itself"
+
+    def test_counts_agree_with_the_interfaces_listed(self, web):
+        _app, port, _mgr = web
+        body = json.loads(_get(port, "/connectivity")[2].decode("utf-8"))
+        assert body["counts"]["total"] == len(body["interfaces"])
+        assert body["counts"]["wireless"] == sum(
+            1 for i in body["interfaces"] if i["kind"] == "wireless")
+
+    def test_endpoint_never_issues_a_write(self, web):
+        """No POST/PUT reaches this route, and it takes no parameters.
+
+        A connectivity surface that could change a link would be a second
+        actuation path, which is the one thing /command is allowed to be.
+        """
+        _app, port, _mgr = web
+        code, _body = _post(port, "/connectivity", "{}")
+        assert code in (404, 405), f"POST /connectivity returned {code}"
+
+    def test_probe_never_reports_an_ssid_it_could_not_have_read(self, web):
+        _app, port, _mgr = web
+        body = json.loads(_get(port, "/connectivity")[2].decode("utf-8"))
+        # Reading a real SSID needs a privileged ioctl this path never makes.
+        assert body["wifi"]["ssid"] is None
+
+    def test_paired_devices_is_null_not_zero(self, web):
+        _app, port, _mgr = web
+        body = json.loads(_get(port, "/connectivity")[2].decode("utf-8"))
+        assert body["bluetooth"]["paired_devices"] is None
+
+
+# --------------------------------------------------------------------------- #
 # Fixtures
 # --------------------------------------------------------------------------- #
 # C15c: the `web` and `web_no_camera` fixtures now live in conftest.py, so this

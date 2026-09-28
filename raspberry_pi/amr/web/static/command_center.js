@@ -106,6 +106,69 @@ function renderAll(s) {
   // C5e: the operations panels, from the `ops` block in this same payload.
   renderOps(s);
   applyEventFilter();
+  // Connectivity is a separate read-only endpoint rather than part of the
+  // console payload: it inspects the *host*, not the robot, and folding it in
+  // would imply the AMR owns a radio it does not.
+  pollConnectivity();
+}
+
+/* -- connectivity (host Wi-Fi / Bluetooth) ---------------------------------- */
+/* Polled independently of /dashboard/state and on a slower cadence, because
+   link state changes on the order of seconds while the robot state changes
+   every tick. A failed poll says so and leaves the last reading visible --
+   it must never blank the panel into an implied "off". */
+var CONN_MS = 5000;
+var CONN = { pending: false };
+
+function renderConnectivity(c) {
+  if (!c) return;
+  var w = c.wifi || {}, b = c.bluetooth || {};
+  txt("cn-wifi", w.status || "n/a");
+  var link = $("cn-wifilink");
+  if (link) {
+    // Three distinct outcomes, never collapsed: connected, present-but-down,
+    // and "the host would not say".
+    link.textContent = w.connected === true ? "UP"
+      : (w.available === true ? "DOWN" : "UNKNOWN");
+    link.className = w.connected === true ? "ok"
+      : (w.available === true ? "warn" : "na");
+  }
+  // SSID is null by design (reading it needs a privileged ioctl), so this
+  // prints "n/a" rather than inventing a network name.
+  txt("cn-ssid", w.ssid);
+  txt("cn-bt", b.status || "n/a");
+  txt("cn-btcount", isNum((b.adapters || []).length)
+    ? String(b.adapters.length) : "n/a");
+  txt("cn-note", w.note || b.note || c.note || "");
+  var body = $("cn-ifs");
+  if (body) {
+    body.innerHTML = (c.interfaces || []).map(function (i) {
+      return "<dt>" + esc(i.name) + "</dt><dd>" + esc(i.kind) + " \u00b7 " +
+        (i.up ? "up" : "down") + (i.operstate ? " \u00b7 " + esc(i.operstate) : "") +
+        "</dd>";
+    }).join("") || "<dt>none reported</dt><dd>n/a</dd>";
+  }
+}
+
+function pollConnectivity() {
+  // Guard against stacking timers. renderAll() runs at 1 Hz and calls this, so
+  // an unguarded self-reschedule would run two chains a second and double the
+  // probe rate no matter what CONN_MS is set to.
+  if (CONN.pending) return;
+  CONN.pending = true;
+  fetchJSON("/connectivity").then(function (c) {
+    renderConnectivity(c);
+  }).catch(function () {
+    // A failed probe is not evidence of a down link. Say the read failed.
+    txt("cn-note", "connectivity probe failed \u2014 last reading above may be stale");
+  }).then(function () {
+    CONN.pending = false;
+    setTimeout(pollConnectivity, CONN_MS);
+  }, function () {
+    // Even an unexpected throw must re-arm, or the panel silently freezes.
+    CONN.pending = false;
+    setTimeout(pollConnectivity, CONN_MS);
+  });
 }
 
 function renderHeader(s) {
@@ -1410,13 +1473,14 @@ var VIEW_SECTIONS = {
   safety: ["safety", "hazcentre"],
   sensors: ["sensors", "system"],
   hazards: ["hazcentre"],
+  connectivity: ["conn"],
   replay: ["replay"],
   events: ["events"],
   diagnostics: ["health", "system", "perf", "alerts"]
 };
 var VIEW_KEYS = ["overview", "twin", "camera", "map", "mission", "telemetry",
-                 "safety", "sensors", "hazards", "replay", "events",
-                 "diagnostics"];
+                 "safety", "sensors", "hazards", "connectivity", "replay",
+                 "events", "diagnostics"];
 
 function setView(name) {
   var main = $("main");

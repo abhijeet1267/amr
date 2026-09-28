@@ -82,6 +82,7 @@ from ..camera.frame import CameraFrame, CameraStatus
 from ..hazard import HazardSeverity, HazardState
 from ..logging import get_logger
 from ..map import MapService, build_twin_state
+from ..net import connectivity
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
 from ..telemetry import TelemetryCollector, build_console_state, build_ops_state
@@ -891,6 +892,17 @@ class AMRWebApp:
         with self._lock:
             return self._applications.payload(self.runtime_context())
 
+    def connectivity(self) -> dict:
+        """Payload for ``GET /connectivity`` — Wi-Fi / Bluetooth on this host.
+
+        Read-only by construction: the module inspects the running host and
+        never associates, scans, or changes a link. The lock is taken so the
+        snapshot cannot be taken while a command is being dispatched, keeping
+        the single-operator console's reads consistent with everything else.
+        """
+        with self._lock:
+            return connectivity.snapshot()
+
     # ------------------------------------------------------------------ #
     # Hazard layer (Layer 3.5) — read + acknowledge only
     # ------------------------------------------------------------------ #
@@ -1196,6 +1208,12 @@ class _Handler(BaseHTTPRequestHandler):
             # Phase C: the hub's only data source. Read-only, and the single
             # place where runtime context is folded into the declared baseline.
             self._send_json(self.app.applications_state())
+        elif path == "/connectivity":
+            # Wi-Fi / Bluetooth on the host running this process. Read-only:
+            # it inspects the machine and never associates, scans, or changes a
+            # link. Anything it cannot measure is reported as UNAVAILABLE with
+            # a reason rather than defaulted to "off" or "connected".
+            self._send_json(self.app.connectivity())
         elif path.startswith("/static/"):
             # C15c: the console's own assets. Strictly limited to the three
             # known files, so a crafted path cannot read arbitrary disk content.

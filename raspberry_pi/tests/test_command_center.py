@@ -717,6 +717,30 @@ class TestTheming:
         assert "renderCharts(" in apply_theme, "theme switch does not repaint charts"
         assert "renderMap(" in apply_theme, "theme switch does not repaint the map"
 
+    def test_connectivity_view_exists_and_is_reachable_from_the_hub(self):
+        """The three connectivity cards deep-link to ``#connectivity``.
+
+        ``test_every_fragment_is_a_view_the_console_actually_has`` already
+        proves the fragment is real; this pins *that it is used*, so deleting
+        the panel while leaving the YAML behind would fail here rather than
+        quietly producing three cards that all open Overview.
+        """
+        js = (_STATIC / "command_center.js").read_text(encoding="utf-8")
+        html = (_STATIC / "command_center.html").read_text(encoding="utf-8")
+        assert '"connectivity"' in js, "connectivity is not a known view"
+        assert 'id="sec-conn"' in html, "the connectivity panel is missing"
+        # Navigation is by data-view attribute, not id: the top tab and the
+        # sidebar both drive setView() through it.
+        assert 'data-view="connectivity"' in html, (
+            "nothing on the page links to the connectivity view"
+        )
+        # It must fetch the read-only endpoint, not a motion path.
+        assert 'fetchJSON("/connectivity")' in js
+        after = js.split("function renderConnectivity")[1][:2000]
+        assert "/command" not in after, (
+            "the connectivity renderer must not reach the actuator endpoint"
+        )
+
     def test_both_pages_follow_the_system_preference(self):
         """Console and hub must agree, or a phone shows one page light, one dark.
 
