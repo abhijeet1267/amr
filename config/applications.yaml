@@ -365,6 +365,106 @@ applications:
     requires_hardware: true
 
   # ------------------------------------------------------------------ #
+  # Runnable demos. No URL on purpose: these print to a terminal, they are
+  # not pages. They live in the registry so the hub's "Run it" section is
+  # generated from one source of truth instead of a hand-maintained copy in
+  # the HTML — a command that changes in the README used to leave the hub
+  # showing a stale one with nothing to catch it.
+  #
+  # Every command below was executed, not copied: each exits 0 and prints
+  # the result line quoted in the description. All of them are mock/simulated.
+  # ------------------------------------------------------------------ #
+  - id: unified_demo
+    name: Unified Demo
+    description: >-
+      The end-to-end scenario: mission -> simulated vision -> hazard -> safety
+      -> navigation change -> mission completes -> recorded -> replayable.
+      Deterministic, offline, mock only. Prints "Result: PASS" on success.
+    category: demo
+    platforms: [web]
+    # AVAILABLE because it was run and passed. The mock-only constraint is in
+    # the description, not hidden.
+    status: AVAILABLE
+    url: null
+    api_base: null
+    launch_command: python -m amr.demo
+    icon: play
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: false
+
+  - id: warehouse_roundtrip
+    name: Warehouse Round-Trip
+    description: >-
+      A scripted autonomous dock -> shelf (pick) -> station (place) -> dock
+      cycle against the mock robot. Prints "completed=3 failed=0" on success.
+    category: demo
+    platforms: [web]
+    status: AVAILABLE
+    url: null
+    api_base: null
+    launch_command: python -m amr.warehouse --mock
+    icon: box
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: false
+
+  - id: hazard_scenario
+    name: Multi-Hazard Scenario
+    description: >-
+      A scripted gas -> human -> fire sequence against a mocked robot, ending
+      with the acknowledge-then-reset two-step release. Prints
+      "failures=0 events_recorded=3 final_mode=IDLE" on success.
+    category: demo
+    platforms: [web]
+    status: AVAILABLE
+    url: null
+    api_base: null
+    launch_command: python -m amr.hazard
+    icon: alert
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: false
+
+  - id: vision_pipeline
+    name: Vision Pipeline (simulated)
+    description: >-
+      The vision -> hazard pipeline driven by SIMULATED detections. No camera
+      is read and no robot is controlled; the run states so on its own output.
+    category: demo
+    platforms: [web]
+    status: AVAILABLE
+    url: null
+    api_base: null
+    launch_command: python -m amr.hazard.vision
+    icon: eye
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: false
+
+  - id: hazard_map_svg
+    name: Hazard Map (offline SVG)
+    description: >-
+      Renders recorded hazard events onto the warehouse map as a static SVG
+      file. Offline: it reads a recording and writes a file, touching no
+      hardware. Verified writing hazard-map.svg (3,798 bytes) with 0 events.
+    category: demo
+    platforms: [web]
+    status: AVAILABLE
+    url: null
+    api_base: null
+    launch_command: python -m amr.hazard.visualisation --out hazard-map.svg
+    icon: map
+    read_only: true
+    requires_robot: false
+    requires_camera: false
+    requires_hardware: false
+
+  # ------------------------------------------------------------------ #
   # Clients that are NOT built. Their presence here is the honest answer
   # to "does this exist?", and the hub is allowed to print these statuses
   # verbatim because they are the truth.

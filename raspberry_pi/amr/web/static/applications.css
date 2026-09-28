@@ -36,6 +36,55 @@
   border-radius: 4px; padding: 1px 5px;
 }
 
+/* --- start here ------------------------------------------------------------- */
+/* The "how do I actually run this" card. It sits above the filters because it
+   is the first thing somebody opening the hub needs, and it is generated from
+   the registry rather than typed into the HTML so a command cannot go stale. */
+.hub-start { margin-bottom: 14px; }
+.hub-start > h2 {
+  margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted);
+}
+.hub-steps {
+  margin: 0 0 10px; padding-left: 20px; color: var(--text); font-size: 13px;
+  line-height: 1.7;
+}
+.hub-start .sub-h { margin-top: 14px; }
+.hub-start code {
+  font-family: var(--mono); font-size: 12px;
+  background: var(--card-2); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 5px;
+}
+.hub-demos {
+  display: grid; gap: 8px; margin-top: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+}
+.hub-demo {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--card-2);
+}
+.hub-demo-text { flex: 1 1 auto; min-width: 0; }
+.hub-demo-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+.hub-demo-head strong { font-size: 13px; }
+/* The command is the payload of this row, so it gets monospace and wraps
+   rather than overflowing on a phone. */
+.hub-cmd {
+  display: block; font-family: var(--mono); font-size: 11.5px;
+  color: var(--accent); background: var(--bg-2);
+  border: 1px solid var(--line); border-radius: 5px;
+  padding: 5px 7px; overflow-wrap: anywhere; user-select: all;
+}
+.hub-demo .app-desc { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); }
+.hub-copy {
+  flex: 0 0 auto; align-self: flex-start; font-size: 11px; padding: 5px 10px;
+}
+.hub-copy.copied { border-color: var(--ok); color: var(--ok); }
+.hub-copy.copy-failed { border-color: var(--crit); color: var(--crit); }
+
 /* --- filters -------------------------------------------------------------- */
 .hub-controls {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -143,4 +192,9 @@
 @media (max-width: 720px) {
   .hub-hint { margin-left: 0; }
   .grid { grid-template-columns: 1fr; }
+  /* The demo grid collapses to one column and the copy button drops below the
+     command, so a phone is not a 420px-wide command with a clipped button. */
+  .hub-demos { grid-template-columns: 1fr; }
+  .hub-demo { flex-direction: column; }
+  .hub-copy { align-self: stretch; }
 }

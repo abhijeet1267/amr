@@ -80,6 +80,11 @@ CATEGORIES = (
     "control",
     "reference",
     "client",
+    # Runnable entry points that produce terminal output rather than a page:
+    # `python -m amr.demo`, `python -m amr.hazard`, and friends. They are in
+    # the registry rather than hardcoded into the hub so there is still exactly
+    # one place that knows how this project is launched.
+    "demo",
 )
 
 #: Platforms an application may claim. ``web`` applications are served by this
@@ -361,10 +366,11 @@ def validate_applications(apps: List[Application]) -> None:
                     f"{app.id}: unknown platform {platform!r} "
                     f"(known: {', '.join(PLATFORMS)})"
                 )
-        if app.url is None and app.category not in ("client", "reference"):
+        if app.url is None and app.category not in ("client", "reference", "demo"):
             # A monitoring/visualization card with no URL is a dead card. Only
-            # `client` (artefacts) and `reference` (the API) may legitimately
-            # have nothing to open.
+            # `client` (artefacts), `reference` (the API) and `demo` (a command
+            # you run rather than a page you open) may legitimately have nothing
+            # to click.
             raise ConfigError(
                 f"{app.id}: category {app.category!r} must declare a url or "
                 f"the hub renders an empty card"

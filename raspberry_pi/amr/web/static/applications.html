@@ -55,6 +55,31 @@
     </p>
   </section>
 
+  <!-- START HERE. The commonest way to use this project is: start the server,
+       click a link. The demos below are terminal commands rather than pages, so
+       they get a copy-to-clipboard button instead of a link. Both lists are
+       built by applications.js from /applications/state -- nothing here is a
+       hand-maintained copy of the README, which is how the two used to drift. -->
+  <section class="card hub-start" aria-labelledby="hub-start-h">
+    <h2 id="hub-start-h">Start here</h2>
+    <ol class="hub-steps">
+      <li>Open a terminal in the <code>raspberry_pi/</code> folder.</li>
+      <li>Run <code>python -m amr.main --mock --web</code> and leave it running.</li>
+      <li>Click a link below — this page refreshes itself as the robot changes.</li>
+    </ol>
+    <p class="hub-fine">
+      <code>--mock</code> means nothing touches real hardware. Drop both flags to
+      run against a real robot, but read the README first: the hazard and safety
+      layers are off by default and their thresholds are unverified.
+    </p>
+    <h3 class="sub-h">Or run a demo in your terminal</h3>
+    <p class="hub-fine">
+      Every command below was executed and exits 0. All are mock or simulated:
+      no camera, no motors, no serial port.
+    </p>
+    <div id="hub-demos" class="hub-demos"></div>
+  </section>
+
   <section class="hub-controls" aria-label="Filter applications">
     <div class="filters" id="hub-categories" role="group" aria-label="Filter by category"></div>
     <label class="field" for="hub-platforms">

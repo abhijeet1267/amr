@@ -135,6 +135,87 @@ function card(app) {
   return node;
 }
 
+/* -- demos (terminal commands, generated from the registry) --------------- */
+/* A demo is a command you run, not a page you open, so it gets a copy button
+   rather than an <a>. The commands come from /applications/state, not from a
+   list typed into this file: when a command changed in applications.yaml the
+   hub used to keep showing the old one, with nothing to catch the drift. */
+function copyText(text, button) {
+  function done(ok) {
+    button.textContent = ok ? "Copied" : "Copy failed";
+    button.classList.add(ok ? "copied" : "copy-failed");
+    setTimeout(function () {
+      button.textContent = "Copy";
+      button.classList.remove("copied", "copy-failed");
+    }, 1600);
+  }
+  // navigator.clipboard needs a secure context, so a plain http:// LAN address
+  // may not have it. The textarea fallback is what actually works on a Pi over
+  // http, which is the deployment this project targets.
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function () { done(true); },
+                                              function () { fallback(text, done); });
+  } else {
+    fallback(text, done);
+  }
+}
+
+function fallback(text, done) {
+  var ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  // Off-screen rather than display:none: a hidden element cannot be selected,
+  // and the copy silently fails on some browsers.
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  var ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  done(ok);
+}
+
+function demoRow(app) {
+  var row = el("div", "hub-demo");
+  var text = el("div", "hub-demo-text");
+  var head = el("div", "hub-demo-head");
+  head.appendChild(el("strong", null, app.name));
+  // The status is printed, not just coloured, for the same reason as the cards.
+  head.appendChild(el("span", "flag " + (statusClass(app.status) === "ok" ? "" : "warn"),
+                      app.status));
+  text.appendChild(head);
+  var code = el("code", "hub-cmd", app.launch_command);
+  text.appendChild(code);
+  if (app.description) {
+    text.appendChild(el("p", "app-desc", app.description));
+  }
+  row.appendChild(text);
+  var btn = el("button", "hub-copy", "Copy");
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Copy the command for " + app.name);
+  btn.addEventListener("click", function () { copyText(app.launch_command, btn); });
+  row.appendChild(btn);
+  return row;
+}
+
+function renderDemos(payload) {
+  var host = $("hub-demos");
+  if (!host) return;
+  var demos = (payload.applications || []).filter(function (a) {
+    return a.category === "demo" && a.launch_command;
+  });
+  host.textContent = "";
+  if (!demos.length) {
+    // Say so rather than showing an empty box: no demos is a real, visible
+    // state of this repository, not a rendering failure.
+    host.appendChild(el("p", "hub-empty",
+      "No runnable demos are registered in config/applications.yaml."));
+    return;
+  }
+  demos.forEach(function (a) { host.appendChild(demoRow(a)); });
+}
+
 /* -- filtering ------------------------------------------------------------- */
 function matches(app) {
   var f = HUB.filter;
@@ -213,6 +294,10 @@ function render() {
   var payload = HUB.payload;
   if (!payload) return;
   renderFilters(payload);
+  // Demos live in the Start-here card, outside the filtered grid: they are the
+  // "how do I run this" answer, so they must not disappear when the operator
+  // filters to one category.
+  renderDemos(payload);
 
   var groups = $("hub-groups");
   groups.textContent = "";

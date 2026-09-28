@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1409%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1413%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1409 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
+| Test suite | **1413 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest -q` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -70,7 +70,31 @@ suite runs entirely on **mocks** — no serial device, no motors, no camera.
 
 ## See it work
 
-Several ways to run the stack — all of them safe and mockable:
+### The short version
+
+```bash
+cd raspberry_pi
+python -m amr.main --mock --web
+```
+
+Then open these — every one is a live page, and each keeps itself current:
+
+| Click | Opens |
+|---|---|
+| **[Applications Hub](http://localhost:8080/applications)** | Directory of every interface, with copy-to-clipboard commands for the demos |
+| **[Command Center](http://localhost:8080/command-center)** | The full operator console: map, 3D twin, camera, mission, telemetry, safety, replay, events, diagnostics, connectivity |
+| **[Monitoring dashboard](http://localhost:8080/dashboard)** | The older three-panel telemetry view |
+| **[Control panel](http://localhost:8080/)** | Manual drive controls — the only page that can command motion |
+
+> These links only work **while the command above is running**, and they point at
+> `localhost`, so open them on the same machine. From another device, replace
+> `localhost` with the Pi's address (printed on startup) — for example
+> `http://192.168.1.42:8080/applications`.
+
+### Every way to run it
+
+All of these are safe and mockable. Each one is also listed in the
+[Applications Hub](http://localhost:8080/applications) with a copy button.
 
 ```bash
 cd raspberry_pi

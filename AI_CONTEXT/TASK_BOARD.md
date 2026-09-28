@@ -880,6 +880,68 @@ host-independent, but on-device performance is **NOT TESTED**.
 
 ---
 
+## Applications Hub: clickable entry points + runnable demos `[x]` (2026-09-28)
+
+Asked for a link you can click to reach the AMR web app, with instructions. The
+Hub already existed at `/applications` with 19 entries, so the work was not
+"add a page" — it was closing the gap between the README's eight run commands
+and anything clickable.
+
+### What was actually missing
+
+* The five CLI demos (`amr.demo`, `amr.warehouse`, `amr.hazard`,
+  `amr.hazard.vision`, `amr.hazard.visualisation`) were in the README and
+  **nowhere else**. They are not pages, so they could never be a card, and
+  nothing in the UI mentioned them.
+* The README's instructions were prose on GitHub, not a page in the app.
+
+### What changed
+
+1. **New `demo` registry category** (`CATEGORIES` + the "a card with no URL is
+   dead" validation). A demo is a command you run, not a page you open, so it is
+   exempt from needing a URL — but that exemption is only sound while every entry
+   in it really has a `launch_command`, which is asserted.
+2. **Five demos registered with commands that were executed, not copied.** All
+   five run and exit 0; the output line each produces is quoted in its
+   description, so the card's claim is checkable. One README claim needed
+   checking: `amr.demo` is a *module* (`demo.py`), not a package, so
+   `python -m amr.demo` works while a naive `__main__.py` check would say it
+   does not exist. The test accepts either form.
+3. **A "Start here" card at the top of the Hub**: three numbered steps, the
+   `--mock` warning, and the demo list with a **copy-to-clipboard** button each.
+   Rendered from `/applications/state`, so a command that changes in
+   `applications.yaml` changes on the page — a hand-typed copy in the HTML would
+   have drifted from the README with nothing to catch it.
+4. **Copy works on plain `http://`**, which is the actual deployment. The
+   `navigator.clipboard` API needs a secure context, so a Pi serving over LAN
+   would have had dead buttons; the `execCommand` textarea fallback is the path
+   that really runs there. Off-screen rather than `display:none`, since a hidden
+   element cannot be selected and the copy fails silently.
+5. **README "See it work"** now leads with the one command and a table of
+   clickable links, and states plainly that they only work while the server is
+   running and that `localhost` must become the Pi's address off-box.
+
+### Verified
+
+`test_app_registry.py` gained 4 tests: the demo set is pinned, demos must be
+commands with no URL and must be read-only, every command must name a module
+that exists **on disk** (not by importing, which would run them), and every demo
+must say it is simulated. The last one is the safety-adjacent one — a demo that
+quietly touched hardware would be the most dangerous documentation error in this
+project: an operator copies it expecting a simulation and gets a moving robot.
+
+Live check against a live server: `/applications` 200 with the Start-here card
+and demo container present, **24 applications** (19 + 5 demos), all five commands
+served, `demo` present in `categories`.
+
+**Suite: 1413 passed, 2 skipped, 0 failed** (+4). Live e2e unchanged.
+
+**Not tested:** the copy button was not clicked in a real browser — no engine is
+available here. The markup, the wiring and the JS syntax are verified; the actual
+clipboard round-trip is **NOT TESTED**.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

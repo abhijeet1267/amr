@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
 **Last verified:** 2026-09-28, health pass — full suite
-**1409 passed, 2 skipped, 0 failed**.
+**1413 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,7 +10,7 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **1409 passed, 2 skipped, 0 failed** |
+| `cd raspberry_pi && python -m pytest` | **1413 passed, 2 skipped, 0 failed** |
 | Test files | 36 (`tests/test_*.py`) |
 | `python -m compileall amr` | clean |
 | Orphan scan (every module imported by prod or tests) | none — no dead modules |

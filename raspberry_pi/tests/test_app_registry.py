@@ -283,6 +283,76 @@ def test_bluetooth_never_claims_a_device_count(registry):
     )
 
 
+DEMO_IDS = ("unified_demo", "warehouse_roundtrip", "hazard_scenario",
+            "vision_pipeline", "hazard_map_svg")
+
+
+def test_every_runnable_demo_is_registered(registry):
+    """The hub's "run it" list is generated from the registry, so a demo that is
+    not registered is a demo an operator cannot find.
+
+    This pins the five entry points the README documents. If one is renamed or
+    dropped, this fails rather than leaving the hub quietly offering four.
+    """
+    found = {a.id for a in registry.all() if a.category == "demo"}
+    assert found == set(DEMO_IDS), (
+        f"demo entries changed: {sorted(found)} (expected {sorted(DEMO_IDS)})"
+    )
+
+
+def test_demos_are_commands_not_pages(registry):
+    """A demo is run in a terminal, so it must have a command and no URL.
+
+    The `demo` category is exempt from the "a card with no URL is dead" rule
+    precisely because these have nothing to click; that exemption is only
+    correct while every entry in it really is a command.
+    """
+    for app_id in DEMO_IDS:
+        app = registry.by_id(app_id)
+        assert app.launch_command, f"{app_id} has no command to run"
+        assert app.url is None, f"{app_id} is a command, not a page"
+        assert app.read_only is True, f"{app_id} must not be able to actuate"
+
+
+def test_demo_commands_are_real_module_invocations(registry):
+    """Each command must name a module that actually exists.
+
+    The registry is the hub's only source of truth for how to launch this
+    project, so a typo'd module name would ship as a copy button that fails for
+    the operator. Checked against the filesystem rather than by importing,
+    because importing every demo would execute them.
+    """
+    root = Path(__file__).resolve().parents[1] / "amr"
+    for app_id in DEMO_IDS:
+        cmd = registry.by_id(app_id).launch_command
+        assert cmd.startswith("python -m amr."), cmd
+        module = cmd[len("python -m amr."):].split()[0]
+        # `amr.demo` is a module (demo.py); the rest are packages with __main__.
+        as_pkg = root / Path(module.replace(".", "/")) / "__main__.py"
+        as_mod = root / Path(module.replace(".", "/")).with_suffix(".py")
+        assert as_pkg.exists() or as_mod.exists(), (
+            f"{app_id}: 'python -m amr.{module}' has no runnable target "
+            f"(looked for {as_pkg.name} and {as_mod.name})"
+        )
+
+
+def test_no_demo_command_promises_hardware(registry):
+    """Every demo must be mock or simulated.
+
+    A demo that quietly talked to real hardware would be the most dangerous
+    kind of documentation error in this project: an operator copies it, expects
+    a simulation, and gets a moving robot.
+    """
+    for app_id in DEMO_IDS:
+        app = registry.by_id(app_id)
+        assert app.requires_hardware is False, f"{app_id} claims hardware"
+        blob = (app.description + " " + (app.launch_command or "")).lower()
+        assert "mock" in blob or "simulat" in blob or "offline" in blob, (
+            f"{app_id} does not say it is simulated; an operator must be able "
+            f"to tell that from the card alone"
+        )
+
+
 
 # --------------------------------------------------------------------------- #
 # Validation rejects the mistakes that actually happen
