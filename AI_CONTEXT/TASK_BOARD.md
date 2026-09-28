@@ -1079,6 +1079,48 @@ by flagging `banner: MISSING`.
 
 ---
 
+## CI: a green build was saying nothing about the site `[x]` (2026-09-28)
+
+Asked to check GitHub. CI was **green** on the last commit — all four jobs,
+Python 3.10/3.11/3.12 plus ruff. But green was not evidence of the thing that
+was actually broken, and inspecting the workflow showed why:
+
+```
+$ grep -c 'amr.main' .github/workflows/ci.yml
+0
+```
+
+**No CI job had ever started the web server.** The suite is hardware-free *and*
+server-free: every test drives the app in-process. So a passing build could not
+distinguish a working site from a completely unreachable one — which is exactly
+the class of defect that shipped twice in a row and reached the user.
+
+### Added: a `smoke` job that runs the documented user path
+
+Installs dependencies the way the README says, launches the server, and then
+asserts the things a person depends on:
+
+* the URL is **printed** (non-interactive stdout, so a missing `flush=True`
+  loses the banner entirely — the bug from the previous commit);
+* every link the README publishes returns 200;
+* `/applications/state` parses as JSON with a non-zero count, and
+  `/dashboard/state` and `/connectivity` return real payloads rather than an
+  error page.
+
+Runs on Ubuntu with no TTY, which is also how a Pi runs it under systemd or SSH
+— the condition that hid the banner bug in the first place.
+
+### Verified to fail on the real defects
+
+Not just "it passes". Reverting the banner fix makes the job exit 1 with
+`::error::no URL was printed; the operator is told to open one` — the CI job
+would now have caught the bug that shipped as 6997613. Breaking a route makes
+it fail on that path. YAML validated: 3 jobs, 4 steps each.
+
+**Suite unchanged at 1417 passed, 2 skipped** (CI-only change).
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

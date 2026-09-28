@@ -39,6 +39,72 @@ jobs:
       - name: Run test suite
         run: python -m pytest -q
 
+  # The suite is hardware-free but server-free too: no CI job launched
+  # `amr.main` until this one existed, so a green build said nothing about
+  # whether a person could actually reach a page. Two real defects shipped
+  # through it -- a missing dependency (ModuleNotFoundError on the very first
+  # command a user types) and a startup banner swallowed by stdout buffering.
+  #
+  # This job runs the documented user path from a clean install and checks that
+  # every link the README publishes answers. Ubuntu, no TTY -- which is also how
+  # a Pi runs it under systemd or SSH.
+  smoke:
+    name: user path · server boots and links answer
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: raspberry_pi
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies (the README's step, verbatim)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: The server must announce its own URL
+        run: |
+          # Non-interactive: stdout is a pipe, so the banner is block-buffered.
+          # A missing flush=True loses it entirely, which is how the URL the
+          # README tells you to open once reached nobody.
+          set -o pipefail
+          python -m amr.main --mock --web --port 8080 > /tmp/amr.log 2>&1 &
+          SERVER=$!
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:8080/health && break
+            sleep 1
+          done
+          echo "--- captured stdout ---"
+          cat /tmp/amr.log
+          grep -q "http://" /tmp/amr.log || {
+            echo "::error::no URL was printed; the operator is told to open one"
+            kill $SERVER 2>/dev/null || true
+            exit 1
+          }
+          # Every link the README publishes must answer.
+          for path in /applications /command-center /dashboard / /connectivity; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080$path")
+            echo "$path -> $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::$path returned $code"
+              kill $SERVER 2>/dev/null || true
+              exit 1
+            fi
+          done
+          # The state those pages fetch must be real JSON, not an error page.
+          curl -sf http://127.0.0.1:8080/applications/state \
+            | python -c "import json,sys; d=json.load(sys.stdin); assert d['count']>0; print('applications:', d['count'])"
+          curl -sf http://127.0.0.1:8080/dashboard/state > /dev/null
+          curl -sf http://127.0.0.1:8080/connectivity > /dev/null
+          kill $SERVER 2>/dev/null || true
+
   lint:
     name: ruff
     runs-on: ubuntu-latest
