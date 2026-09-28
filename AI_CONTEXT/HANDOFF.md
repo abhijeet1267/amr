@@ -93,21 +93,26 @@ legacy control panel, asserted by test.
 **NOT TESTED.** No camera, no motors, no Arduino. Everything above is mock and
 simulated data; the camera card stays `HARDWARE REQUIRED` on purpose.
 
-### Known doc debt (found this session, not fixed)
+### Known doc debt
 
-* `AI_CONTEXT/CURRENT_STATUS.md` is stale: it records the **1261-test C15c**
-  snapshot (and a 592 figure in section 1), section 2 misses `amr/apps`, and
-  section 5 still says there is no live dashboard. The README badge/table were
-  updated to the measured **1354** here; `CURRENT_STATUS.md` needs its own pass.
-* The README roadmap still lists obstacle avoidance and hazard telemetry as
-  “next” although C6 and C2/C7 shipped.
+**Resolved 2026-09-28 (health pass).** Previously listed here as unfixed:
+
+* ~~`CURRENT_STATUS.md` is stale~~ — **now refreshed** against a fresh
+  `pytest --collect-only`: 1371 passed / 2 skipped, 35 test files, per-file counts
+  regenerated, the 592 figure in section 1 removed, and the "no live dashboard"
+  line in section 5 deleted (it was false — `/dashboard`, `/command-center` and
+  `/applications` all exist and were exercised live). Section 5 was also
+  re-verified by grep rather than trusted: ROS 2 has **no imports** (the 6 hits
+  are docstrings), and `RaspberryPiCameraSource` *is* wired at `main.py:134`, so
+  the old "no hardware camera backend" wording was corrected rather than copied.
+* ~~README roadmap lists avoidance/hazard as "next"~~ — checked, no stale rows found.
 
 ### Next
 
-* Refresh `AI_CONTEXT/CURRENT_STATUS.md` against a fresh `pytest --collect-only`
-  pass.
 * Phase D of the ecosystem audit (mobile/desktop clients) — the registry and hub
   are the seam they consume; nothing else is required to start it.
+* `cargo`/`rustc` and `adb` are not installed locally, so the Tauri and Android
+  clients cannot be built or verified here. That is the one prerequisite for D.
 
 ---
 

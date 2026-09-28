@@ -1,8 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** the C15c working tree — full suite
-**1261 passed, 2 skipped, 0 failed** (1204 at C15b + 53 Command Center tests
-+ 4 C5d regression tests).
+**Last verified:** 2026-09-28, health pass — full suite
+**1371 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -11,10 +10,15 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **592 passed, 2 skipped, 0 failed** |
-| Test files | 23 (`tests/test_*.py`) |
+| `cd raspberry_pi && python -m pytest` | **1371 passed, 2 skipped, 0 failed** |
+| Test files | 35 (`tests/test_*.py`) |
+| `python -m compileall amr` | clean |
+| Orphan scan (every module imported by prod or tests) | none — no dead modules |
 | CI | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff` |
 | Hardware required | **None.** Everything runs on `amr/mocks/` |
+| Live app boot (not a fixture) | `python -m amr.main --mock --mission-demo --web` → 30 routes registered, all 20 exercised → 200, 0 bad |
+| Applications Hub | `/applications` renders **16** applications; 13 openable deep links all resolve to real Command Center views; `/applications/state` 200 |
+| Logging (health pass) | `logs/amr.log` created and written; `/health` → `{"active":true,"file":"amr.log","writable":true,"level":"INFO"}` |
 | Live web smoke (C2, `--mock --web` + `hazard.enabled=true`) | `GET /hazard` → `attached:true, state:NORMAL, sources:["zones"]`; `POST /hazard/acknowledge` → `ok:true`; `/status` carries the `hazard` key |
 | Dashboard smoke (C7, `--mock --web`) | `GET /health` → 200 `ok:true, simulated:true, read_only:true`; `GET /telemetry` → 200 valid schema-1.0 JSON with per-section `source` tags; `GET /dashboard` → 200 HTML |
 | 3D twin smoke (C10, `--mock --web`) | `GET /digital-twin` → 200 `source:SIMULATION`, `robot` pose **identical** to `GET /map`, 5 config waypoints, `renderer.library: null`; `GET /dashboard` → 200 containing the 3D card and canvas; `/telemetry`, `/map.svg`, `/camera/status` all 200 |
@@ -28,22 +32,24 @@ tests.
 Per-file test counts (from `pytest --collect-only -q`):
 
 ```
-test_camera_manager.py      9    test_motor_controller.py  21
-test_config.py             18    test_navigation.py        50
-test_differential_drive.py 25    test_protocol.py          37
-test_hazard.py             48    test_robot_manager.py     20
-test_hazard_visualisation.py 23  test_robot_state.py        5
-test_logging.py            12    test_safety_manager.py    14
-test_mode_controller.py    13    test_ultrasonic.py         9
-test_warehouse.py          39    test_web_server.py        59
-test_vision.py             95    test_avoidance.py         76
-test_telemetry.py          52    test_map.py              111
-test_camera_frame.py       49    test_digital_twin.py      37
-test_console.py            35    (new in C11 — operations console)
-test_mission_monitoring.py 45    (new in C12 — mission monitoring)
-test_camera_overlay.py   40    (new in C13 — camera hazard overlays)
-test_replay.py            59    (new in C14 — recording + replay engine)
-test_replay_control.py   68    (new in C14b — dashboard replay controls)
+test_app_registry.py       29    test_map.py               111
+test_applications_hub.py    25    test_mission_monitoring.py 45
+test_auto_record.py         27    test_mode_controller.py    13
+test_avoidance.py           76    test_motor_controller.py   21
+test_camera_backend.py      47    test_navigation.py         50
+test_camera_frame.py        49    test_ops_projection.py     44
+test_camera_manager.py       9    test_protocol.py           37
+test_camera_overlay.py      40    test_replay.py             59
+test_command_center.py      57    test_replay_control.py     68
+test_config.py              22    test_robot_manager.py      23
+test_console.py             35    test_robot_state.py         5
+test_differential_drive.py  25    test_safety_manager.py     14
+test_digital_twin.py        37    test_telemetry.py          52
+test_hazard.py              48    test_ultrasonic.py          9
+test_hazard_visualisation.py 23   test_unified_demo.py       30
+test_logging.py             17    test_vision.py            101
+                                  test_warehouse.py          39
+                                  test_web_server.py         86
 ```
 
 ---
@@ -119,12 +125,15 @@ python -m amr.hazard.visualisation   # render the events JSONL onto the map (SVG
   without sources (no hardware); `RobotStateSource` is deliberately not
   auto-wired because `RobotState.last_error` is sticky and would pin `WARNING`
   forever after the first E-STOP.
-* `VisionHazardSource` is now a **working pipeline, not a seam** (C5): the
+* `VisionHazardSource` is a **working pipeline, not a seam** (C5): the
   `VisionDetection` contract, a deterministic `SimulatedVisionDetector` and the
   end-to-end path into the event log / C3 map / C2 web API are implemented and
   tested. What is still missing is a **real detector**: no OpenCV, YOLO or
-  hardware camera backend is wired, and the thresholds in `config/hazard.yaml`
+  camera-backed detector is wired, and the thresholds in `config/hazard.yaml`
   are unvalidated software defaults.
+  *(Note: a real acquisition backend does exist — `RaspberryPiCameraSource`,
+  selected by `main.py:134` in hardware mode — but it is a stub-library-tested
+  code path. **Camera hardware: NOT TESTED.**)*
 * C6 activated `TURN` / `REPLAN` for **non-blocking** obstacles
   (`amr/safety/avoidance.py` + an avoidance gate in `LocalNavigator`).
   `STOP`/`WAIT` are returned unchanged and a critical obstacle still takes the
@@ -133,6 +142,11 @@ python -m amr.hazard.visualisation   # render the events JSONL onto the map (SVG
   NOT_VERIFIED. The ultrasonic clearance provider is **not yet wired**, so in
   the default configuration avoidance replans rather than steering.
 * Web panel has **no authentication** — LAN-only, single operator.
+* `log_dir=None` now means the **default** directory; `log_dir=False` is the
+  explicit opt-out (health pass, 2026-09-28). This changed a documented
+  contract on purpose: `main.py` used to call `setup_logging(console=False)`,
+  which installed **zero** handlers and silently discarded every log record.
+  `/health` now reports `logging` state so this can never silently regress.
 
 ---
 
@@ -140,9 +154,10 @@ python -m amr.hazard.visualisation   # render the events JSONL onto the map (SVG
 
 | Area | Evidence |
 |---|---|
-| **ROS 2** | Zero occurrences of `rclpy`/`ros2`/`ament`/`colcon` in code (only future-tense mentions in docstrings). Navigation is a dependency-free `LocalNavigator`. |
+| **ROS 2** | **No imports.** Zero `import rclpy` / `ros2` / `ament` / `colcon`; the 6 textual hits are future-tense docstring mentions only. Navigation is a dependency-free `LocalNavigator`. |
 | **RFID** | Zero occurrences anywhere. |
 | **Real manipulator** | `warehouse.yaml` uses `manipulator: "mock"`; only `MockManipulator` / `NullManipulator` exist. |
-| **Vision / marker / QR / shelf recognition** | No implementation; `CameraManager.capture()` is the seam. |
+| **Marker / QR / shelf recognition** | No implementation; `CameraManager.capture()` is the seam. |
 | **Gas / smoke / fire hardware** | No sensor code, no pins, no drivers — `amr.hazard` provides the aggregation layer and the seam. |
-| **Telemetry / dashboard** | No *live* dashboard. A static hazard map renderer exists (`amr.hazard.visualisation`, C3); `RobotManager.snapshot()` and `HazardManager.snapshot()` remain the JSON sources a live dashboard would consume. |
+| **Real hazard detector** | `VisionHazardSource` is a working pipeline over a **simulated** detector. No YOLO, no OpenCV, no camera-backed detector. Thresholds in `config/hazard.yaml` are unvalidated software defaults. |
+| **Authentication** | The web panel has none. LAN-only, single operator. |
