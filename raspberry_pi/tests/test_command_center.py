@@ -9,11 +9,18 @@ The Command Center is a **view**, so these tests are mostly about three things:
 The third is the one worth being strict about. A console that draws a battery
 gauge at 0% when there is no battery sensor is worse than one that shows "n/a",
 so the series buffer and the markup are both checked for it.
+
+A fourth property is checked by :class:`TestTheming` at the bottom: both themes
+must be *complete*. A partially-overridden palette is not a subtle degradation
+-- it renders dark cards on a white page, and because every token is legal CSS
+nothing errors. The assertion is structural, which is the only thing that can
+catch it.
 """
 
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 import subprocess
 import sys
@@ -580,6 +587,148 @@ class TestMissionRidesTheControlLoop:
         app._tick_once(1.0 / app._tick_hz)
         assert dts == [pytest.approx(0.1)]
         assert dts[0] != 1.0
+
+
+# --------------------------------------------------------------------------- #
+# Theming: both palettes must be complete
+# --------------------------------------------------------------------------- #
+# Static-asset assertions, so they read the files from disk rather than over
+# HTTP: faster, and they still run when the server fixture is unavailable.
+_STATIC = pathlib.Path(__file__).resolve().parent.parent / "amr" / "web" / "static"
+
+# Geometry tokens are deliberately shared between themes: spacing, radius and
+# font do not change with the background. Only colours must be restated.
+_SHARED_TOKENS = {"--gap", "--radius", "--mono"}
+
+
+def _rule_body(text: str, selector: str) -> str:
+    """Return the declaration body of a top-level ``selector { ... }`` rule.
+
+    Brace-matched rather than regex-matched, and it raises when the selector is
+    absent so a caller cannot compare against an empty string and conclude
+    anything from it. That vacuous-pass failure mode is the entire reason these
+    tests exist.
+    """
+    for m in re.finditer(r"(?<![\w-])" + re.escape(selector) + r"\s*\{", text):
+        depth, i = 1, m.end()
+        while i < len(text) and depth:
+            depth += (text[i] == "{") - (text[i] == "}")
+            i += 1
+        return text[m.end():i - 1]
+    raise AssertionError(f"selector {selector!r} not found as a standalone rule")
+
+
+def _declares(text: str, selector: str) -> set[str]:
+    return set(re.findall(r"(--[a-z0-9-]+)\s*:", _rule_body(text, selector)))
+
+
+class TestTheming:
+    """Light mode must restate every colour the dark theme defines.
+
+    Found by inspecting the shipped CSS, not by reading it: ``body.light``
+    originally set only --bg/--panel/--text/--dim/--line, so --card, --card-2,
+    --bg-2 and --muted silently kept their dark values. Every card and chip
+    rendered near-black on a near-white page, and light mode looked broken
+    rather than light. Nothing errored, so nothing failed.
+    """
+
+    def test_light_mode_overrides_every_colour(self):
+        css = (_STATIC / "command_center.css").read_text(encoding="utf-8")
+        dark = _declares(css, ":root") - _SHARED_TOKENS
+        light = _declares(css, "body.light")
+        # Both must be non-empty, or the comparison below is vacuous.
+        assert dark, "no dark-theme tokens found: this test is not measuring"
+        assert light, "no light-theme tokens found: this test is not measuring"
+        missing = dark - light
+        assert not missing, (
+            "light mode leaves these dark-theme colours un-overridden, so they "
+            f"keep dark values on a white page: {sorted(missing)}"
+        )
+
+    def test_every_referenced_token_is_defined(self):
+        """A typo'd ``var()`` is not a CSS error; it silently falls back.
+
+        This is how ``var(--panel, #0f1622)`` survived: --panel was declared
+        nowhere, and the fallback made it render as though it worked.
+
+        Both stylesheets are checked together because they are one palette:
+        applications.css deliberately consumes the tokens command_center.css
+        declares (its own header says so), so "defined" means defined in
+        either file.
+        """
+        code_all = ""
+        for name in ("command_center.css", "applications.css"):
+            css = (_STATIC / name).read_text(encoding="utf-8")
+            code_all += re.sub(r"/\*.*?\*/", "", css, flags=re.S)  # prose is not a use
+        defined = set(re.findall(r"(--[a-z0-9-]+)\s*:", code_all))
+        for name in ("command_center.css", "applications.css"):
+            css = (_STATIC / name).read_text(encoding="utf-8")
+            code = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+            used = set(re.findall(r"var\(\s*(--[a-z0-9-]+)", code))
+            missing = used - defined
+            assert not missing, f"{name} uses undefined tokens: {sorted(missing)}"
+
+    def test_no_hardcoded_colours_outside_the_palettes(self):
+        """Component rules must read tokens, not literals.
+
+        The two allowed exceptions are genuinely theme-independent: the
+        detection-box halo, which sits on camera video, and the map gridlines,
+        which are drawn on the always-dark --stage surface.
+        """
+        allowed = ("rgba(0, 0, 0, .5)", "#141d29", "#2f4258", "#a855f7",
+                   "#e8a33d", "#3d8bfd", "#8fa3bd", "#5a6b80", "#2fbf71",
+                   "#ef4d5a", "#0b0f16", "#ffffff")
+        for name in ("command_center.css", "applications.css"):
+            css = (_STATIC / name).read_text(encoding="utf-8")
+            body = re.sub(r"(?s):root\s*\{.*?\}|body\.light\s*\{.*?\}", "", css)
+            body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
+            offenders = [ln.strip() for ln in body.splitlines()
+                         if re.search(r"#[0-9a-fA-F]{3,6}\b|rgba?\(\s*0\s*,\s*0\s*,\s*0", ln)
+                         and not any(a in ln for a in allowed)]
+            assert not offenders, (
+                f"{name} hardcodes colours that will not follow the theme: "
+                f"{offenders}"
+            )
+
+    def test_drawn_colours_come_from_the_theme(self):
+        """Canvas/SVG cannot use ``var()``, so the JS must read tokens instead.
+
+        The charts, the map and the camera badge were all drawn with literal
+        hexes, which is why they kept the dark palette after a theme switch.
+        """
+        js = (_STATIC / "command_center.js").read_text(encoding="utf-8")
+        assert "function token(" in js, "no token reader: drawings cannot theme"
+        # Call sites only, matched with balanced parens. A naive [^)]* stops at
+        # the ")" inside $("c-speed-c") and yields a truncated, false failure.
+        for m in re.finditer(r"drawChart\(", js):
+            if js[max(0, m.start() - 9):m.start()].endswith("function "):
+                continue  # the definition
+            depth, i = 1, m.end()
+            while i < len(js) and depth:
+                depth += (js[i] == "(") - (js[i] == ")")
+                i += 1
+            call = js[m.start():i]
+            assert "token(" in call, f"chart colour is not themed: {call}"
+        # A theme change must invalidate the cache and repaint the drawn
+        # surfaces; previously only the 3D twin was redrawn.
+        apply_theme = js[js.index("function applyTheme"):]
+        apply_theme = apply_theme[:apply_theme.index("\n}\n")]
+        assert "resetTokens()" in apply_theme, "theme switch keeps a stale palette"
+        assert "renderCharts(" in apply_theme, "theme switch does not repaint charts"
+        assert "renderMap(" in apply_theme, "theme switch does not repaint the map"
+
+    def test_both_pages_follow_the_system_preference(self):
+        """Console and hub must agree, or a phone shows one page light, one dark.
+
+        They share the ``amr-theme`` localStorage key; the gap was that neither
+        consulted ``prefers-color-scheme``, so the OS setting was ignored.
+        """
+        for name in ("command_center.js", "applications.js"):
+            js = (_STATIC / name).read_text(encoding="utf-8")
+            assert "prefers-color-scheme" in js, (
+                f"{name} ignores the OS light/dark preference")
+            assert 'localStorage.getItem("amr-theme")' in js, (
+                f"{name} does not honour the stored explicit choice")
 
 
 

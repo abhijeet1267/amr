@@ -273,6 +273,30 @@ function renderLog(s) {
   }).join("");
 }
 
+/* Canvas and inline SVG cannot use var(--x): they are drawn in JS, so the theme
+   has to be read out of CSS. This is the single place that happens, and every
+   drawing call goes through it — otherwise a chart keeps dark-theme colours
+   after the operator switches to light, which is exactly the bug the old
+   hardcoded hexes had. Cached per theme-change, not per frame. */
+var TOKENS = null;
+
+function token(name, fallback) {
+  if (!TOKENS) {
+    TOKENS = {};
+    try {
+      var cs = getComputedStyle(document.body);
+      ["ok", "warn", "crit", "info", "accent", "muted", "dim", "line",
+       "track", "stage", "text", "card", "card-2", "on-accent"]
+        .forEach(function (n) { TOKENS[n] = cs.getPropertyValue("--" + n).trim(); });
+    } catch (e) { /* getComputedStyle unavailable: fall back per token. */ }
+  }
+  var v = TOKENS && TOKENS[name];
+  return v || fallback;
+}
+
+/* Called after every theme change so the next frame picks up the new palette. */
+function resetTokens() { TOKENS = null; }
+
 function drawChart(canvas, samples, key, colour) {
   if (!canvas) return;
   var dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -285,7 +309,7 @@ function drawChart(canvas, samples, key, colour) {
   var known = vals.filter(isNum);
   // No real data -> say so. Drawing a flat zero line would be a lie.
   if (known.length < 2) {
-    g.fillStyle = "#64768c";
+    g.fillStyle = token("dim", "#64768c");
     g.font = (11 * dpr) + "px system-ui, sans-serif";
     g.textAlign = "center";
     g.fillText(known.length ? "1 sample — need more data" : "NOT AVAILABLE",
@@ -296,7 +320,7 @@ function drawChart(canvas, samples, key, colour) {
   if (hi === lo) { hi = lo + 1; lo -= 1; }
   var pad = (hi - lo) * 0.15;
   lo -= pad; hi += pad;
-  g.strokeStyle = "#1b2534";
+  g.strokeStyle = token("track", "#1b2534");
   g.beginPath(); g.moveTo(0, h - 1); g.lineTo(w, h - 1); g.stroke();
   g.strokeStyle = colour;
   g.lineWidth = 1.6 * dpr;
@@ -317,10 +341,10 @@ function renderCharts(s) {
   var metrics = (hist.series && hist.series.metrics) || {};
   var speed = samples.map(function (x) { return x.v.speed; }).filter(isNum);
   txt("c-speed", speed.length ? speed[speed.length - 1].toFixed(2) + " m/s" : "n/a");
-  drawChart($("c-speed-c"), samples, "speed", "#3d8bfd");
+  drawChart($("c-speed-c"), samples, "speed", token("info", "#3d8bfd"));
   var batt = samples.map(function (x) { return x.v.battery; }).filter(isNum);
   txt("c-batt", batt.length ? batt[batt.length - 1].toFixed(0) + " %" : "n/a");
-  drawChart($("c-batt-c"), samples, "battery", "#2fbf71");
+  drawChart($("c-batt-c"), samples, "battery", token("ok", "#2fbf71"));
 }
 
 /* -- 2D warehouse map (renders the C9 MapSnapshot, adds no map semantics) --- */
@@ -366,9 +390,13 @@ function renderMap(s) {
   function X(x) { return MAP_W / 2 + (x - offX) * scale; }
   function Y(y) { return MAP_H / 2 - (y - offY) * scale; }
 
+  // The map is drawn on the --stage surface, which stays dark in BOTH themes
+  // (a warehouse floor plan is dark data, like the camera and the twin). The
+  // colours below are therefore fixed to the stage palette deliberately — the
+  // only thing that themes is the map's own chrome, not the scene inside it.
   var out = [];
   out.push('<rect x="0" y="0" width="' + MAP_W + '" height="' + MAP_H +
-           '" fill="#060a11"/>');
+           '" fill="' + token("stage", "#060a11") + '"/>');
   // metric grid
   var step = spanX > 40 ? 5 : (spanX > 12 ? 2 : 1);
   for (var gx = Math.ceil(b.x_min / step) * step; gx <= b.x_max; gx += step) {
@@ -459,8 +487,9 @@ function renderCamera(s) {
 
   if (badge) {
     badge.textContent = st;
-    badge.style.color = st === "LIVE" ? "#2fbf71"
-      : (st === "SIMULATION" ? "#e8a33d" : "#ef4d5a");
+    badge.style.color = st === "LIVE" ? token("ok", "#2fbf71")
+      : (st === "SIMULATION" ? token("warn", "#e8a33d")
+        : token("crit", "#ef4d5a"));
   }
   // C15d: the camera panel must be a real visual area, not a text card.
   //
@@ -1258,13 +1287,36 @@ function applyTheme(name) {
   var icon = $("theme-icon");
   if (icon) icon.innerHTML = light ? "&#9788;" : "&#9789;";
   try { localStorage.setItem("amr-theme", light ? "light" : "dark"); } catch (e) { }
-  if (CC.state) renderTwin(CC.state);
+  // The token cache is read from the *old* palette until it is dropped, so a
+  // theme change has to invalidate it or the charts and the map keep painting
+  // in the previous theme's colours until the next full reload.
+  resetTokens();
+  // Repaint the JS-drawn surfaces from the new palette. Only the twin was
+  // redrawn before; the charts and the map kept their old colours, which is
+  // the same class of bug the CSS had.
+  if (CC.state) {
+    renderTwin(CC.state);
+    renderCharts(CC.state);
+    renderMap(CC.state);
+  }
+}
+
+/* Follow the OS when the operator has never chosen a theme. A stored choice
+   always wins: this only fills the gap left by "no preference yet". */
+function preferredTheme() {
+  var stored = null;
+  try { stored = localStorage.getItem("amr-theme"); } catch (e) { }
+  if (stored === "light" || stored === "dark") return stored;
+  try {
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+      return "light";
+    }
+  } catch (e) { }
+  return "dark";
 }
 
 function initTheme() {
-  var stored = null;
-  try { stored = localStorage.getItem("amr-theme"); } catch (e) { }
-  applyTheme(stored || "dark");
+  applyTheme(preferredTheme());
   var btn = $("theme-btn");
   if (btn) {
     btn.addEventListener("click", function () {

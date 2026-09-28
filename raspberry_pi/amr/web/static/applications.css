@@ -98,24 +98,31 @@
   font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px;
 }
-.flag.warn { color: var(--warn); border-color: #5a4220; }
+.flag.warn { color: var(--warn); border-color: var(--warn-line); }
 .app-actions { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; align-items: center; }
+/* The primary action. Text colour comes from --on-accent because the accent is
+   dark in light mode: the hardcoded #04121a here was near-black text on a dark
+   teal button, which is how this looked fine before and unreadable after. */
 .app-open {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; border-radius: 6px; text-decoration: none;
-  font-size: 12px; font-weight: 600; color: #04121a; background: var(--accent);
+  font-size: 12px; font-weight: 600; color: var(--on-accent);
+  background: var(--accent);
   transition: background-color .18s ease, transform .1s ease, box-shadow .18s ease;
 }
-.app-open:hover { background: #67e8f9; box-shadow: 0 3px 10px rgba(0, 0, 0, .3); }
+.app-open:hover { background: var(--accent-hover); box-shadow: var(--shadow-lift); }
 .app-open:active { transform: translateY(1px); }
 /* A card with no URL is not a link at all. Saying "no interface" is the point:
    a dead link would read as a broken application. */
 .app-none { color: var(--dim); font-size: 11.5px; font-style: italic; }
 
 /* --- messages + footer ---------------------------------------------------- */
+/* The failure banner. A hardcoded dark red stayed dark red on a white page; it
+   now uses the same crit tokens as every other critical state. */
 .hub-banner {
   margin: 12px 16px 0; padding: 10px 12px; border-radius: var(--radius);
-  background: #2a1217; border: 1px solid #5a2229; color: #ffd9dd; font-size: 12.5px;
+  background: var(--crit-bg); border: 1px solid var(--crit-line);
+  color: var(--crit); font-size: 12.5px;
 }
 .hub-empty {
   padding: 18px; text-align: center; color: var(--muted);
@@ -128,10 +135,10 @@
 .hub-foot p { margin: 4px 0; }
 
 /* Freshness chip. A poll that failed must not look like a poll that worked. */
-.chip.stale { color: var(--warn); border-color: #5a4220; }
+.chip.stale { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
 .chip.stale .dot { background: var(--warn); }
-.chip.dead  { color: var(--crit); border-color: #5a2229; }
-.chip.dead .dot { background: var(--crit); }
+.chip.dead  { color: var(--crit); border-color: var(--crit-line); background: var(--crit-bg); }
+.chip.dead  .dot { background: var(--crit); }
 
 @media (max-width: 720px) {
   .hub-hint { margin-left: 0; }

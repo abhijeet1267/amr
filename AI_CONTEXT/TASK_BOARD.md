@@ -691,6 +691,57 @@ count 16, no dead links, no deep link landing on the wrong view.
 
 ---
 
+## Web UI: light mode was decorative, not functional `[x]` (2026-09-28)
+
+Asked for "a better frontend". The design system was already good — tokens,
+focus rings, skip links, a reduced-motion guard, and a written rule that colour
+is never the only signal. So this did **not** rewrite it. Inspecting the shipped
+CSS instead found the real problem: **the light theme was broken**, and no test
+looked at the CSS at all.
+
+### Defects found by inspecting, not by reading
+
+1. **Light mode rendered dark panels on a white page.** `body.light` set only
+   `--bg/--panel/--text/--dim/--line`. `--card`, `--card-2`, `--bg-2` and
+   `--muted` kept their dark values, so every card and chip stayed near-black
+   over a near-white background. Fixed by overriding **all 27** colour tokens.
+2. **`--panel` was a typo'd token** — referenced twice as
+   `var(--panel, #0f1622)` and declared nowhere. The fallback is why it never
+   looked broken: a wrong token renders as if it worked. Now `--card-2`.
+3. **Status colours ignored the theme.** `.st-HEALTHY`/`timeline`/`alerts` carried
+   their own literals (`#34d399`, `#e8a33d`, `#38bdf8`) that matched the old
+   `--ok`/`--warn` but did not follow them.
+4. **`st-NOT_TESTED` shared a colour with `st-CRITICAL`.** "Not verified" and
+   "broken" are opposites, and the file's own header says every colour means one
+   thing. `NOT_TESTED`/`IDLE` now read as attention-needed, not as quiet neutral.
+5. **Canvas and SVG cannot use `var()`.** The charts, the 2D map and the camera
+   badge were drawn with literal hexes, so they kept the dark palette after a
+   switch. Added a cached `token()` reader, invalidated per theme change.
+6. **A theme switch only repainted the 3D twin** — charts and map kept the old
+   colours until a full reload. `applyTheme()` now resets the token cache and
+   repaints all three.
+7. **Neither page consulted `prefers-color-scheme`,** so the OS setting was
+   ignored entirely and a phone in light mode opened a dark console. Both pages
+   now follow the OS when no explicit choice is stored, and still honour one.
+
+### Also
+
+* Light-mode status colours darkened to clear **WCAG AA (4.5:1)**. The dark
+  palette's `#2fbf71` on white is ~2.1:1 — unreadable as text, and these are read
+  as text by an operator.
+* `TestTheming` (5 tests) makes all of the above structural: both palettes must
+  declare the same colours, no `var()` may reference an undefined token, no
+  component rule may hardcode a colour, drawn colours must come from `token()`,
+  and both pages must follow the OS. **Each was verified to fail** when the
+  original bug is reintroduced — a test that cannot fail is not a test.
+
+**Suite: 1376 passed, 2 skipped, 0 failed.** Live e2e unchanged: 20/20 routes
+200, hub 16, no dead links. **Rendering was not verified in a real browser** —
+no engine is available here (`playwright` absent), so the checks are structural
+plus a live HTTP fetch of the assets. That is a real limitation, stated plainly.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

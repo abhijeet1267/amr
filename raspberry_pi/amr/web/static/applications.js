@@ -296,6 +296,19 @@ function load() {
 function applyTheme() {
   var light = false;
   try { light = localStorage.getItem("amr-theme") === "light"; } catch (e) { }
+  if (!light) {
+    // No explicit choice stored yet: defer to the OS, matching
+    // preferredTheme() in command_center.js. Without this the two pages
+    // disagreed -- a phone set to light mode opened a dark hub. An explicit
+    // stored "dark" is left alone, because defaulting to light for someone who
+    // deliberately picked dark is worse than the reverse mistake.
+    try {
+      light = !localStorage.getItem("amr-theme") &&
+        !!(window.matchMedia &&
+           window.matchMedia("(prefers-color-scheme: light)").matches);
+    } catch (e) { }
+  }
+  light = !!light;
   document.body.classList.toggle("light", light);
   var icon = $("hub-theme-icon");
   if (icon) icon.textContent = light ? "\u263c" : "\u263e";
