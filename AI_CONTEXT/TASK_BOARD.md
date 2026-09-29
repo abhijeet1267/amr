@@ -1138,6 +1138,51 @@ it caught the `sed` guess the moment it was written.
 
 ---
 
+## Showcase: a public page that had quietly become fiction `[x]` (2026-09-28)
+
+Continuing rather than starting something new, and looking for what was
+*inconsistent* rather than for new work. Two real finds in `showcase.html`.
+
+### It claimed 276 tests. The repo had 1418.
+
+The first number in the file was **276** — a snapshot from many phases ago —
+while the badge beside it in `README.md` said something different entirely. A
+visitor's first impression of the project's rigour was a stale figure, and
+nothing could notice, because no test had ever read this file.
+
+### It was a different design language from the app
+
+```
+showcase:  --bg #0b0f18   --acc #4da3ff   --ok #2ecc71   --err #e74c3c
+app:       --bg #0b0f16   --accent #22d3ee  --ok #2fbf71  --crit #ef4d5a
+```
+
+Different background, different accent, and an `--ok`/`--err` pair that matched
+**nothing** in the running console. Someone who read the showcase and then opened
+the Command Center saw two different products. The showcase now uses the app's
+token names and values, with every remaining literal replaced by a token.
+
+Also: a "Run it" block with the venv + install + start commands, a row for the
+24 live interfaces, and an explicit **NOT TESTED** line for hardware in both the
+status table and the footer — the showcase is public, so an unverified claim
+there is the worst place for one.
+
+### Guarded
+
+`test_showcase_does_not_go_quietly_stale` and
+`test_showcase_and_app_share_one_palette` compare the badge, the status table
+and eight colour tokens against a measured collection and the app's own CSS.
+**Both verified to fail** on the original defects: restoring the 276 claim fails
+the first, restoring `#0b0f18` fails the second.
+
+One correction made while writing them: the badge reports *passed*, not
+*collected* (1420 vs 1422 — two camera tests skip without opencv/numpy). Counting
+skips would overstate what ran, so the test subtracts them explicitly.
+
+**Suite: 1420 passed, 2 skipped, 0 failed** (+2).
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

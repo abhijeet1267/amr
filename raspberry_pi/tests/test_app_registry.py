@@ -358,6 +358,82 @@ def test_readme_says_how_to_install_the_dependencies():
     )
 
 
+SHOWCASE_HTML = README_MD.parent / "showcase.html"
+
+#: The suite's 2 camera tests skip when opencv-python/numpy are absent. Named
+#: here rather than inferred, because a badge that counted them would claim more
+#: than actually ran.
+SKIPPED = 2
+
+
+def test_showcase_does_not_go_quietly_stale():
+    """The showcase is a public page; its numbers must match reality.
+
+    It claimed **276** tests for a long time while the repository was at 1418,
+    and nothing noticed -- the same failure mode as the CURRENT_STATUS table, in
+    a file that had no test at all. The badge and the status table are both
+    checked, because either alone can drift.
+    """
+    html = SHOWCASE_HTML.read_text(encoding="utf-8")
+
+    collected = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", "-o", "addopts="],
+        capture_output=True, text=True,
+        cwd=str(Path(__file__).resolve().parents[1]),
+    ).stdout
+    # The badge reports *passed*, not collected: 2 camera tests skip when
+    # opencv/numpy are absent, and a badge that counted them would overstate
+    # what actually ran.
+    total = len([l for l in collected.splitlines() if l.startswith("tests/")])
+    passed = total - SKIPPED
+
+    m = re.search(r"tests-(\d+)", html)
+    assert m, "the showcase has no test-count badge"
+    assert int(m.group(1)) == passed, (
+        f"showcase badge says {m.group(1)} tests, suite runs {passed}"
+    )
+
+    claimed = {int(x) for x in re.findall(r"(\d+)\s+passed", html)}
+    assert claimed, "the showcase status table states no test count"
+    assert claimed == {passed}, (
+        f"showcase status table says {claimed}, suite runs {passed}"
+    )
+
+    # It must not advertise a hardware capability it has never verified.
+    assert "NOT TESTED" in html, (
+        "the showcase must say hardware is untested; the project's whole "
+        "documentation standard depends on that being visible"
+    )
+
+
+def test_showcase_and_app_share_one_palette():
+    """Two different design languages read as two different products.
+
+    The showcase had invented its own tokens: --bg #0b0f18 against the app's
+    #0b0f16, accent #4da3ff against #22d3ee, and --ok/--err that matched nothing
+    in the app at all. Someone who read the showcase and then opened the
+    console saw a change of brand. Compared value by value, not by eye.
+    """
+    html = SHOWCASE_HTML.read_text(encoding="utf-8")
+    css = (Path(__file__).resolve().parents[1] / "amr" / "web" / "static"
+           / "command_center.css").read_text(encoding="utf-8")
+
+    def token(text: str, name: str) -> str:
+        m = re.search(re.escape(name) + r"\s*:\s*(#[0-9a-fA-F]{3,6})", text)
+        assert m, f"{name} not found"
+        return m.group(1).lower()
+
+    for sc_name, app_name in (
+        ("--bg", "--bg"), ("--text", "--text"), ("--line", "--line"),
+        ("--muted", "--muted"), ("--dim", "--dim"),
+        ("--acc", "--accent"), ("--ok", "--ok"), ("--crit", "--crit"),
+    ):
+        assert token(html, sc_name) == token(css, app_name), (
+            f"{sc_name} is {token(html, sc_name)} in the showcase but "
+            f"{token(css, app_name)} in the app"
+        )
+
+
 def test_current_status_test_counts_are_not_stale(registry):
     """The per-file table in CURRENT_STATUS.md must match reality.
 
