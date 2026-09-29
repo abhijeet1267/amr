@@ -1216,6 +1216,57 @@ palette present in every document.
 
 ---
 
+## Legacy pages: the light half of the palette, and a switch to reach it `[x]` (2026-09-29)
+
+The round above unified the *dark* palette and left it there. Both embedded pages
+had no light theme at all — not one `prefers-color-scheme` query, no light rule,
+zero occurrences of either. So "one palette" was true of one theme: an operator
+who chose light in the Command Center opened `/` or `/dashboard` and fell back
+into a dark page, with no switch on the page to get out again.
+
+The fix adds the light half to the same `_PALETTE_CSS` block (`:root.light`,
+carrying the Command Center's `body.light` values verbatim) and one shared
+`_THEME_BOOT_JS` stub that both pages substitute.
+
+Two decisions worth recording, because both are traps:
+
+* **`:root.light`, not `body.light`.** An alias is substituted on the element
+  that declares it, so `--panel:var(--card)` declared on `:root` keeps the *dark*
+  card once `--card` is overridden on `body` — the pages would have looked right
+  in dark mode and silently wrong in light. Keeping the override on the same
+  element as the aliases removes the question, and lets the stub run in `<head>`
+  so the class lands before first paint rather than flashing dark first.
+* **`--btn-hover` on `.navlink:hover` had to stop using `--on-crit`.** The dark
+  hover surface carried white text fine; the light one is a pale tint, where
+  white would have been invisible. It now uses `--acc`, which reads on both.
+
+A third finding came out of writing the test rather than reading the CSS: the
+palette's `--stage` was *already* the console's `#060a11`, and a misread of a
+column-aligned dump led to "fixing" it to `#0b0f16` — a value the console does
+not use for a stage anywhere. The new test caught that in one run.
+
+### Guarded
+
+`test_embedded_pages_light_theme_matches_the_console` asserts three things:
+every literal in the dark palette is restated for light (aliases excepted by
+value, `--on-crit` by name and with its reason); the values match the console's
+in **both** themes, with minimum counts so a dropped token cannot quietly shrink
+what is compared; and the stub shares the `amr-theme` key and the OS query with
+`command_center.js`. It also caught an edit that accidentally swallowed the
+`def` line of `test_current_status_test_counts_are_not_stale`, which had merged
+two tests into one — the count landed back at 42 and looked fine.
+
+The move to a `<head>` script also invalidated four test slices that read
+`DASHBOARD_HTML` from the first `<script>` to the last `</script>`: that meant
+"the dashboard's script" only while a page shipped exactly one. They now select
+it explicitly via new `_dashboard_script()` / `_page_script()` helpers, so a
+future script cannot be folded into a rule about the dashboard.
+
+Full suite **1422 passed, 2 skipped** (+1); live e2e 4/4 pages 200, no stale
+palette literals on the wire, and `node --check` clean on both scripts per page.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

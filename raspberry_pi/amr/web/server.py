@@ -139,6 +139,15 @@ _GZIP_MIN_BYTES = 512
 #: The legacy names at the bottom are aliases, not a second palette: the two
 #: older pages keep their own ``var(--acc)`` / ``var(--err)`` / ``var(--panel)``
 #: call sites and now resolve to the same colours as everything else.
+#:
+#: The light theme is applied as ``:root.light`` rather than the Command Center's
+#: ``body.light``. Two reasons, and the second is a trap. The theme script can
+#: then run in ``<head>`` and set the class before the body exists, so a
+#: light-mode operator never sees a dark flash. And an alias is substituted on
+#: the element that declares it: ``--panel:var(--card)`` declared on ``:root``
+#: while ``--card`` is overridden on ``body`` would keep resolving to the *dark*
+#: card, so the two pages would silently disagree with the console in light mode
+#: while looking correct in dark mode.
 _PALETTE_CSS = """  :root {
     --bg:#0b0f16; --bg-2:#111823; --card:#141d2b; --card-2:#1a2534;
     --line:#24334a; --text:#e6edf7; --muted:#8fa3bd; --dim:#64768c;
@@ -147,7 +156,8 @@ _PALETTE_CSS = """  :root {
     --on-accent:#04121a;
     --shadow:0 1px 3px rgba(0,0,0,.2); --shadow-lift:0 4px 12px rgba(0,0,0,.3);
     /* Stages are data, not chrome: the map/twin/camera views stay dark in both
-       themes so sensor imagery reads the same way everywhere. */
+       themes so sensor imagery reads the same way everywhere. Same values as
+       the console, so a camera panel is the same dark in all four pages. */
     --stage:#060a11;
     /* Legacy component surfaces, kept as tokens so the two embedded pages read
        from the palette instead of re-declaring their predecessors' literals. */
@@ -157,7 +167,83 @@ _PALETTE_CSS = """  :root {
     /* Legacy aliases: same colours, the names the two older pages already use. */
     --panel:var(--card); --panel-2:var(--card-2); --ink:var(--text);
     --acc:var(--accent); --err:var(--crit); --sim:var(--info);
+  }
+  /* The light half of the same palette. Without it the two older pages were
+     dark-only: an operator who chose light in the Command Center and then
+     opened / or /dashboard fell back into a dark page.
+
+     These are the Command Center's light values verbatim, and
+     ``tests/test_app_registry.py`` compares the two sets in both directions, so
+     the four pages cannot disagree about what "light" means any more than they
+     can disagree about "dark". The status colours are the darkened set that
+     clears WCAG AA as text on white; the originals are ~2:1 and unreadable.
+
+     ``--on-crit`` is deliberately absent: text on a critical red is white in
+     both themes, so there is nothing to restate. ``--stage`` *is* restated
+     below, because a stage is dark in both -- the console makes the same
+     exception for the same reason. */
+  :root.light {
+    --bg:#f4f6fa; --bg-2:#ffffff; --card:#ffffff; --card-2:#eef2f8;
+    --line:#d8e0ea; --text:#0f172a; --muted:#4a5a70; --dim:#5b6b80;
+    --ok:#14713f; --warn:#8a5300; --crit:#b3202e; --info:#1a5fc4;
+    --accent:#0e7490; --accent-hover:#0f8ba9; --on-accent:#ffffff;
+    /* Tinted, not black: shallow black shadows read as smudges on white. */
+    --shadow:0 1px 3px rgba(15,23,42,.10); --shadow-lift:0 6px 18px rgba(15,23,42,.14);
+    /* Light counterparts of the legacy component surfaces. --btn-warn is
+       paired with --warn text by button.ack, so it has to stay pale here. */
+    --btn:#eef2f8; --btn-hover:#dde5f0; --well:#eef2f8;
+    --btn-warn:#fdf0dc; --btn-warn-hover:#f7e3bf;
+    /* A stage is dark in both themes. The console restates it for exactly this
+       reason: a dark stage is the point, not an oversight of light mode. */
+    --stage:#0b1119;
   }"""
+
+#: Applies the operator's theme and wires the header toggle, for the embedded pages.
+#:
+#: The Command Center owns the light/dark switch and persists the choice under
+#: ``amr-theme``; these two pages read and write the same key, so the choice
+#: follows the operator between all four surfaces. Running the apply step in
+#: ``<head>`` rather than on DOMContentLoaded is the point: the class lands
+#: before first paint, so a light-mode operator never sees a dark flash. No
+#: stored preference means follow the OS, which is exactly what
+#: ``preferredTheme()`` does in ``command_center.js``.
+_THEME_BOOT_JS = """
+(function () {
+  var KEY = "amr-theme";
+  function syncIcon(light) {
+    var icon = document.getElementById("theme-icon");
+    if (icon) { icon.innerHTML = light ? "&#9788;" : "&#9789;"; }
+  }
+  function persist(light) {
+    if (light) { document.documentElement.classList.add("light"); }
+    else { document.documentElement.classList.remove("light"); }
+    try { localStorage.setItem(KEY, light ? "light" : "dark"); } catch (e) { }
+    syncIcon(light);
+  }
+  var pref = null;
+  try { pref = localStorage.getItem(KEY); } catch (e) { }
+  if (pref !== "light" && pref !== "dark") {
+    pref = "dark";
+    try {
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+        pref = "light";
+      }
+    } catch (e) { }
+  }
+  // Applied now, before the body exists, so there is no flash of the other
+  // theme. The icon lives in the body, so it is synced again once that parses.
+  var light = pref === "light";
+  if (light) { document.documentElement.classList.add("light"); }
+  document.addEventListener("DOMContentLoaded", function () {
+    syncIcon(light);
+    var btn = document.getElementById("theme-btn");
+    if (!btn) { return; }
+    btn.addEventListener("click", function () {
+      persist(!document.documentElement.classList.contains("light"));
+    });
+  });
+})();
+"""
 
 #: Pre-compressed static assets, keyed by name.
 #:
@@ -1541,11 +1627,25 @@ INDEX_HTML = """<!doctype html>
              text-decoration:none; white-space:nowrap;
              background:var(--btn); border:1px solid var(--line); color:var(--text);
              transition:background-color .18s ease, border-color .18s ease, color .18s ease; }
-  .navlink:hover { background:var(--btn-hover); border-color:var(--acc); color:var(--on-crit); }
+  /* --acc, not --on-crit: the hover surface is a light --btn-hover in light
+     mode, and white text on it would be invisible. The accent reads on both
+     hover surfaces, which is what makes this one rule work in two themes. */
+  .navlink:hover { background:var(--btn-hover); border-color:var(--acc); color:var(--acc); }
   .navlink:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
   .navlink + .navlink { margin-left:0; }
   @media (max-width:680px){ .navlink { margin-left:0; } }
+  /* The theme switch, on a page a session can start on. Same control as the
+     Command Center's and the same stored key, so the choice can be made here
+     too and the other pages follow it. */
+  .theme-btn { display:inline-flex; align-items:center; justify-content:center;
+               width:27px; height:27px; padding:0; border-radius:999px; cursor:pointer;
+               font:inherit; font-size:14px; line-height:1;
+               background:var(--btn); border:1px solid var(--line); color:var(--text);
+               transition:background-color .18s ease, border-color .18s ease, color .18s ease; }
+  .theme-btn:hover { background:var(--btn-hover); border-color:var(--acc); color:var(--acc); }
+  .theme-btn:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
 </style>
+<script id="theme-boot">/*__THEME__*/</script>
 </head>
 <body>
 <div class="wrap">
@@ -1557,6 +1657,10 @@ INDEX_HTML = """<!doctype html>
     <span id="hazBadge" class="badge">HAZARD --</span>
     <a class="navlink" href="/command-center" title="Read-only monitoring console">Command Center</a>
     <a class="navlink" href="/applications" title="Every interface this AMR ships, and whether it works">Applications</a>
+    <button type="button" class="theme-btn" id="theme-btn"
+            aria-label="Toggle light and dark theme">
+      <span aria-hidden="true" id="theme-icon">&#9789;</span>
+    </button>
   </header>
 
   <div class="grid">
@@ -1925,7 +2029,17 @@ a { color: var(--sim); }
 .navlink + .navlink { margin-left: 0; }
 @media (max-width: 600px) { .navlink { margin-left: 0; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+/* The theme switch, mirroring the Command Center's and writing the same stored
+   key, so a choice made on any page is the choice the others use. */
+.theme-btn { display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 13px; line-height: 1;
+  color: var(--ink); background: var(--btn); border: 1px solid var(--line);
+  transition: border-color .18s ease, background-color .18s ease; }
+.theme-btn:hover { border-color: var(--sim); background: var(--btn-hover); }
+.theme-btn:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
 </style>
+<script id="theme-boot">/*__THEME__*/</script>
 </head>
 <body>
 <header>
@@ -1944,6 +2058,10 @@ a { color: var(--sim); }
        begins with it. The footer below is the route back to the legacy panel. -->
   <a class="navlink" href="/applications"
      title="Every interface this AMR ships, and whether it works right now">APPLICATIONS</a>
+  <button type="button" class="theme-btn" id="theme-btn"
+          aria-label="Toggle light and dark theme">
+    <span aria-hidden="true" id="theme-icon">&#9789;</span>
+  </button>
 </header>
 
 <!-- C11: global operations status bar. One glance: source, robot, navigation,
@@ -3573,12 +3691,19 @@ DASHBOARD_HTML = DASHBOARD_HTML.replace("__DASHBOARD_JS__", DASHBOARD_JS)
 INDEX_HTML = INDEX_HTML.replace("/*__PALETTE__*/", _PALETTE_CSS)
 DASHBOARD_HTML = DASHBOARD_HTML.replace("/*__PALETTE__*/", _PALETTE_CSS)
 
+# ...and the one theme bootstrap, from :data:`_THEME_BOOT_JS`. It lives in the
+# <head> so the theme class lands before first paint; the toggle it wires is the
+# same light/dark switch, over the same storage key, as the Command Center's.
+INDEX_HTML = INDEX_HTML.replace("/*__THEME__*/", _THEME_BOOT_JS)
+DASHBOARD_HTML = DASHBOARD_HTML.replace("/*__THEME__*/", _THEME_BOOT_JS)
+
 # Fail loudly at import rather than shipping a page with a transparent
 # background: a leftover placeholder means someone added a third embedded page
 # and forgot to wire it up.
 for _name, _doc in (("INDEX_HTML", INDEX_HTML), ("DASHBOARD_HTML", DASHBOARD_HTML)):
-    if "__PALETTE__" in _doc:
-        raise RuntimeError(f"{_name} still contains a __PALETTE__ placeholder")
-del _name, _doc
+    for _token in ("__PALETTE__", "__THEME__"):
+        if _token in _doc:
+            raise RuntimeError(f"{_name} still contains a {_token} placeholder")
+del _name, _doc, _token
 
 

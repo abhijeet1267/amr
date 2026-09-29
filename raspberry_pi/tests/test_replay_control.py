@@ -37,6 +37,20 @@ def _snapshot(t, x=0.0):
     }
 
 
+def _page_script(html: str) -> str:
+    """The page's own script, without the shared ``#theme-boot`` stub in the head.
+
+    These rules are about the dashboard's own code. Slicing from the first
+    ``<script>`` to the last ``</script>`` used to be equivalent, because the page
+    shipped exactly one script; the head now also carries the theme bootstrap,
+    and that slice would splice the two together.
+    """
+    scripts = re.findall(r"<script(?![^>]*id=\"theme-boot\")[^>]*>(.*?)</script>",
+                         html, re.DOTALL)
+    assert len(scripts) == 1, f"expected one page script, found {len(scripts)}"
+    return scripts[0]
+
+
 @pytest.fixture
 def recdir(tmp_path):
     """A recordings directory with one good and one corrupt recording."""
@@ -327,16 +341,14 @@ class TestSingleTickIntegration:
     def test_dashboard_still_has_exactly_one_timer(self):
         """A second setInterval would violate the single-tick rule."""
         from amr.web.server import DASHBOARD_HTML
-        js = DASHBOARD_HTML[DASHBOARD_HTML.index("<script>") + 8:
-                            DASHBOARD_HTML.rindex("</script>")]
+        js = _page_script(DASHBOARD_HTML)
         assert js.count("setInterval") == 1
         assert "setTimeout" not in js
 
     def test_replay_js_never_posts_to_command(self):
         """The replay block must not fetch the actuator endpoint at all."""
         from amr.web.server import DASHBOARD_HTML
-        js = DASHBOARD_HTML[DASHBOARD_HTML.index("<script>") + 8:
-                            DASHBOARD_HTML.rindex("</script>")]
+        js = _page_script(DASHBOARD_HTML)
         start = js.index("C14b — DASHBOARD REPLAY CONTROLS")
         block = js[start:js.index("function apply(t)", start)]
         # Strip comments so explanatory prose is never mistaken for a call.

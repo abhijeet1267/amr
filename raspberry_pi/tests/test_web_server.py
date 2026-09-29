@@ -18,6 +18,7 @@ from __future__ import annotations
 import gzip
 import http.client
 import json
+import re
 import urllib.error
 import urllib.request
 
@@ -733,19 +734,32 @@ class TestCameraOverlayRoute:
 
     def test_dashboard_never_draws_a_world_coordinate(self):
         """The client must not contain an image->world conversion."""
-        js = DASHBOARD_HTML[DASHBOARD_HTML.index("<script>") + 8:
-                            DASHBOARD_HTML.rindex("</script>")]
+        js = _dashboard_script()
         for forbidden in ("pixelsPerMetre", "pixels_per_metre", "metresPerPixel",
                           "imageToWorld", "worldFromBbox"):
             assert forbidden not in js, forbidden
 
     def test_overlay_polling_rides_the_existing_tick(self):
         """No second timer: the overlay is fetched from the existing poll."""
-        js = DASHBOARD_HTML[DASHBOARD_HTML.index("<script>") + 8:
-                            DASHBOARD_HTML.rindex("</script>")]
+        js = _dashboard_script()
         assert "setInterval(pollOverlay" not in js
         assert "pollOverlay();" in js
 
+
+
+def _dashboard_script() -> str:
+    """The dashboard's own script, without the shared ``#theme-boot`` stub.
+
+    These rules are all about the dashboard's own code. Slicing from the first
+    ``<script>`` to the last ``</script>`` used to be the same thing, because the
+    page shipped exactly one script; the head now also carries the theme
+    bootstrap, and that slice would splice the two together and start measuring
+    text that is not the dashboard.
+    """
+    scripts = re.findall(r"<script(?![^>]*id=\"theme-boot\")[^>]*>(.*?)</script>",
+                         DASHBOARD_HTML, re.DOTALL)
+    assert len(scripts) == 1, f"expected one dashboard script, found {len(scripts)}"
+    return scripts[0]
 
 
 def test_hazard_ack_cannot_clear_an_active_hazard(web_hazard):

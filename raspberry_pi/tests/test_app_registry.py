@@ -360,6 +360,9 @@ def test_readme_says_how_to_install_the_dependencies():
 
 SHOWCASE_HTML = README_MD.parent / "showcase.html"
 
+#: The served stylesheets and scripts, read as text by the palette tests.
+STATIC_DIR = Path(__file__).resolve().parents[1] / "amr" / "web" / "static"
+
 #: The suite's 2 camera tests skip when opencv-python/numpy are absent. Named
 #: here rather than inferred, because a badge that counted them would claim more
 #: than actually ran.
@@ -453,8 +456,7 @@ def test_embedded_pages_share_the_command_center_palette():
 
     from amr.web import server as _server
 
-    css = (Path(__file__).resolve().parents[1] / "amr" / "web" / "static"
-           / "command_center.css").read_text(encoding="utf-8")
+    css = (STATIC_DIR / "command_center.css").read_text(encoding="utf-8")
 
     def token(text: str, name: str) -> str:
         m = _re.search(_re.escape(name) + r"\s*:\s*(#[0-9a-fA-F]{3,6})", text)
@@ -480,18 +482,147 @@ def test_embedded_pages_share_the_command_center_palette():
         assert "#0e1420" not in doc, f"{name} still carries the old dashboard --bg"
         assert "#4da3ff" not in doc, f"{name} still carries the old panel accent"
 
-    # Style blocks must be token-only. The :root palette block itself is the
-    # one legitimate source of hex values in a <style>; everything after it
-    # must read via var(--x) or the colour-mix() derivations of one.
+    # Style blocks must be token-only. The palette blocks are the one
+    # legitimate source of hex values in a <style>: the dark :root and its light
+    # :root.light counterpart, both substituted from _PALETTE_CSS. Strip exactly
+    # those, and anything still carrying a hex is drift. A third :root block
+    # would be caught too, because it would survive the strip.
     for name, doc in (("INDEX_HTML", _server.INDEX_HTML),
                       ("DASHBOARD_HTML", _server.DASHBOARD_HTML)):
         m = _re.search(r"<style>(.*?)</style>", doc, _re.S)
         assert m, f"{name} has no <style> block"
-        style = _re.sub(r":root\s*\{.*?\}", "", m.group(1), count=1, flags=_re.S)
+        style = _re.sub(r":root(?:\.light)?\s*\{.*?\}", "", m.group(1), flags=_re.S)
+        assert ":root" not in style, (
+            f"{name} declares a :root block outside the shared palette"
+        )
         leftovers = _re.findall(r"#[0-9a-fA-F]{3,8}\b", style)
         assert not leftovers, (
             f"{name} <style> carries hardcoded colours again: {leftovers}"
         )
+
+
+def test_embedded_pages_light_theme_matches_the_console():
+    """Both embedded pages must theme, and with the console's light values.
+
+    They had no light theme at all: not one ``prefers-color-scheme`` query, no
+    light rule. So the "one palette" claim was true only of the dark half, and
+    an operator who chose light in the Command Center fell back into a dark page
+    the moment they opened / or /dashboard.
+
+    Three properties, each of which has failed for real in this codebase:
+
+    1. Every literal colour the dark palette declares is restated for light.
+       The console's ``body.light`` once overrode five of fourteen tokens, so
+       cards and chips stayed near-black on a near-white page and light mode
+       looked broken rather than light. Nothing errored, so nothing failed.
+    2. The light values are the console's, value by value, so the four pages
+       cannot drift apart the way the three original palettes did.
+    3. The bootstrap reads the same storage key the console writes and consults
+       the OS, which is what ``applications.js`` is held to as well.
+
+    Tokens whose value is itself a ``var()`` alias are exempt from (1) on
+    purpose: ``--panel:var(--card)`` is substituted on the element that declares
+    it, and the light rule is on that same element, so an alias follows its
+    target for free.
+    """
+    import re as _re
+
+    from amr.web import server as _server
+
+    def declared_all(text: str, selector: str) -> Dict[str, str]:
+        """Every token declared by any top-level ``selector { ... }`` rule.
+
+        Brace-matched, and all occurrences: ``command_center.css`` spreads its
+        palette over two ``:root`` blocks, and a helper that stopped at the
+        first would silently compare a fraction of it.
+        """
+        found: Dict[str, str] = {}
+        for m in _re.finditer(r"(?<![\w-])" + _re.escape(selector) + r"\s*\{", text):
+            depth, i = 1, m.end()
+            while i < len(text) and depth:
+                depth += (text[i] == "{") - (text[i] == "}")
+                i += 1
+            body = text[m.end():i - 1]
+            for tok, val in _re.findall(r"(--[a-z0-9-]+)\s*:\s*([^;]+);", body):
+                found.setdefault(tok, val.strip())
+        return found
+
+    def norm(value: str) -> str:
+        return _re.sub(r"\s+", "", value).lower()
+
+    palette = _server._PALETTE_CSS
+    css = (STATIC_DIR / "command_center.css").read_text(encoding="utf-8")
+
+    dark = declared_all(palette, ":root")
+    light = declared_all(palette, ":root.light")
+    console_dark = declared_all(css, ":root")
+    console_light = declared_all(css, "body.light")
+
+    # Both halves must be populated, or every comparison below is vacuous.
+    assert len(dark) > 20, f"only {len(dark)} dark tokens: this test is not measuring"
+    assert light, "no light-theme tokens in _PALETTE_CSS: this test is not measuring"
+    assert console_dark and console_light, "no console palette to compare against"
+
+    # (1) Every literal must be restated. --on-crit is the one exception, and it
+    # is genuinely theme-independent: it only ever sits on --crit, which is dark
+    # in both themes, so white text on it stays legible either way.
+    aliases = {tok for tok, val in dark.items() if val.startswith("var(")}
+    unthemed = set(dark) - set(light) - aliases - {"--on-crit"}
+    assert not unthemed, (
+        "light mode leaves these tokens at their dark values, so they keep dark "
+        f"paint on a white page: {sorted(unthemed)}"
+    )
+
+    # (2) The values are the console's. The counts are asserted so that dropping
+    # a token cannot quietly shrink what is being compared -- the failure mode
+    # that lets this kind of test pass while measuring almost nothing.
+    dark_shared = sorted(set(dark) & set(console_dark))
+    light_shared = sorted(set(light) & set(console_light))
+    assert len(dark_shared) >= 18, (
+        f"only {len(dark_shared)} dark tokens are comparable to the console: "
+        f"{dark_shared}"
+    )
+    assert len(light_shared) >= 18, (
+        f"only {len(light_shared)} light tokens are comparable to the console: "
+        f"{light_shared}"
+    )
+    for name in dark_shared:
+        assert norm(dark[name]) == norm(console_dark[name]), (
+            f"{name} is {dark[name]} in _PALETTE_CSS but "
+            f"{console_dark[name]} in command_center.css"
+        )
+    for name in light_shared:
+        assert norm(light[name]) == norm(console_light[name]), (
+            f"{name} is {light[name]} in light mode but "
+            f"{console_light[name]} in the console's light mode"
+        )
+
+    # --stage is the deliberate exception to "light means light": a stage is dark
+    # in both themes, so it is restated with a dark value rather than inheriting
+    # the dark one. Camera and map imagery on white would be unreadable.
+    assert light["--stage"].startswith("#0"), (
+        "the stage must stay dark in light mode, or camera and map imagery "
+        "would sit on white"
+    )
+
+    # (3) Same storage key, same OS fallback as the console.
+    console_js = (STATIC_DIR / "command_center.js").read_text(encoding="utf-8")
+    boot = _server._THEME_BOOT_JS
+    assert "amr-theme" in boot and "amr-theme" in console_js, (
+        "the embedded pages and the console must share the theme storage key"
+    )
+    assert "prefers-color-scheme" in boot, "the bootstrap ignores the OS setting"
+    assert "localStorage.getItem" in boot, "the bootstrap ignores a stored choice"
+
+    # ...and both pages actually ship it. Substitution happens at import time, so
+    # a page that lost its placeholder would ship neither the palette nor the
+    # switch, which is exactly the silent-drift failure this file guards.
+    for name, doc in (("INDEX_HTML", _server.INDEX_HTML),
+                      ("DASHBOARD_HTML", _server.DASHBOARD_HTML)):
+        assert 'id="theme-boot"' in doc, f"{name} ships no theme bootstrap"
+        assert 'id="theme-btn"' in doc, f"{name} ships no theme switch"
+        assert 'id="theme-icon"' in doc, f"{name} ships no theme switch icon"
+        assert ":root.light" in doc, f"{name} ships no light palette"
 
 
 def test_current_status_test_counts_are_not_stale(registry):
