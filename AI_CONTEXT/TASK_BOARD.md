@@ -1119,6 +1119,23 @@ it fail on that path. YAML validated: 3 jobs, 4 steps each.
 
 **Suite unchanged at 1417 passed, 2 skipped** (CI-only change).
 
+### Follow-up: the status document itself had drifted
+
+While verifying, the per-file table in `CURRENT_STATUS.md` turned out to be
+wrong in four places: `test_connectivity.py` and `test_startup_banner.py` were
+absent entirely, and `test_command_center.py` (57 → 63) and
+`test_web_server.py` (86 → 101) were stale. The "Test files" line also claimed
+37 against a real 36 — a number I had *guessed* with `sed` in the previous
+commit rather than measured.
+
+Regenerated from a measured collection, and
+`test_current_status_test_counts_are_not_stale` now re-derives every count from
+`pytest --collect-only` on each run, so the table cannot go quiet-fictional
+again. **Verified to fail** both for a wrong count and for a deleted row — and
+it caught the `sed` guess the moment it was written.
+
+**Suite: 1418 passed, 2 skipped, 0 failed** (+1).
+
 ---
 
 ## D. Do not take (owned / in progress)

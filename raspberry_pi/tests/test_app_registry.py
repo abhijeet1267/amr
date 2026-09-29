@@ -13,7 +13,10 @@ drifting into fiction.
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 from pathlib import Path
+from typing import Dict
 
 import pytest
 
@@ -352,6 +355,54 @@ def test_readme_says_how_to_install_the_dependencies():
     assert install < first_run, (
         "the install block must come before the first run command, or a new "
         "user hits ModuleNotFoundError before being told how to fix it"
+    )
+
+
+def test_current_status_test_counts_are_not_stale(registry):
+    """The per-file table in CURRENT_STATUS.md must match reality.
+
+    It drifted for a long time: two whole test files were missing from it and two
+    other counts were wrong, with nothing to notice. A status document whose
+    numbers are quietly fiction is worse than one that says less, so the table
+    is checked against a measured collection rather than trusted.
+
+    The file count in section 1 is checked too, because a wrong one is the
+    sort of detail that survives for months.
+    """
+    text = README_MD.parent.joinpath("AI_CONTEXT", "CURRENT_STATUS.md").read_text(
+        encoding="utf-8")
+
+    # Counts as "(name.py   38" at the start of a line, ignoring alignment.
+    claimed = {m.group(1): int(m.group(2))
+               for m in re.finditer(r"(test_[a-z_0-9]+\.py)\s+(\d+)", text)}
+    assert claimed, "no per-file counts found in CURRENT_STATUS.md"
+
+    actual: Dict[str, int] = {}
+    out = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", "-o", "addopts="],
+        capture_output=True, text=True,
+        cwd=str(Path(__file__).resolve().parents[1]),
+    ).stdout
+    for m2 in re.finditer(r"^tests/(test_[a-z_0-9]+\.py)", out, re.M):
+        actual[m2.group(1)] = actual.get(m2.group(1), 0) + 1
+    assert actual, "collection produced no test ids"
+
+    missing = sorted(set(actual) - set(claimed))
+    assert not missing, (
+        f"CURRENT_STATUS.md does not list these test files: {missing}"
+    )
+    wrong = {n: (claimed[n], actual[n]) for n in actual
+             if n in claimed and claimed[n] != actual[n]}
+    assert not wrong, (
+        "CURRENT_STATUS.md per-file counts are wrong (claimed, actual): "
+        f"{wrong}"
+    )
+
+    # Section 1's "Test files" line.
+    m = re.search(r"Test files\s*\|\s*(\d+)", text)
+    assert m, "CURRENT_STATUS.md has no 'Test files' line"
+    assert int(m.group(1)) == len(actual), (
+        f"CURRENT_STATUS.md says {m.group(1)} test files, there are {len(actual)}"
     )
 
 

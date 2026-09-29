@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
 **Last verified:** 2026-09-28, health pass — full suite
-**1417 passed, 2 skipped, 0 failed**.
+**1418 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,8 +10,8 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **1417 passed, 2 skipped, 0 failed** |
-| Test files | 37 (`tests/test_*.py`) |
+| `cd raspberry_pi && python -m pytest` | **1418 passed, 2 skipped, 0 failed** |
+| Test files | 36 (`tests/test_*.py`) |
 | `python -m compileall amr` | clean |
 | Orphan scan (every module imported by prod or tests) | none — no dead modules |
 | CI | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff` |
@@ -29,28 +29,34 @@ The 2 skips are the camera tests that need `opencv-python`/`numpy`; they run whe
 those are installed and skip gracefully otherwise. They are the only conditional
 tests.
 
-Per-file test counts (from `pytest --collect-only -q`):
+Per-file test counts (regenerated from `pytest --collect-only -q` — 36 files,
+1419 tests: 1418 run + 2 skipped):
 
 ```
-test_app_registry.py       29    test_map.py               111
-test_applications_hub.py    25    test_mission_monitoring.py 45
-test_auto_record.py         27    test_mode_controller.py    13
-test_avoidance.py           76    test_motor_controller.py   21
-test_camera_backend.py      47    test_navigation.py         50
-test_camera_frame.py        49    test_ops_projection.py     44
-test_camera_manager.py       9    test_protocol.py           37
-test_camera_overlay.py      40    test_replay.py             59
-test_command_center.py      57    test_replay_control.py     68
-test_config.py              22    test_robot_manager.py      23
-test_console.py             35    test_robot_state.py         5
-test_differential_drive.py  25    test_safety_manager.py     14
-test_digital_twin.py        37    test_telemetry.py          52
-test_hazard.py              48    test_ultrasonic.py          9
-test_hazard_visualisation.py 23   test_unified_demo.py       30
-test_logging.py             17    test_vision.py            101
-                                  test_warehouse.py          39
-                                  test_web_server.py         86
+test_app_registry.py           39    test_mission_monitoring.py     45
+test_applications_hub.py       25    test_mode_controller.py        13
+test_auto_record.py            27    test_motor_controller.py       21
+test_avoidance.py              76    test_navigation.py             50
+test_camera_backend.py         47    test_ops_projection.py         44
+test_camera_frame.py           49    test_protocol.py               37
+test_camera_manager.py          9    test_replay.py                 59
+test_camera_overlay.py         40    test_replay_control.py         68
+test_command_center.py         63    test_robot_manager.py          23
+test_config.py                 22    test_robot_state.py             5
+test_connectivity.py           14    test_safety_manager.py         14
+test_console.py                35    test_startup_banner.py          2
+test_differential_drive.py     25    test_telemetry.py              52
+test_digital_twin.py           37    test_ultrasonic.py              9
+test_hazard.py                 48    test_unified_demo.py           30
+test_hazard_visualisation.py   23    test_vision.py                101
+test_logging.py                17    test_warehouse.py              39
+test_map.py                   111    test_web_server.py            101
 ```
+
+Three of these had drifted and were corrected against a measured run rather
+than an estimate: `test_connectivity.py` and `test_startup_banner.py` were
+missing entirely, and `test_command_center.py` (57 → 63) and
+`test_web_server.py` (86 → 101) were stale.
 
 ---
 
