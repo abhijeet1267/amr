@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
 **Last verified:** 2026-09-28, health pass — full suite
-**1420 passed, 2 skipped, 0 failed**.
+**1421 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,7 +10,7 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **1420 passed, 2 skipped, 0 failed** |
+| `cd raspberry_pi && python -m pytest` | **1421 passed, 2 skipped, 0 failed** |
 | Test files | 36 (`tests/test_*.py`) |
 | `python -m compileall amr` | clean |
 | Orphan scan (every module imported by prod or tests) | none — no dead modules |
@@ -33,7 +33,7 @@ Per-file test counts (regenerated from `pytest --collect-only -q` — 36 files,
 1422 tests: 1420 run + 2 skipped):
 
 ```
-test_app_registry.py           41    test_mission_monitoring.py     45
+test_app_registry.py           42    test_mission_monitoring.py     45
 test_applications_hub.py       25    test_mode_controller.py        13
 test_auto_record.py            27    test_motor_controller.py       21
 test_avoidance.py              76    test_navigation.py             50

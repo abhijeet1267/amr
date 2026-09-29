@@ -1183,6 +1183,39 @@ skips would overstate what ran, so the test subtracts them explicitly.
 
 ---
 
+## Legacy pages: the last two surfaces that looked like a different product `[x]` (2026-09-29)
+
+Continuing the palette thread to its end. The showcase was fixed last round, but
+the two embedded pages served from `amr/web/server.py` still carried their own
+`:root` blocks — and they had drifted from each other *and* from the app:
+
+```
+panel:      --bg #0f1420   accent #4da3ff   --ok/--err matched nothing
+dashboard:  --bg #0e1420   --ok #3fb950     (its own green, again matching nothing)
+app:        --bg #0b0f16   accent #22d3ee   --ok #2fbf71
+```
+
+The fix is substitution, not copy-paste: one `_PALETTE_CSS` block (the Command
+Center's own token values, plus `--stage` for map/twin/camera views that stay
+dark in both themes and `--btn`/`--well` for the legacy component surfaces) is
+injected into both documents at import time, and every style literal outside
+the palette block now reads via `var(--x)`. JS-drawn surfaces (SVG map strokes,
+overlay colours arriving from `KIND_COLORS`) cannot use `var()` by construction
+and are deliberately out of scope — the Command Center already documents this in
+its `token()` bridge.
+
+### Guarded
+
+`test_embedded_pages_share_the_command_center_palette` compares ten tokens value
+by value, asserts the old per-page roots are gone, and asserts both `<style>`
+blocks are token-only. **Verified to fail twice**: restoring the old panel
+accent fails it, and sneaking one hardcoded literal back into a style fails it.
+
+Full suite **1421 passed, 2 skipped** (+1); live e2e 4/4 pages 200 with the new
+palette present in every document.
+
+---
+
 ## D. Do not take (owned / in progress)
 
 * None currently. Check `HANDOFF.md` for live ownership before starting.

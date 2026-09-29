@@ -434,6 +434,66 @@ def test_showcase_and_app_share_one_palette():
         )
 
 
+def test_embedded_pages_share_the_command_center_palette():
+    """The two embedded pages used to carry their own :root and drift apart.
+
+    The legacy control panel (--bg #0f1420, accent #4da3ff, --ok/--err matching
+    nothing) and the legacy dashboard (--bg #0e1420, --ok #3fb950) each looked
+    like a different product from the Command Center, and nothing compared them
+    -- so nobody noticed. Both pages are now substituted from one
+    ``_PALETTE_CSS`` block at import time, and this test compares that block
+    against ``command_center.css`` value by value, plus the two rendered
+    documents for any hardcoded colour that slipped back in.
+
+    STYLE literals are the ones that matter: JS-drawn surfaces (SVG map
+    strokes, overlay box colours arriving from the backend) cannot use
+    ``var(--x)`` by construction, so they are not counted here.
+    """
+    import re as _re
+
+    from amr.web import server as _server
+
+    css = (Path(__file__).resolve().parents[1] / "amr" / "web" / "static"
+           / "command_center.css").read_text(encoding="utf-8")
+
+    def token(text: str, name: str) -> str:
+        m = _re.search(_re.escape(name) + r"\s*:\s*(#[0-9a-fA-F]{3,6})", text)
+        assert m, f"{name} not found"
+        return m.group(1).lower()
+
+    for palette_name, app_name in (
+        ("--bg", "--bg"), ("--text", "--text"), ("--line", "--line"),
+        ("--dim", "--dim"), ("--ok", "--ok"), ("--warn", "--warn"),
+        ("--crit", "--crit"), ("--info", "--info"),
+        ("--accent", "--accent"), ("--accent-hover", "--accent-hover"),
+    ):
+        assert token(_server._PALETTE_CSS, palette_name) == token(css, app_name), (
+            f"{palette_name} is {token(_server._PALETTE_CSS, palette_name)} "
+            f"in _PALETTE_CSS but {token(css, app_name)} in command_center.css"
+        )
+
+    # The old per-page roots must be gone: substitution, not copy-paste, is the
+    # mechanism, so a second :root with the old background is drift returning.
+    for name, doc in (("INDEX_HTML", _server.INDEX_HTML),
+                      ("DASHBOARD_HTML", _server.DASHBOARD_HTML)):
+        assert "#0f1420" not in doc, f"{name} still carries the old panel --bg"
+        assert "#0e1420" not in doc, f"{name} still carries the old dashboard --bg"
+        assert "#4da3ff" not in doc, f"{name} still carries the old panel accent"
+
+    # Style blocks must be token-only. The :root palette block itself is the
+    # one legitimate source of hex values in a <style>; everything after it
+    # must read via var(--x) or the colour-mix() derivations of one.
+    for name, doc in (("INDEX_HTML", _server.INDEX_HTML),
+                      ("DASHBOARD_HTML", _server.DASHBOARD_HTML)):
+        m = _re.search(r"<style>(.*?)</style>", doc, _re.S)
+        assert m, f"{name} has no <style> block"
+        style = _re.sub(r":root\s*\{.*?\}", "", m.group(1), count=1, flags=_re.S)
+        leftovers = _re.findall(r"#[0-9a-fA-F]{3,8}\b", style)
+        assert not leftovers, (
+            f"{name} <style> carries hardcoded colours again: {leftovers}"
+        )
+
+
 def test_current_status_test_counts_are_not_stale(registry):
     """The per-file table in CURRENT_STATUS.md must match reality.
 

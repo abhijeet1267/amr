@@ -123,6 +123,42 @@ APPLICATIONS_HTML = _load_static("applications.html")
 #: the task board), 512 is comfortably above the break-even point.
 _GZIP_MIN_BYTES = 512
 
+#: The one palette, shared by every page this process serves.
+#:
+#: There were three, and they had quietly diverged: the Command Center
+#: (--bg #0b0f16, accent #22d3ee), the legacy control panel (--bg #0f1420,
+#: accent #4da3ff, an --ok/--err pair matching nothing) and the legacy dashboard
+#: (--bg #0e1420, --ok #3fb950). A visitor moving between them saw three
+#: different products, and "which blue is the accent?" had three answers.
+#:
+#: The values below are the Command Center's, because it is the surface the
+#: project points people at. ``tests/test_app_registry.py`` asserts these
+#: against ``command_center.css``, so this block cannot drift away from it
+#: either -- the two are checked in both directions.
+#:
+#: The legacy names at the bottom are aliases, not a second palette: the two
+#: older pages keep their own ``var(--acc)`` / ``var(--err)`` / ``var(--panel)``
+#: call sites and now resolve to the same colours as everything else.
+_PALETTE_CSS = """  :root {
+    --bg:#0b0f16; --bg-2:#111823; --card:#141d2b; --card-2:#1a2534;
+    --line:#24334a; --text:#e6edf7; --muted:#8fa3bd; --dim:#64768c;
+    --ok:#2fbf71; --warn:#e8a33d; --crit:#ef4d5a; --info:#3d8bfd;
+    --accent:#22d3ee; --accent-hover:#67e8f9;
+    --on-accent:#04121a;
+    --shadow:0 1px 3px rgba(0,0,0,.2); --shadow-lift:0 4px 12px rgba(0,0,0,.3);
+    /* Stages are data, not chrome: the map/twin/camera views stay dark in both
+       themes so sensor imagery reads the same way everywhere. */
+    --stage:#060a11;
+    /* Legacy component surfaces, kept as tokens so the two embedded pages read
+       from the palette instead of re-declaring their predecessors' literals. */
+    --btn:#243050; --btn-hover:#2d3b63; --well:#141b2b;
+    --on-crit:#fff;
+    --btn-warn:#5a3a12; --btn-warn-hover:#7a4e18;
+    /* Legacy aliases: same colours, the names the two older pages already use. */
+    --panel:var(--card); --panel-2:var(--card-2); --ink:var(--text);
+    --acc:var(--accent); --err:var(--crit); --sim:var(--info);
+  }"""
+
 #: Pre-compressed static assets, keyed by name.
 #:
 #: These files are read once at import and never change while the process
@@ -1433,8 +1469,7 @@ INDEX_HTML = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AMR Control</title>
 <style>
-  :root { --bg:#0f1420; --panel:#1a2233; --line:#2a3550; --text:#e6ecf7;
-          --dim:#8b98b8; --ok:#2ecc71; --warn:#f1c40f; --err:#e74c3c; --acc:#4da3ff; }
+  /*__PALETTE__*/
   * { box-sizing:border-box; }
   html { scroll-behavior:smooth; }
   body { margin:0; background:var(--bg); color:var(--text);
@@ -1446,32 +1481,35 @@ INDEX_HTML = """<!doctype html>
   header h1 { font-size:18px; margin:0; letter-spacing:.5px; }
   .badge { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600;
            background:var(--line); transition:background-color .2s ease, color .2s ease; }
-  .badge.ok { background:rgba(46,204,113,.18); color:var(--ok); }
-  .badge.warn { background:rgba(241,196,15,.18); color:var(--warn); }
-  .badge.err { background:rgba(231,76,60,.18); color:var(--err); }
+  /* Tinted via color-mix so the three states derive from the one --ok/--warn/--crit
+     instead of carrying their own hardcoded greens and reds. */
+  .badge.ok { background:color-mix(in srgb, var(--ok) 18%, transparent); color:var(--ok); }
+  .badge.warn { background:color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn); }
+  .badge.err { background:color-mix(in srgb, var(--crit) 18%, transparent); color:var(--crit); }
   .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
   @media (max-width:680px){ .grid { grid-template-columns:1fr; } }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
           padding:14px 16px; transition:border-color .2s ease, box-shadow .2s ease;
-          box-shadow:0 1px 3px rgba(0,0,0,.2); }
-  .card:hover { border-color:rgba(77,163,255,.3); box-shadow:0 4px 12px rgba(0,0,0,.25); }
+          box-shadow:var(--shadow); }
+  .card:hover { border-color:color-mix(in srgb, var(--acc) 30%, transparent);
+                box-shadow:var(--shadow-lift); }
   .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px;
              color:var(--dim); margin:0 0 10px; }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  button { background:#243050; color:var(--text); border:1px solid var(--line);
+  button { background:var(--btn); color:var(--text); border:1px solid var(--line);
            border-radius:8px; padding:10px 14px; font-size:14px; cursor:pointer;
            transition:background-color .18s ease, border-color .18s ease, color .18s ease, transform .1s ease, box-shadow .18s ease; }
-  button:hover { background:#2d3b63; border-color:var(--acc); box-shadow:0 2px 6px rgba(0,0,0,.2); }
+  button:hover { background:var(--btn-hover); border-color:var(--acc); box-shadow:0 2px 6px rgba(0,0,0,.2); }
   button:active { transform:translateY(1px); }
-  button.moving { background:var(--acc); border-color:var(--acc); color:#08101d; font-weight:700; }
-  button.estop { background:var(--err); border-color:var(--err); color:#fff;
+  button.moving { background:var(--acc); border-color:var(--acc); color:var(--on-accent); font-weight:700; }
+  button.estop { background:var(--err); border-color:var(--err); color:var(--on-crit);
                  font-weight:800; font-size:16px; padding:12px 22px; }
   button.active-mode { background:var(--ok); border-color:var(--ok);
-                       color:#08101d; font-weight:700; }
+                       color:var(--on-accent); font-weight:700; }
   input[type=range] { flex:1; min-width:120px; accent-color:var(--acc); }
   .speed-val { min-width:38px; text-align:right; font-variant-numeric:tabular-nums; }
   .sensors { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-  .sensors div { background:#141b2b; border:1px solid var(--line); border-radius:8px;
+  .sensors div { background:var(--well); border:1px solid var(--line); border-radius:8px;
                  padding:8px; text-align:center; transition:border-color .2s ease; }
   .sensors div:hover { border-color:var(--acc); }
   .sensors .v { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
@@ -1481,25 +1519,29 @@ INDEX_HTML = """<!doctype html>
   .kv:last-child { border-bottom:none; }
   .kv span:last-child { font-variant-numeric:tabular-nums; }
   #toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
-           background:#2d3b63; border:1px solid var(--line); border-radius:8px;
+           background:var(--btn-hover); border:1px solid var(--line); border-radius:8px;
            padding:8px 16px; opacity:0; transition:opacity .2s; pointer-events:none; }
   #toast.show { opacity:1; }
-  #toast.err { background:rgba(231,76,60,.25); border-color:var(--err); }
-  .badge.crit { background:var(--err); color:#fff; animation:critblink 1s step-end infinite; }
-  @keyframes critblink { 50% { background:#7a1e16; } }
+  /* Tinted via color-mix so the error toast derives from --err instead of
+     carrying its own hardcoded red. */
+  #toast.err { background:color-mix(in srgb, var(--err) 25%, transparent); border-color:var(--err); }
+  .badge.crit { background:var(--err); color:var(--on-crit); animation:critblink 1s step-end infinite; }
+  /* The blink target is a darker shade of the same --err, derived rather than
+     written out, so re-theming crit moves both ends of the animation. */
+  @keyframes critblink { 50% { background:color-mix(in srgb, var(--err) 45%, black); } }
   @media (prefers-reduced-motion:reduce){ html { scroll-behavior:auto; } *, *::before, *::after { animation-duration:0.01ms !important; transition-duration:0.01ms !important; } .badge.crit { animation:none; } }
-  button.ack { background:#5a3a12; border-color:var(--warn); color:var(--warn);
+  button.ack { background:var(--btn-warn); border-color:var(--warn); color:var(--warn);
                font-weight:700; }
-  button.ack:hover { background:#7a4e18; }
+  button.ack:hover { background:var(--btn-warn-hover); }
   /* Phase C: the panel is where a session starts, so it links the other two
      pages. Plain anchors, styled like badges so they read as navigation and
      not as another status chip. */
   .navlink { margin-left:auto; display:inline-flex; align-items:center; gap:6px;
              padding:5px 12px; border-radius:999px; font-size:12px; font-weight:600;
              text-decoration:none; white-space:nowrap;
-             background:#243050; border:1px solid var(--line); color:var(--text);
+             background:var(--btn); border:1px solid var(--line); color:var(--text);
              transition:background-color .18s ease, border-color .18s ease, color .18s ease; }
-  .navlink:hover { background:#2d3b63; border-color:var(--acc); color:#fff; }
+  .navlink:hover { background:var(--btn-hover); border-color:var(--acc); color:var(--on-crit); }
   .navlink:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
   .navlink + .navlink { margin-left:0; }
   @media (max-width:680px){ .navlink { margin-left:0; } }
@@ -1586,7 +1628,7 @@ INDEX_HTML = """<!doctype html>
         <img id="cam" alt="camera view" style="max-width:100%;max-height:260px;
              border-radius:8px;border:1px solid var(--line);display:none">
         <div id="camPlaceholder" style="flex:1;display:flex;align-items:center;
-             justify-content:center;min-height:120px;background:#141b2b;
+             justify-content:center;min-height:120px;background:var(--well);
              border:1px dashed var(--line);border-radius:8px;color:var(--dim);
              font-size:13px">camera unavailable</div>
         <span id="camStatus" class="badge">--</span>
@@ -1780,11 +1822,7 @@ DASHBOARD_HTML = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AMR Control Center</title>
 <style>
-:root {
-  --bg: #0e1420; --card: #161f2e; --line: #263247; --ink: #e6edf6;
-  --dim: #8b9bb4; --ok: #3fb950; --warn: #d29922; --crit: #f85149;
-  --sim: #a371f7;
-}
+/*__PALETTE__*/
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -1811,7 +1849,7 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
    frame cannot blow out the grid, and the aspect ratio is fixed so the card
    does not jump while frames arrive. */
 .cam-card { display: flex; flex-direction: column; }
-.cam-view { background: #0b101a; border: 1px solid var(--line); border-radius: 8px;
+.cam-view { background:var(--stage); border: 1px solid var(--line); border-radius: 8px;
   aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center;
   overflow: hidden; margin-bottom: 10px; }
 .cam-view img { max-width: 100%; max-height: 100%; width: auto; height: auto;
@@ -1833,10 +1871,10 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
 .map-card { display: flex; flex-direction: column; }
 .map-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
   margin-bottom: 8px; }
-.map-btn { background: #16202f; color: var(--text); border: 1px solid var(--line);
+.map-btn { background:var(--btn); color: var(--text); border: 1px solid var(--line);
   border-radius: 6px; font-size: 11px; padding: 4px 8px; cursor: pointer; }
 .map-btn[aria-pressed="true"] { border-color: var(--ok); color: var(--ok); }
-.map-view { position: relative; background: #0b101a; border: 1px solid var(--line);
+.map-view { position: relative; background:var(--stage); border: 1px solid var(--line);
   border-radius: 8px; overflow: hidden; aspect-ratio: 720 / 460; }
 .map-view svg { display: block; width: 100%; height: 100%; }
 .map-empty { position: absolute; inset: 0; display: flex; align-items: center;
@@ -1846,20 +1884,20 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
    deliberately no framework and no animation beyond the existing hazard blink. */
 .opsbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .ops-item { flex: 1 1 130px; display: flex; flex-direction: column;
-  gap: 2px; background: var(--card, #11161f); border: 1px solid var(--line);
+  gap: 2px; background: var(--card); border: 1px solid var(--line);
   border-radius: 8px; padding: 7px 10px; min-width: 0; }
 .ops-k { font-size: 10px; letter-spacing: .08em; color: var(--dim); }
 .ops-v { font-size: 14px; font-weight: 600; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
-.ops-v.b-crit { color: #f87171; } .ops-v.b-warn { color: #fbbf24; }
-.ops-v.b-ok { color: #4ade80; } .ops-v.b-sim { color: #38bdf8; }
+.ops-v.b-crit { color: var(--crit); } .ops-v.b-warn { color: var(--warn); }
+.ops-v.b-ok { color: var(--ok); } .ops-v.b-sim { color: var(--sim); }
 .ops-v.b-dim { color: var(--dim); }
 .group-title { grid-column: 1 / -1; font-size: 11px; letter-spacing: .08em;
   color: var(--dim); margin: 6px 0 -4px; }
 .bar { display: flex; gap: 2px; margin-top: 4px; }
-.bar i { flex: 1; height: 6px; border-radius: 2px; background: #223; }
-.bar i.on { background: #38bdf8; }
-.bar i.crit { background: #f87171; }
+.bar i { flex: 1; height: 6px; border-radius: 2px; background: var(--line); }
+.bar i.on { background: var(--sim); }
+.bar i.crit { background: var(--crit); }
 .mini { font-size: 11px; color: var(--dim); margin-top: 4px; }
 .health-row { display: flex; justify-content: space-between; gap: 8px;
   font-size: 12px; padding: 2px 0; }
@@ -1867,11 +1905,11 @@ ul { margin: 0; padding-left: 18px; } li { margin: 2px 0; }
 /* C10 twin panel. The canvas is sized by CSS so the WebGL viewport follows the
    card; the drawing buffer is resized in JS whenever the CSS size changes. */
 .twin-card { display: flex; flex-direction: column; }
-.twin-view { position: relative; background: #070b12; border: 1px solid var(--line);
+.twin-view { position: relative; background:var(--stage); border: 1px solid var(--line);
   border-radius: 8px; overflow: hidden; aspect-ratio: 4 / 3; }
 .twin-view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .twin-legend { position: absolute; left: 8px; bottom: 8px; font-size: 10px;
-  color: #94a3b8; background: rgba(7, 11, 18, .72); padding: 6px 8px;
+  color: var(--muted); background:color-mix(in srgb, var(--stage) 72%, transparent); padding: 6px 8px;
   border-radius: 6px; line-height: 1.5; pointer-events: none; }
 footer { padding: 10px 20px 24px; color: var(--dim); font-size: 12px; }
 a { color: var(--sim); }
@@ -1880,9 +1918,9 @@ a { color: var(--sim); }
 .navlink { margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px;
   font-size: 11px; font-weight: 700; letter-spacing: .06em; text-decoration: none;
-  color: var(--ink); background: #1a2333; white-space: nowrap;
+  color: var(--ink); background:var(--btn); white-space: nowrap;
   transition: border-color .18s ease, background-color .18s ease; }
-.navlink:hover { border-color: var(--sim); background: #20293a; }
+.navlink:hover { border-color: var(--sim); background:var(--btn-hover); }
 .navlink:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
 .navlink + .navlink { margin-left: 0; }
 @media (max-width: 600px) { .navlink { margin-left: 0; } }
@@ -3524,7 +3562,23 @@ poll();
 setInterval(poll, POLL_MS);
 </script>"""
 
-# Substitute the JS token once, at import time, so the served document is a
-# single self-contained HTML string with no templating left on the wire.
+# Substitute the placeholders once, at import time, so the served documents are
+# single self-contained HTML strings with no templating left on the wire.
 DASHBOARD_HTML = DASHBOARD_HTML.replace("__DASHBOARD_JS__", DASHBOARD_JS)
+
+# Both embedded pages get the one palette from :data:`_PALETTE_CSS`. Substituting
+# rather than copy-pasting the colours into each page is the whole point: the
+# panel and the dashboard used to carry their own :root, drifted apart from the
+# Command Center, and nothing noticed because nothing compared them.
+INDEX_HTML = INDEX_HTML.replace("/*__PALETTE__*/", _PALETTE_CSS)
+DASHBOARD_HTML = DASHBOARD_HTML.replace("/*__PALETTE__*/", _PALETTE_CSS)
+
+# Fail loudly at import rather than shipping a page with a transparent
+# background: a leftover placeholder means someone added a third embedded page
+# and forgot to wire it up.
+for _name, _doc in (("INDEX_HTML", INDEX_HTML), ("DASHBOARD_HTML", DASHBOARD_HTML)):
+    if "__PALETTE__" in _doc:
+        raise RuntimeError(f"{_name} still contains a __PALETTE__ placeholder")
+del _name, _doc
+
 
