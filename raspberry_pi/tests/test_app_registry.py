@@ -363,6 +363,125 @@ SHOWCASE_HTML = README_MD.parent / "showcase.html"
 #: The served stylesheets and scripts, read as text by the palette tests.
 STATIC_DIR = Path(__file__).resolve().parents[1] / "amr" / "web" / "static"
 
+#: A colour literal the contrast maths below can work on.
+_CSS_HEX = re.compile(r"#[0-9a-fA-F]{3,6}\Z")
+
+
+def _declared_all(text: str, selector: str) -> Dict[str, str]:
+    """Every token declared by any top-level ``selector { ... }`` rule.
+
+    Brace-matched, and all occurrences: ``command_center.css`` spreads its
+    palette over two ``:root`` blocks, and a helper that stopped at the first
+    would silently compare a fraction of it.
+    """
+    found: Dict[str, str] = {}
+    for m in re.finditer(r"(?<![\w-])" + re.escape(selector) + r"\s*\{", text):
+        depth, i = 1, m.end()
+        while i < len(text) and depth:
+            depth += (text[i] == "{") - (text[i] == "}")
+            i += 1
+        for tok, val in re.findall(r"(--[a-z0-9-]+)\s*:\s*([^;]+);", text[m.end():i - 1]):
+            found.setdefault(tok, val.strip())
+    return found
+
+
+def _theme_tokens(palette: str) -> Dict[str, Dict[str, str]]:
+    """The palette as two resolved token maps: ``dark``, then ``light``.
+
+    Light mode inherits everything ``:root`` declares and overrides part of it,
+    so the effective light map is the merge. Reading ``:root.light`` alone would
+    silently drop the tokens that are never restated -- ``--on-crit`` is exactly
+    that case, and dropping it would quietly remove the critical-red pair from
+    the contrast check below.
+
+    ``var()`` aliases are resolved to the value they point at, so a rule written
+    against ``--acc`` is measured as the accent rather than skipped.
+    """
+    dark = _declared_all(palette, ":root")
+    light = {**dark, **_declared_all(palette, ":root.light")}
+    for theme in (dark, light):
+        for tok, val in list(theme.items()):
+            alias = re.fullmatch(r"var\((--[a-z0-9-]+)\)", val)
+            if alias:
+                theme[tok] = theme.get(alias.group(1), val)
+    return {"dark": dark, "light": light}
+
+
+def _luminance(colour: str) -> float:
+    """WCAG 2.1 relative luminance of a ``#rgb`` / ``#rrggbb`` literal."""
+    digits = colour.lstrip("#")
+    if len(digits) == 3:
+        digits = "".join(c * 2 for c in digits)
+    channels = [int(digits[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+              for c in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _contrast(fg: str, bg: str) -> float:
+    a, b = _luminance(fg), _luminance(bg)
+    return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+
+
+def _colour_pairs(docs) -> set:
+    """``(colour token, background token)`` pairs the given pages actually set.
+
+    Read out of the pages' own rules rather than listed by hand, so a rule that
+    puts a colour on a background is covered without anyone remembering to add
+    it here. The page background and the cards are added separately: a
+    colour-only rule lands on one of those, and no single rule names the pair.
+
+    A state rule (``:hover``, ``:focus-visible``) that swaps only the background
+    is covered too. The pair it renders never appears in one place -- the text
+    keeps the colour its base selector declares while the surface changes --
+    so those are resolved by stripping the pseudo-class and looking the colour
+    up for the rest of the selector. Every hover rule on both pages works that
+    way, so skipping them would mean measuring no hover surface at all.
+    """
+    pairs = set()
+
+    def fg_of(body):
+        return re.search(r"(?:^|;)\s*color\s*:\s*var\((--[a-z0-9-]+)\)", body)
+
+    def bg_of(body):
+        return re.search(r"background(?:-color)?\s*:\s*var\((--[a-z0-9-]+)\)",
+                         body)
+
+    for doc in docs:
+        style = re.search(r"<style>(.*?)</style>", doc, re.S)
+        assert style, "no <style> block to read colour pairs from"
+        style = re.sub(r"/\*.*?\*/", "", style.group(1), flags=re.S)
+        for rule in re.findall(r"\{([^{}]*)\}", style):
+            fg, bg = fg_of(rule), bg_of(rule)
+            if fg and bg:
+                pairs.add((fg.group(1), bg.group(1)))
+
+        # A rule that changes only the background renders a colour the page
+        # already declared elsewhere: take the selector with it, strip the
+        # pseudo-class, and pair the background with that colour. Selectors
+        # are read whole so a comma list resolves every member.
+        rules = re.findall(r"([^{},{]+)\{([^{}]*)\}", style)
+        stated: Dict[str, str] = {}
+        for sel, body in rules:
+            fg = fg_of(body)
+            if fg:
+                for one in sel.split(","):
+                    stated.setdefault(one.strip(), fg.group(1))
+        for sel, body in rules:
+            bg = bg_of(body)
+            if not bg or fg_of(body) or ":" not in sel:
+                continue
+            for one in sel.split(","):
+                base = re.sub(r":[\w-]+(\([^)]*\))?", "", one.strip())
+                if base in stated:
+                    pairs.add((stated[base], bg.group(1)))
+                    break
+    for tok in ("--text", "--ink", "--dim", "--muted", "--ok", "--warn",
+                "--crit", "--info", "--sim", "--accent"):
+        pairs.add((tok, "--bg"))
+        pairs.add((tok, "--card"))
+    return pairs
+
 #: The suite's 2 camera tests skip when opencv-python/numpy are absent. Named
 #: here rather than inferred, because a badge that counted them would claim more
 #: than actually ran.
@@ -529,34 +648,20 @@ def test_embedded_pages_light_theme_matches_the_console():
 
     from amr.web import server as _server
 
-    def declared_all(text: str, selector: str) -> Dict[str, str]:
-        """Every token declared by any top-level ``selector { ... }`` rule.
-
-        Brace-matched, and all occurrences: ``command_center.css`` spreads its
-        palette over two ``:root`` blocks, and a helper that stopped at the
-        first would silently compare a fraction of it.
-        """
-        found: Dict[str, str] = {}
-        for m in _re.finditer(r"(?<![\w-])" + _re.escape(selector) + r"\s*\{", text):
-            depth, i = 1, m.end()
-            while i < len(text) and depth:
-                depth += (text[i] == "{") - (text[i] == "}")
-                i += 1
-            body = text[m.end():i - 1]
-            for tok, val in _re.findall(r"(--[a-z0-9-]+)\s*:\s*([^;]+);", body):
-                found.setdefault(tok, val.strip())
-        return found
-
     def norm(value: str) -> str:
         return _re.sub(r"\s+", "", value).lower()
 
     palette = _server._PALETTE_CSS
     css = (STATIC_DIR / "command_center.css").read_text(encoding="utf-8")
 
-    dark = declared_all(palette, ":root")
-    light = declared_all(palette, ":root.light")
-    console_dark = declared_all(css, ":root")
-    console_light = declared_all(css, "body.light")
+    # Raw declarations per selector, NOT _theme_tokens(): the difference is the
+    # point of assertion (1) below, which asks what light mode *restates*. The
+    # merged map would include everything light mode merely inherits, so that
+    # assertion would be true by construction and would measure nothing.
+    dark = _declared_all(palette, ":root")
+    light = _declared_all(palette, ":root.light")
+    console_dark = _declared_all(css, ":root")
+    console_light = _declared_all(css, "body.light")
 
     # Both halves must be populated, or every comparison below is vacuous.
     assert len(dark) > 20, f"only {len(dark)} dark tokens: this test is not measuring"
@@ -625,6 +730,87 @@ def test_embedded_pages_light_theme_matches_the_console():
         assert ":root.light" in doc, f"{name} ships no light palette"
 
 
+#: Dark-mode pairs the shared palette leaves below AA for body text, with the
+#: reason each is tolerated. They are inherited from the Command Center's own
+#: dark palette rather than introduced by the conversion, and all three clear
+#: AA-large (3:1). Listed rather than ignored so that a *new* pair dropping below
+#: 4.5:1 fails, which is the regression this guard exists to catch.
+_DARK_BELOW_AA = {
+    ("--on-crit", "--err"): "white on the critical red; a chip, not body text",
+    ("--dim", "--card"): "the least important text; 3.64:1",
+    ("--dim", "--bg"): "the least important text; 4.12:1",
+}
+
+
+def test_the_shared_palette_keeps_its_text_readable():
+    """Contrast is arithmetic, so it is asserted rather than eyeballed.
+
+    The palette justifies its light values as "the darkened set that clears WCAG
+    AA as text on white", and that claim is the entire reason light mode uses
+    different status colours instead of reusing the dark ones. Nothing measured
+    it, here or in the console. This does.
+
+    The pairs are read out of the pages' own rules, so a new rule that puts a
+    colour on a background is covered without anyone remembering to add it. Both
+    counts are asserted: a regex that silently matched nothing would make every
+    threshold below vacuously true, which is the failure mode that lets an
+    accessibility guard sit green for years while measuring nothing.
+
+    Light mode is held to AA for body text throughout. It passes; the worst pair
+    is named in the message so a regression says how far off it is.
+    """
+    from amr.web import server as _server
+
+    themes = _theme_tokens(_server._PALETTE_CSS)
+    pairs = _colour_pairs((_server.INDEX_HTML, _server.DASHBOARD_HTML))
+
+    def resolved(theme: Dict[str, str]) -> Dict[tuple, float]:
+        out = {}
+        for fg, bg in pairs:
+            f, b = theme.get(fg), theme.get(bg)
+            if f and b and _CSS_HEX.match(f) and _CSS_HEX.match(b):
+                out[(fg, bg)] = _contrast(f, b)
+        return out
+
+    light = resolved(themes["light"])
+    dark = resolved(themes["dark"])
+    # Both populated and comparable in size, or the maths below proves nothing.
+    assert len(pairs) >= 20, f"only {len(pairs)} colour pairs found: not measuring"
+    assert len(light) >= 20, f"only {len(light)} light pairs resolved: not measuring"
+    assert len(dark) >= 20, f"only {len(dark)} dark pairs resolved: not measuring"
+
+    # Light mode: nothing below AA for body text.
+    worst = min(light, key=lambda k: light[k])
+    below_aa = {f"{f} on {b}": round(v, 2)
+                for (f, b), v in light.items() if v < 4.5}
+    assert not below_aa, (
+        f"light mode is unreadable at AA for {below_aa}; the worst pair is "
+        f"{worst[0]} on {worst[1]} at {light[worst]:.2f}:1, and 4.5:1 is the "
+        "threshold for body text"
+    )
+
+    # Dark mode: no new pair below AA, and nothing below the large-text floor.
+    dark_below_aa = {k for k, v in dark.items() if v < 4.5}
+    newcomers = dark_below_aa - set(_DARK_BELOW_AA)
+    assert not newcomers, (
+        "these dark-mode pairs are below AA (4.5:1) and are not one of the "
+        f"documented exceptions: {sorted(newcomers)}"
+    )
+    too_low = {f"{f} on {b}": round(v, 2) for (f, b), v in dark.items() if v < 3.0}
+    assert not too_low, (
+        f"dark mode is below even the large-text threshold (3:1) for {too_low}; "
+        "no exception is documented for that"
+    )
+
+    # The exceptions have to stay exceptions: if one is fixed, it should be
+    # dropped from the list rather than excused forever.
+    stale = set(_DARK_BELOW_AA) - dark_below_aa
+    assert not stale, (
+        f"{sorted(stale)} now clears AA, so it should be removed from "
+        "_DARK_BELOW_AA instead of being excused forever"
+    )
+
+
 def test_current_status_test_counts_are_not_stale(registry):
     """The per-file table in CURRENT_STATUS.md must match reality.
 
@@ -670,6 +856,99 @@ def test_current_status_test_counts_are_not_stale(registry):
     assert m, "CURRENT_STATUS.md has no 'Test files' line"
     assert int(m.group(1)) == len(actual), (
         f"CURRENT_STATUS.md says {m.group(1)} test files, there are {len(actual)}"
+    )
+
+
+def test_current_status_application_counts_are_not_stale(registry):
+    """The Applications Hub row in CURRENT_STATUS.md must match the registry.
+
+    It read "**16** applications; 13 openable deep links" while the registry
+    served 24 and 16 — a whole generation behind, in the one file whose stated
+    job is to be the verified state of the repository. Nothing failed, because
+    the hub's own tests assert the count is *consistent with the payload*
+    (``payload["count"] == len(payload["applications"])``) and never that it is
+    any particular number. A relative assertion cannot catch absolute drift, so
+    the sentence is checked against the registry rather than against itself.
+    """
+    text = README_MD.parent.joinpath("AI_CONTEXT", "CURRENT_STATUS.md").read_text(
+        encoding="utf-8")
+    row = re.search(r"^\| Applications Hub \|.*$", text, re.M)
+    assert row, "CURRENT_STATUS.md has no Applications Hub row"
+    row = row.group(0)
+
+    apps = list(registry.all())
+    openable = [a for a in apps if a.url]
+    deep = [a for a in openable if "#" in a.url]
+    # ...and the counts below are only meaningful while the registry is real.
+    assert openable and deep, "no openable/deep-link entries: not measuring"
+
+    for label, pattern, actual in (
+        ("applications", r"renders \*\*(\d+)\*\* applications", len(apps)),
+        ("openable", r"(\d+) openable", len(openable)),
+        ("deep links", r"(\d+) of them deep", len(deep)),
+    ):
+        claimed = re.search(pattern, row)
+        assert claimed, (
+            f"the Applications Hub row no longer states a {label} count, so this "
+            f"guard has stopped measuring it: {row!r}"
+        )
+        assert int(claimed.group(1)) == actual, (
+            f"CURRENT_STATUS.md says {claimed.group(1)} {label}, "
+            f"the registry has {actual}"
+        )
+
+
+#: A standalone ``-q``. ``-qq`` deliberately does not match: that IS the broken
+#: form, and the prose below has to be able to name it.
+_QUIET_FLAG = re.compile(r"(?<![\w-])-q(?![\w-])")
+
+
+def test_documented_test_commands_can_still_show_their_result():
+    """No documented test command may add a ``-q`` on top of the config's own.
+
+    ``pyproject.toml`` sets ``addopts = "-q"``. A command that passes a second
+    one reaches ``-qq``, and pytest stops printing the ``N passed`` line at that
+    verbosity — it still runs, still prints failures, and never shows the number.
+    That is not hypothetical: README's reproduce step for the "<N> passed" badge
+    was ``python -m pytest -q``, so it could not display the figure it existed to
+    confirm; the CI job carried the same flags, so the build log had no count to
+    check the badge against either.
+
+    Checked line by line, because that is where a command lives and where a
+    future editor would add one.
+    """
+    root = README_MD.parent
+    docs = {
+        "README.md": README_MD.read_text(encoding="utf-8"),
+        "AI_CONTEXT/CURRENT_STATUS.md": (root / "AI_CONTEXT" / "CURRENT_STATUS.md")
+        .read_text(encoding="utf-8"),
+        "showcase.html": SHOWCASE_HTML.read_text(encoding="utf-8"),
+        ".github/workflows/ci.yml": (root / ".github" / "workflows" / "ci.yml")
+        .read_text(encoding="utf-8"),
+    }
+    pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
+        encoding="utf-8")
+    m = re.search(r'addopts\s*=\s*"([^"]*)"', pyproject)
+    assert m and "-q" in m.group(1), (
+        "pyproject addopts no longer supplies -q, so this guard is measuring "
+        "nothing and the docs would need to carry it instead"
+    )
+
+    checked = 0
+    for name, text in docs.items():
+        for line in text.splitlines():
+            # --collect-only runs no tests, so there is no summary line for a
+            # -q to swallow; it is how the terse per-file listing is produced.
+            if "pytest" not in line or "collect-only" in line:
+                continue
+            checked += 1
+            assert not _QUIET_FLAG.search(line), (
+                f"{name} runs pytest with -q, which stacks onto addopts' own -q "
+                f"and makes pytest drop the 'N passed' line: {line.strip()!r}"
+            )
+    assert checked >= 3, (
+        f"only {checked} pytest lines found across the docs: this guard has "
+        "stopped measuring the commands"
     )
 
 

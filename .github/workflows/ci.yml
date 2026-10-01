@@ -36,8 +36,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # No extra -q: pyproject's addopts already sets it, and a second one
+      # reaches -qq, where pytest drops the "N passed" line -- so the job log
+      # showed a wall of dots and no count to check the README badge against.
       - name: Run test suite
-        run: python -m pytest -q
+        run: python -m pytest
 
   # The suite is hardware-free but server-free too: no CI job launched
   # `amr.main` until this one existed, so a green build said nothing about

@@ -163,7 +163,16 @@ _PALETTE_CSS = """  :root {
        from the palette instead of re-declaring their predecessors' literals. */
     --btn:#243050; --btn-hover:#2d3b63; --well:#141b2b;
     --on-crit:#fff;
-    --btn-warn:#5a3a12; --btn-warn-hover:#7a4e18;
+    /* button.ack is amber (--warn) text on this surface in both states, so the
+       pair is bounded by contrast, not taste. The hover has to *leave* the dark
+       page the way every other hover here does -- the console's dark hover is
+       --card-2 against --card, and this page's .navlink/.theme-btn lighten too
+       -- which caps how light the hover can get: --warn on anything past #5a3a12
+       falls under the 4.5:1 body-text floor. So the resting surface sits a shade
+       deeper than it once did and the hover takes the old resting value.
+       Measured: 5.71:1 at rest, 4.75:1 on hover. The pre-token literal #7a4e18
+       measured 3.32:1 -- legible-looking, and not readable. */
+    --btn-warn:#4a2f0e; --btn-warn-hover:#5a3a12;
     /* Legacy aliases: same colours, the names the two older pages already use. */
     --panel:var(--card); --panel-2:var(--card-2); --ink:var(--text);
     --acc:var(--accent); --err:var(--crit); --sim:var(--info);
@@ -1627,10 +1636,14 @@ INDEX_HTML = """<!doctype html>
              text-decoration:none; white-space:nowrap;
              background:var(--btn); border:1px solid var(--line); color:var(--text);
              transition:background-color .18s ease, border-color .18s ease, color .18s ease; }
-  /* --acc, not --on-crit: the hover surface is a light --btn-hover in light
-     mode, and white text on it would be invisible. The accent reads on both
-     hover surfaces, which is what makes this one rule work in two themes. */
-  .navlink:hover { background:var(--btn-hover); border-color:var(--acc); color:var(--acc); }
+  /* No colour change on hover: the background and border carry it. The two
+     obvious colour choices both fail here. --on-crit is white, and white on this
+     light --btn-hover is invisible (1.27:1); --acc reads 4.22:1, under the 4.5:1
+     that 12px text needs. Keeping --text is what the console's own
+     .tabs button:hover does, and it is safe on the hover surface itself --
+     --text on --btn-hover measures 14.06:1 in light mode and 9.29:1 in dark.
+     (On the resting --btn it is higher still: 15.89:1 and 11.04:1.) */
+  .navlink:hover { background:var(--btn-hover); border-color:var(--acc); }
   .navlink:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
   .navlink + .navlink { margin-left:0; }
   @media (max-width:680px){ .navlink { margin-left:0; } }
@@ -1642,7 +1655,7 @@ INDEX_HTML = """<!doctype html>
                font:inherit; font-size:14px; line-height:1;
                background:var(--btn); border:1px solid var(--line); color:var(--text);
                transition:background-color .18s ease, border-color .18s ease, color .18s ease; }
-  .theme-btn:hover { background:var(--btn-hover); border-color:var(--acc); color:var(--acc); }
+  .theme-btn:hover { background:var(--btn-hover); border-color:var(--acc); }
   .theme-btn:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
 </style>
 <script id="theme-boot">/*__THEME__*/</script>

@@ -1238,7 +1238,10 @@ Two decisions worth recording, because both are traps:
   so the class lands before first paint rather than flashing dark first.
 * **`--btn-hover` on `.navlink:hover` had to stop using `--on-crit`.** The dark
   hover surface carried white text fine; the light one is a pale tint, where
-  white would have been invisible. It now uses `--acc`, which reads on both.
+  white would have been invisible. It switched to `--acc`. *(Superseded on
+  2026-10-01: `--acc` measures 4.22:1 on that light surface, under the 4.5:1
+  that 12px text needs. The hover now keeps `--text` and changes only the
+  surface — see the contrast round below.)*
 
 A third finding came out of writing the test rather than reading the CSS: the
 palette's `--stage` was *already* the console's `#060a11`, and a misread of a
@@ -1264,6 +1267,72 @@ future script cannot be folded into a rule about the dashboard.
 
 Full suite **1422 passed, 2 skipped** (+1); live e2e 4/4 pages 200, no stale
 palette literals on the wire, and `node --check` clean on both scripts per page.
+
+---
+
+## Palette contrast: the accessibility claim nobody had measured `[x]` (2026-10-01)
+
+The light palette justifies its values as "the darkened set that clears WCAG AA as
+text on white", and that justification is the *only* reason light mode uses
+different status colours instead of reusing the dark ones. Nothing measured it —
+not here, not in the Command Center, not anywhere. The display of light-mode
+theming rested on an arithmetic claim with no arithmetic behind it.
+
+`test_the_shared_palette_keeps_its_text_readable` now measures it. The pairs it
+checks are read out of the two pages' **own CSS rules** rather than listed by
+hand, so a rule that puts a colour on a background is covered without anyone
+remembering to add it, and a state rule that swaps only the background is
+resolved by stripping the pseudo-class and looking the colour up on the base
+selector — the rendered pair never appears in one place, so skipping it would
+mean measuring no hover surface at all.
+
+Running it against the tree it was written for found two genuine defects.
+
+### 1. `button.ack:hover` was 3.32:1 — since before the token conversion
+
+`button.ack` is amber (`--warn`) text on a warn-brown surface in both states. At
+rest it measured 4.75:1; **on hover, 3.32:1** — below the 4.5:1 floor for body
+text, and it looked perfectly fine, which is the point. `git show 3a324d9` shows
+the same pair as raw literals (`#5a3a12` / `#7a4e18`) before the palette round
+touched it: this predates every recent change, and the token conversion had
+faithfully preserved it.
+
+The fix is not a taste choice, it is bounded by the page's own convention: every
+hover on both pages *leaves* the page background (the console's dark hover is
+`--card-2` against `--card`; `.navlink` and `.theme-btn` both lighten). That caps
+how light the hover can get, because `--warn` on anything past `#5a3a12` drops
+under 4.5:1. So the resting surface moved a shade deeper and the hover took the
+old resting value: **5.71:1 at rest, 4.75:1 on hover.**
+
+### 2. The previous round's `--acc` hover was 4.22:1
+
+The light-theme round above replaced `--on-crit` with `--acc` for hover text on
+`.navlink` / `.theme-btn`, on the reasoning that the accent "reads on both". It
+does read better than white — `--on-crit` on the light hover surface is 1.27:1,
+invisible — but `--acc` is 4.22:1, and that is still under AA for 12px text. Both
+hover rules now change only the surface and keep `--text`, which is what the
+console's own `.tabs button:hover` does: **14.06:1 in light, 9.29:1 in dark.**
+
+A stale number was caught in the process: the replacement comment cited
+15.89:1 / 11.04:1, which are the figures for the *resting* `--btn` surface, not
+the `--btn-hover` the rule actually uses. Both are now stated, with the hover
+pair named as the one that governs.
+
+### Guarded
+
+Three mutations, all run and reverted: restoring the old dark hover `#7a4e18`
+fails; palming the light `--dim` off to `#c9d2de` fails; and — the one that
+matters — adding an entirely new rule to `INDEX_HTML`
+(`color:var(--dim); background:var(--card-2)`) fails with exactly
+`{('--dim', '--card-2')}`, which is what proves the guard reads the pages' rules
+rather than a hardcoded list. Light mode is held to AA everywhere and passes.
+Dark mode permits the three pairs inherited from the console's own dark palette
+(`--on-crit`/`--err`, `--dim`/`--card`, `--dim`/`--bg`), and the guard asserts
+that list stays *exact* — a pair that gets fixed has to be removed from it rather
+than excused forever. Both halves also assert a minimum pair count, so a regex
+that matched nothing cannot make every threshold vacuously true.
+
+Full suite **1425 passed, 2 skipped**.
 
 ---
 

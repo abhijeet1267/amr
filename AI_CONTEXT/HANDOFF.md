@@ -5,7 +5,106 @@
 
 ---
 
-## Session: Phase C — Applications Hub wired into the server
+## Session: palette contrast, and verification steps that could not show their own result
+
+**Date:** 2026-10-01 · **Branch:** `main` · **Tests: 1425 passed, 2 skipped,
+0 failed** (1422 at the light-theme session + 3 new guards)
+
+Two things came out of one question — "is the accessibility claim in the palette
+actually true?" — and the second one is the more serious.
+
+### 1. Measured the palette's contrast for the first time
+
+Light mode uses a *different* set of status colours from dark mode, and the only
+reason is the claim that the dark ones are unreadable as text on white. Nothing
+measured that claim: not here, not in the Command Center. The new
+`test_the_shared_palette_keeps_its_text_readable` does, by reading the colour
+pairs out of the two embedded pages' own CSS (state rules included, by resolving
+a background-only `:hover` against its base selector) and running WCAG 2.1
+relative-luminance arithmetic over them.
+
+It found two real defects on the tree it was written for:
+
+* **`button.ack:hover` was 3.32:1** in dark mode. This is not new — `git show
+  3a324d9` shows the identical literals (`#5a3a12` / `#7a4e18`) before the
+  palette round, which converted them to tokens without changing them. The
+  resting state was 4.75:1, so only the hover was under AA, which is why it
+  survived. Every hover on both pages is *lighter* than its resting surface in
+  dark mode (that is the console's own rule: `--card-2` over `--card`), and that
+  is what bounds the fix — `--warn` on anything past `#5a3a12` is below 4.5:1. So
+  the resting surface moved a shade deeper and the hover took the old resting
+  value: **5.71:1 at rest, 4.75:1 on hover.**
+* **The previous session's `--acc` hover text was 4.22:1.** That round replaced
+  `--on-crit` with `--acc` on `.navlink:hover` / `.theme-btn:hover` because white
+  was invisible on the light hover surface (it is: 1.27:1). But 4.22:1 is still
+  under AA for 12px text, so both rules now change only the surface and keep
+  `--text` — the same thing the console's `.tabs button:hover` does — measuring
+  **14.06:1 light / 9.29:1 dark**. The comment that justified the old choice also
+  cited 15.89:1 / 11.04:1, which are the figures for the *resting* `--btn`, not
+  the `--btn-hover` the rule uses; both are now stated, with the hover pair named
+  as the one that governs.
+
+Dark mode keeps three pairs below AA, all inherited from the console's dark
+palette rather than introduced here, and all above the 3:1 large-text floor:
+`--on-crit`/`--err`, `--dim`/`--card` (3.64:1), `--dim`/`--bg` (4.12:1). They are
+listed in `_DARK_BELOW_AA` with a reason each, and the guard asserts the list
+stays *exact* — a pair that gets fixed must be removed from it rather than
+excused forever.
+
+### 2. The commands that were supposed to prove all this printed no result
+
+`pyproject.toml` sets `addopts = "-q"`. README's reproduce step for the
+"<N> passed" badge was `python -m pytest -q` — `-q` twice, i.e. `-qq`, and
+**pytest drops the `N passed` line at that verbosity**. It still ran, still
+printed failures, and never showed the number. The CI test job carried the same
+flags, so the build log had no count in it either, which is why nobody noticed.
+The count in CURRENT_STATUS was correct only because that file happened to
+document the bare command.
+
+* README (badge reproduce step + the Testing block), `showcase.html`, and the CI
+  job no longer pass `-q`; README now explains why not.
+* `test_documented_test_commands_can_still_show_their_result` fails if any
+  pytest line in README / CURRENT_STATUS / showcase / `ci.yml` adds its own `-q`,
+  with `--collect-only` exempt (it runs no tests, so there is no summary to
+  lose).
+* Confirmed against a deliberately failing test: at `-qq` the traceback and the
+  `FAILED ...` line still print, and only the final tally disappears — the
+  dangerous-looking failure mode is not the one that happens.
+
+### 3. The Applications Hub row was a generation stale
+
+`CURRENT_STATUS.md` read "**16** applications; 13 openable deep links". The
+registry serves **24**, of which **16** are openable and **12** deep-link into a
+Command Center view. Nothing failed, because the hub's own tests assert the count
+is *consistent with the payload* and never that it is a particular number — a
+relative assertion cannot catch absolute drift. README's file-count claim was
+stale too ("34 test files" against 36). Both corrected, and
+`test_current_status_application_counts_are_not_stale` now checks the sentence
+against the registry.
+
+### Guarded — and the guards were mutation-tested, not assumed
+
+| Mutation | Result |
+|---|---|
+| restore the old dark hover `#7a4e18` | contrast guard fails |
+| light `--dim` paled to `#c9d2de` | contrast guard fails |
+| **new** rule `color:var(--dim); background:var(--card-2)` on `INDEX_HTML` | fails with exactly `{('--dim', '--card-2')}` — proves the pairs are read from the pages, not hardcoded |
+| CURRENT_STATUS says 16 applications again | count guard fails |
+| README's testing block regains `-q` | doc-flags guard fails |
+
+All five were run and reverted. Three guards added; full suite **1425 passed,
+2 skipped** via `python -m pytest` (bare, so it prints the tally).
+
+### Hardware
+
+**NOT TESTED.** Unchanged from every session above: no motors, no Arduino, no
+camera, no real browser. `hazard.enabled` is still deliberately `false`, the
+geometry is still `null`, and the safety thresholds are still `NOT_VERIFIED`.
+Everything here is arithmetic over CSS and mock-stack tests.
+
+---
+
+
 
 **Date:** 2026-09-27 · **Branch:** `main` · **Tests: 1354 passed, 2 skipped,
 0 failed** (1333 at Phase B + 21 hub tests)

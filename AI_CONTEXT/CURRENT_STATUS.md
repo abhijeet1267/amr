@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** 2026-09-29, legacy pages on the design system — full suite
-**1422 passed, 2 skipped, 0 failed**.
+**Last verified:** 2026-10-01, palette contrast measured — full suite
+**1425 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,14 +10,14 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **1422 passed, 2 skipped, 0 failed** |
+| `cd raspberry_pi && python -m pytest` | **1425 passed, 2 skipped, 0 failed** |
 | Test files | 36 (`tests/test_*.py`) |
 | `python -m compileall amr` | clean |
 | Orphan scan (every module imported by prod or tests) | none — no dead modules |
 | CI | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff` |
 | Hardware required | **None.** Everything runs on `amr/mocks/` |
 | Live app boot (not a fixture) | `python -m amr.main --mock --mission-demo --web` → 30 routes registered, all 20 exercised → 200, 0 bad |
-| Applications Hub | `/applications` renders **16** applications; 13 openable deep links all resolve to real Command Center views; `/applications/state` 200 |
+| Applications Hub | `/applications` renders **24** applications; 16 openable, 12 of them deep links into a real Command Center view (asserted to resolve); `/applications/state` 200 |
 | Logging (health pass) | `logs/amr.log` created and written; `/health` → `{"active":true,"file":"amr.log","writable":true,"level":"INFO"}` |
 | Live web smoke (C2, `--mock --web` + `hazard.enabled=true`) | `GET /hazard` → `attached:true, state:NORMAL, sources:["zones"]`; `POST /hazard/acknowledge` → `ok:true`; `/status` carries the `hazard` key |
 | Dashboard smoke (C7, `--mock --web`) | `GET /health` → 200 `ok:true, simulated:true, read_only:true`; `GET /telemetry` → 200 valid schema-1.0 JSON with per-section `source` tags; `GET /dashboard` → 200 HTML |
@@ -30,10 +30,10 @@ those are installed and skip gracefully otherwise. They are the only conditional
 tests.
 
 Per-file test counts (regenerated from `pytest --collect-only -q` — 36 files,
-1424 tests: 1422 run + 2 skipped):
+1427 tests: 1425 run + 2 skipped):
 
 ```
-test_app_registry.py           43    test_mission_monitoring.py     45
+test_app_registry.py           46    test_mission_monitoring.py     45
 test_applications_hub.py       25    test_mode_controller.py        13
 test_auto_record.py            27    test_motor_controller.py       21
 test_avoidance.py              76    test_navigation.py             50
