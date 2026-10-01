@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** 2026-10-01, palette contrast measured — full suite
-**1425 passed, 2 skipped, 0 failed**.
+**Last verified:** 2026-10-01, C17 RFID merged — full suite
+**1488 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,8 +10,8 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **1425 passed, 2 skipped, 0 failed** |
-| Test files | 36 (`tests/test_*.py`) |
+| `cd raspberry_pi && python -m pytest` | **1488 passed, 2 skipped, 0 failed** |
+| Test files | 37 (`tests/test_*.py`) |
 | `python -m compileall amr` | clean |
 | Orphan scan (every module imported by prod or tests) | none — no dead modules |
 | CI | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff` |
@@ -29,8 +29,8 @@ The 2 skips are the camera tests that need `opencv-python`/`numpy`; they run whe
 those are installed and skip gracefully otherwise. They are the only conditional
 tests.
 
-Per-file test counts (regenerated from `pytest --collect-only -q` — 36 files,
-1427 tests: 1425 run + 2 skipped):
+Per-file test counts (regenerated from `pytest --collect-only -q` — 37 files,
+1490 tests: 1488 run + 2 skipped):
 
 ```
 test_app_registry.py           46    test_mission_monitoring.py     45
@@ -41,22 +41,21 @@ test_camera_backend.py         47    test_ops_projection.py         44
 test_camera_frame.py           49    test_protocol.py               37
 test_camera_manager.py          9    test_replay.py                 59
 test_camera_overlay.py         40    test_replay_control.py         68
-test_command_center.py         63    test_robot_manager.py          23
-test_config.py                 22    test_robot_state.py             5
-test_connectivity.py           14    test_safety_manager.py         14
-test_console.py                35    test_startup_banner.py          2
-test_differential_drive.py     25    test_telemetry.py              52
-test_digital_twin.py           37    test_ultrasonic.py              9
-test_hazard.py                 48    test_unified_demo.py           30
-test_hazard_visualisation.py   23    test_vision.py                101
-test_logging.py                17    test_warehouse.py              39
-test_map.py                   111    test_web_server.py            101
+test_command_center.py         63    test_rfid.py                   63
+test_config.py                 22    test_robot_manager.py          23
+test_connectivity.py           14    test_robot_state.py             5
+test_console.py                35    test_safety_manager.py         14
+test_differential_drive.py     25    test_startup_banner.py          2
+test_digital_twin.py           37    test_telemetry.py              52
+test_hazard.py                 48    test_ultrasonic.py              9
+test_hazard_visualisation.py   23    test_unified_demo.py           30
+test_logging.py                17    test_vision.py                101
+test_map.py                   111    test_warehouse.py              39
+test_web_server.py            101
 ```
 
-Three of these had drifted and were corrected against a measured run rather
-than an estimate: `test_connectivity.py` and `test_startup_banner.py` were
-missing entirely, and `test_command_center.py` (57 → 63) and
-`test_web_server.py` (86 → 101) were stale.
+C17 added `test_rfid.py` (63); the header, file count and total above were
+regenerated from the same measured `pytest --collect-only -q` run.
 
 ---
 
@@ -67,18 +66,19 @@ missing entirely, and `test_command_center.py` (57 → 63) and
 | `communication` (protocol, serial) | **Implemented, unit-tested** | `test_protocol.py` (37) |
 | `control` (driver, diff drive) | **Implemented, unit-tested** | `test_motor_controller.py`, `test_differential_drive.py` |
 | `safety` (Layer 3, incl. C6 avoidance) | **Implemented, unit-tested, opt-in** | `test_safety_manager.py` (14), `test_avoidance.py` (76) |
-| `hazard` (Layer 3.5, incl. `visualisation`, `vision`) | **Implemented, unit-tested, opt-in** | `test_hazard.py` (48), `test_hazard_visualisation.py` (23), `test_vision.py` (95), `python -m amr.hazard`, `python -m amr.hazard.vision` |
+| `hazard` (Layer 3.5, incl. `visualisation`, `vision`) | **Implemented, unit-tested, opt-in** | `test_hazard.py` (48), `test_hazard_visualisation.py` (23), `test_vision.py` (101), `python -m amr.hazard`, `python -m amr.hazard.vision` |
 | `sensors` (ultrasonic validation) | **Implemented, unit-tested** | `test_ultrasonic.py` |
 | `robot` (manager, modes, state) | **Implemented, unit-tested** | `test_robot_manager.py`, `test_mode_controller.py`, `test_robot_state.py` |
 | `camera` | **Implemented, partially tested** (2 tests need OpenCV) | `test_camera_manager.py` |
 | `navigation` (incl. C6 avoidance gate) | **Implemented, unit-tested** | `test_navigation.py` (50), `test_avoidance.py` (76) |
 | `warehouse` (tasks, map, manipulator) | **Implemented, unit-tested** | `test_warehouse.py` (39) |
-| `telemetry` (C7 read-only contract + collector) | **Implemented, unit-tested** | `test_telemetry.py` (46) |
-| `web` (panel + dashboard + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (69), incl. `GET /hazard` + acknowledge (C2), `/telemetry` `/health` `/dashboard` (C7), `/map` + `/map.svg` (C9), `/digital-twin` (C10) and `/dashboard/state` (C11) |
+| `rfid` (C17 shelf/payload identification, opt-in) | **Implemented, unit-tested, opt-in** | `test_rfid.py` (63); shipped default attaches no reader (`rfid.backend: "null"`) |
+| `telemetry` (C7 read-only contract + collector) | **Implemented, unit-tested** | `test_telemetry.py` (52) |
+| `web` (panel + dashboard + JSON API over a real HTTP server) | **Implemented, unit-tested** | `test_web_server.py` (101), incl. `GET /hazard` + acknowledge (C2), `/telemetry` `/health` `/dashboard` (C7), `/map` + `/map.svg` (C9), `/digital-twin` (C10) and `/dashboard/state` (C11) |
 | `map` (C9 2D state + SVG, C10 3D twin state) | **Implemented, unit-tested** | `test_map.py` (111), `test_digital_twin.py` (37) |
 | `telemetry` (C7 contract, C11 console, C12 mission monitoring) | **Implemented, unit-tested** | `test_telemetry.py` (52), `test_console.py` (35), `test_mission_monitoring.py` (45) |
 | `logging` | **Implemented, unit-tested** | `test_logging.py` |
-| `utils/config` | **Implemented, unit-tested** | `test_config.py` (18) |
+| `utils/config` | **Implemented, unit-tested** | `test_config.py` (22) |
 | `mocks` | **Implemented**, indirectly covered by every suite | — |
 
 ### Offline entry points that are known to work
@@ -161,7 +161,7 @@ python -m amr.hazard.visualisation   # render the events JSONL onto the map (SVG
 | Area | Evidence |
 |---|---|
 | **ROS 2** | **No imports.** Zero `import rclpy` / `ros2` / `ament` / `colcon`; the 6 textual hits are future-tense docstring mentions only. Navigation is a dependency-free `LocalNavigator`. |
-| **RFID** | Zero occurrences anywhere. |
+| **RFID hardware** | No antenna, no reader, no real tag. C17 ships the reader contract (`amr/rfid.RfidReader`), the pick/place identification rule (`confirm`), and a `simulated` backend tested end to end (`test_rfid.py`, 63). Shipped default attaches no reader. |
 | **Real manipulator** | `warehouse.yaml` uses `manipulator: "mock"`; only `MockManipulator` / `NullManipulator` exist. |
 | **Marker / QR / shelf recognition** | No implementation; `CameraManager.capture()` is the seam. |
 | **Gas / smoke / fire hardware** | No sensor code, no pins, no drivers — `amr.hazard` provides the aggregation layer and the seam. |

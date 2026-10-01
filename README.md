@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1425%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1488%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1425 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest` |
+| Test suite | **1488 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -258,15 +258,16 @@ into `SAFETY_STOP` are deterministic; the robot never auto-releases itself.
 | `amr/sensors/` | Ultrasonic validation | `UltrasonicManager`, `UltrasonicReading` |
 | `amr/navigation/` | Goals, odometry, waypoint planning | `Navigator`, `Pose`, `Goal` |
 | `amr/warehouse/` | Task queue + orchestration (Phase 16) | `WarehouseTaskManager`, `WarehouseMap`, `Task` |
+| `amr/rfid/` | Shelf / payload identification reader contract (C17) | `RfidReader`, `RfidTag`, `SimulatedRfidReader`, `confirm` |
 | `amr/camera/` | Camera facade (libcamera / V4L2 / mock) + C8 frame contract | `CameraManager`, `MockCamera`, `CameraSource`, `CameraFrame`, `SimulatedCameraSource`, `RaspberryPiCameraSource` |
 | `amr/web/` | Stdlib HTTP control panel + JSON API | `AMRWebApp` |
 | `amr/telemetry/` | Read-only telemetry contract + collector (C7); operations console projection (C11) | `TelemetrySnapshot`, `TelemetryCollector`, `build_console_state` |
 | `amr/map/` | C9 map state + world→screen transform + SVG renderer; C10 3D twin state | `MapSnapshot`, `MapService`, `MapTransform`, `PathHistory`, `build_twin_state`, `DigitalTwinState` |
 | `amr/mocks/` | Hardware-free doubles for tests | `MockSerial`, `MockMotor`, `MockCamera` |
 | `amr/utils/` | Config loading + helpers | `load_config`, `SafetyConfig`, `RobotConfig` |
-| `config/` | YAML: `robot`, `safety`, `serial`, `warehouse` | — |
+| `config/` | YAML: `robot`, `safety`, `serial`, `warehouse`, `rfid` | — |
 | `firmware/arduino/` | Arduino C++ controller | `amr_controller.ino`, `MotorControl` |
-| `docs/` | `safety`, `serial_protocol`, `web_control`, `hazard`, `telemetry` | — |
+| `docs/` | `safety`, `serial_protocol`, `web_control`, `hazard`, `telemetry`, `rfid` | — |
 
 ---
 
@@ -337,6 +338,13 @@ mocks. The map (`config/warehouse.yaml`) is a set of world-frame waypoints
   `amr.warehouse.tasks.Manipulator`.
 - **Motion tuning** — `task_speed` 0.5 m/s, `turn_speed` 1.0 rad/s,
   `wheel_base_m` 0.30 (overridden by measured `robot.wheel_track_m` when set).
+- **Identification (C17)** — an optional RFID reader confirms the shelf the robot
+  is parked at — and, on a pick, the payload it is about to take — *before* the
+  manipulator is asked to act. A mismatch fails the task with the reason
+  recorded, instead of closing the gripper on the wrong box. The shipped
+  `rfid.backend: "null"` attaches **no reader**, so nothing about this path runs
+  until an operator opts in. **No RFID hardware exists in this repo** — the
+  only backend is simulated, and no tag has ever been read by this code.
 
 ---
 
@@ -671,12 +679,13 @@ one reaches `-qq`, which is quiet enough that pytest drops the `N passed` line.
 The command still runs (and still prints failures) — it just never shows you the
 number, which is the one thing you ran it to see.
 
-The 36 test files cover protocol parsing, the mode state machine, the safety
+The 37 test files cover protocol parsing, the mode state machine, the safety
 policy (including the C6 obstacle-avoidance policy
 `tests/test_avoidance.py` — turn/replan, stop priority, loop guard,
 determinism), differential-drive math, odometry/navigation, the warehouse task
 manager, the camera manager, the hazard layer, the vision-to-hazard pipeline
-(`tests/test_vision.py`, simulated detections only), the interface registry and
+(`tests/test_vision.py`, simulated detections only), the RFID identification
+path (`tests/test_rfid.py`, simulated reader only), the interface registry and
 the applications hub (`tests/test_app_registry.py`, `tests/test_applications_hub.py`),
 and a real
 `ThreadingHTTPServer` driven against the
@@ -696,13 +705,15 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   ├── serial.yaml             # Pi <-> Arduino link
 │   ├── warehouse.yaml          # map, task tuning, manipulator
 │   ├── hazard.yaml             # hazard thresholds, kinds, zones (NOT_VERIFIED)
-│   └── applications.yaml       # interface registry: urls, statuses, platforms
+│   ├── applications.yaml       # interface registry: urls, statuses, platforms
+│   └── rfid.yaml               # shelf/payload tags (C17, no reader by default)
 ├── docs/
 │   ├── safety.md               # layered safety model
 │   ├── serial_protocol.md      # wire protocol reference
 │   ├── web_control.md          # web panel + HTTP API
 │   ├── hazard.md               # context-aware multi-hazard safety layer
 │   ├── telemetry.md            # telemetry contract + read-only dashboard (C7)
+│   ├── rfid.md                 # shelf / payload identification (C17)
 ├── AI_CONTEXT/                 # shared context for the multi-agent team
 │   ├── PROJECT_CONTEXT.md  CURRENT_STATUS.md  ARCHITECTURE.md
 │   └── TASK_BOARD.md  HANDOFF.md
@@ -712,10 +723,10 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   ├── amr/                    # the Python control stack
 │   │   ├── main.py             # entry point + CLI
 │   │   ├── robot/  control/  communication/
-│   │   ├── safety/  hazard/  sensors/  navigation/
+│   │   ├── safety/  hazard/  sensors/  navigation/  rfid/
 │   │   ├── warehouse/  camera/  web/  mocks/  utils/
 │   │   ├── apps/                # interface registry + applications hub data
-│   ├── tests/                  # pytest suite (36 files)
+│   ├── tests/                  # pytest suite (37 files)
 │   └── pyproject.toml          # packaging + [dev] extras
 ├── .github/workflows/ci.yml    # pytest matrix + ruff
 ├── LICENSE
@@ -750,6 +761,11 @@ navigation → warehouse). Explicit next steps:
    the same `VisionDetector` protocol without changing the hazard system. No
    camera or ML model has been run or measured, and no detection accuracy is
    claimed.
+8. **RFID hardware** — C17 defines the reader contract
+   (`amr/rfid.RfidReader`) and the identification rule that gates a pick or a
+   place, and ships a **simulated** backend so the path is tested end to end.
+   A real antenna plugs in behind the same protocol; **no tag has been read by
+   this code**, and the shipped default attaches no reader at all.
 
 ---
 

@@ -28,6 +28,7 @@ from typing import Deque, List, Optional
 
 from ..logging import get_logger
 from ..navigation import Goal, NavStatus, Navigator
+from ..rfid import RfidReader, confirm, make_rfid_reader
 from ..robot import RobotCommandError, RobotManager, RobotMode
 from .map import WarehouseMap, map_from_config
 from .tasks import (
@@ -102,6 +103,7 @@ class WarehouseTaskManager:
         dock: str = "dock",
         queue_max: int = 16,
         mission_id: Optional[str] = None,
+        rfid: Optional[RfidReader] = None,
     ):
         self._robot = robot
         self._nav = navigator
@@ -109,6 +111,10 @@ class WarehouseTaskManager:
         self._map = warehouse_map
         self._dock = dock
         self._queue_max = int(queue_max)
+        # C17: shelf / payload identification. ``None`` means no reader is
+        # attached (``rfid.backend: "null"``, the default), in which case no
+        # identification is attempted and behaviour is exactly as before.
+        self._rfid = rfid
         # C12: a display label for this run. It is caller-supplied on purpose —
         # the manager does not invent an identity, so the dashboard can honestly
         # say "no mission label configured" instead of showing a fake id.
@@ -131,12 +137,13 @@ class WarehouseTaskManager:
         manipulator: Optional[Manipulator] = None,
         warehouse_map: Optional[WarehouseMap] = None,
         mission_id: Optional[str] = None,
+        rfid: Optional[RfidReader] = None,
     ) -> "WarehouseTaskManager":
         """Build from an :class:`AppConfig` (reads ``config.warehouse``)."""
         whcfg = config.warehouse
         mapping = warehouse_map or map_from_config(whcfg)
         manip = manipulator or make_manipulator(whcfg.manipulator)
-        return cls(
+        mgr = cls(
             robot=robot,
             navigator=navigator,
             manipulator=manip,
@@ -144,7 +151,18 @@ class WarehouseTaskManager:
             dock=whcfg.dock,
             queue_max=whcfg.queue_max,
             mission_id=mission_id,
+            rfid=rfid,
         )
+        if rfid is None:
+            # C17: built here rather than in ``__init__`` because the simulated
+            # reader has to ask the manager where it is parked, and the manager
+            # does not exist until the line above. An injected reader (a real
+            # backend, or a test double) always wins over the configured one.
+            mgr._rfid = make_rfid_reader(
+                getattr(config, "rfid", None),
+                location_provider=mgr._current_location,
+            )
+        return mgr
 
     # -- submission -------------------------------------------------------- #
     def submit(self, task: Task) -> Task:
@@ -256,7 +274,13 @@ class WarehouseTaskManager:
     def _finish_current(self) -> None:
         task = self._current
         action = self._pending_action
-        ok, error = self._perform(action, task)
+        # C17: identify the shelf *before* touching it. A pick from the wrong
+        # shelf is worse than no pick, so an identification failure must never
+        # reach the end effector.
+        error = self._identify(task, action)
+        ok = error is None
+        if ok:
+            ok, error = self._perform(action, task)
         if ok:
             task.status = TaskStatus.DONE
             self._completed.append(task)
@@ -275,6 +299,37 @@ class WarehouseTaskManager:
         if action is TaskType.PLACE:
             return self._manip.place(task.payload_id or task.location), None
         return True, None  # MOVE / RETURN_TO_DOCK: nothing to manipulate
+
+    # -- C17: shelf / payload identification -------------------------------- #
+    def _current_location(self) -> Optional[str]:
+        """The named location the robot is parked at (``None`` when idle).
+
+        The RFID antenna travels with the robot, so what it can read depends on
+        where the robot is standing. This is the manager's own answer to that
+        question; it exists to drive the *simulated* reader — a real backend
+        reads its own antenna and never asks.
+        """
+        return self._current.location if self._current is not None else None
+
+    def _identify(self, task: Task, action: Optional[TaskType]) -> Optional[str]:
+        """Confirm the shelf (and, for a pick, the payload) by RFID.
+
+        Returns ``None`` when the identity checks out *or* when no reader is
+        attached — with no reader there is nothing to check, and nothing is
+        claimed either. Otherwise it returns the reason, and the task fails
+        without the manipulator ever being asked to act.
+
+        Only pick and place are identified: a move or a return-to-dock carries
+        nothing and touches nothing, so there is no shelf to confirm and no
+        reason to fail one.
+        """
+        if self._rfid is None or action not in (TaskType.PICK, TaskType.PLACE):
+            return None
+        payload = task.payload_id if action is TaskType.PICK else None
+        error = confirm(self._rfid.inventory(), task.location, payload)
+        if error:
+            self.log.warning("identification failed for %s: %s", task.task_id, error)
+        return error
 
     def _pause_current(self, reason: str) -> None:
         if self._current is not None and self._current.status is TaskStatus.RUNNING:

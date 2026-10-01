@@ -285,8 +285,29 @@ class ReplayConfig:
 
 
 @dataclass
+class RfidConfig:
+    """RFID shelf / payload identification (C17).
+
+    ``backend`` selects the reader. ``"null"`` — the default — means *no reader
+    is attached*: the warehouse task manager then identifies nothing and behaves
+    exactly as it did before this feature existed. ``"simulated"`` reads the
+    tags declared in ``tags``, which is how the identification path is exercised
+    with no antenna present.
+
+    ``tags`` maps a map location name to the tags physically in range while the
+    robot is parked there: ``{tag_id, kind, ref?}`` where ``kind`` is
+    ``"location"`` (``ref`` defaults to the location name) or ``"payload"``
+    (``ref`` names the payload). See ``docs/rfid.md``.
+    """
+
+    backend: str = "null"            # "null" (no reader) | "simulated"
+    tags: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class AppConfig:
     """Aggregated, validated application configuration."""
+
 
     serial: SerialConfig
     safety: SafetyConfig
@@ -295,6 +316,7 @@ class AppConfig:
     config_dir: str
     hazard: HazardConfig = field(default_factory=HazardConfig)
     replay: ReplayConfig = field(default_factory=ReplayConfig)
+    rfid: RfidConfig = field(default_factory=RfidConfig)
 
 
 # --------------------------------------------------------------------------- #
@@ -428,17 +450,25 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
     replay_blob = replay_data.get("replay", replay_data) or {}
     replay = _build(ReplayConfig, replay_blob, "replay")
 
+    # C17: RFID is optional. With no `rfid.yaml` the backend default ("null")
+    # means no reader is attached, so nothing about the robot's behaviour
+    # changes until an operator asks for identification.
+    rfid_data = _load_yaml(cfg_dir / "rfid.yaml")
+    rfid_blob = rfid_data.get("rfid", rfid_data) or {}
+    rfid = _build(RfidConfig, rfid_blob, "rfid")
+
     # ---- validation (fail fast on nonsense) ----
     _validate_serial(serial)
     _validate_safety(safety)
     _validate_motors(robot.motors)
     _validate_warehouse(warehouse)
     _validate_hazard(hazard)
+    _validate_rfid(rfid, warehouse)
 
     return AppConfig(
         serial=serial, safety=safety, robot=robot,
         warehouse=warehouse, config_dir=str(cfg_dir), hazard=hazard,
-        replay=replay,
+        replay=replay, rfid=rfid,
     )
 
 
@@ -530,3 +560,48 @@ def _validate_warehouse(c: WarehouseConfig) -> None:
         # No map supplied but a non-default dock requested: keep it, but the
         # map layer will fall back to the default (which defines "dock").
         pass
+
+
+#: Backend names that mean "no RFID reader is attached".
+_RFID_BACKENDS = frozenset({"null", "none", "simulated"})
+
+
+def _validate_rfid(c: RfidConfig, warehouse: WarehouseConfig) -> None:
+    """Fail fast on an RFID config that cannot do what it looks like it does."""
+    backend = str(c.backend or "null").strip().lower()
+    if backend not in _RFID_BACKENDS:
+        raise ConfigError(
+            f"rfid.backend {c.backend!r} is not one of {sorted(_RFID_BACKENDS)}"
+        )
+
+    # Parsed exactly the way the runtime parses it, so a tag that would be
+    # rejected at pick time is rejected at startup instead.
+    from ..rfid import tags_from_config
+
+    try:
+        tags = tags_from_config(c.tags)
+    except ValueError as exc:
+        raise ConfigError(f"invalid rfid config: {exc}") from exc
+
+    if backend in ("null", "none"):
+        if tags:
+            # The silent no-op this check exists to prevent: the operator wrote
+            # the tags down, believes identification is on, and every pick is
+            # verified by nothing at all.
+            raise ConfigError(
+                "rfid.tags is configured but rfid.backend is 'null', so no tag "
+                "would ever be read; set rfid.backend: \"simulated\" (or a real "
+                "backend), or remove the tags"
+            )
+        return
+
+    # Only cross-checked when the operator declared a map. An empty
+    # `warehouse.locations` means the built-in default map, which this function
+    # must not second-guess.
+    unknown = sorted(set(tags) - set(warehouse.locations or {}))
+    if warehouse.locations and unknown:
+        raise ConfigError(
+            f"rfid.tags names location(s) that are not in the warehouse map: "
+            f"{unknown}"
+        )
+

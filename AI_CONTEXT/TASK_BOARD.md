@@ -440,11 +440,29 @@ firmware NOT tested. See `docs/replay_dashboard.md` (C15 section).
 `config/warehouse.yaml` (`manipulator` backend name)
 Replace the `mock` backend. Keep `MockManipulator` for tests.
 
-### C17 — RFID `[~]` IN PROGRESS
-**Owner: cline · Started: 2026-10-01**
-**Touches:** new module + `config/`, tests
-Not started anywhere in the repo. Define a reader interface, integrate with the
-warehouse task manager for shelf/payload identification.
+### C17 — RFID `[x]` (complete)
+**Touches:** `raspberry_pi/amr/rfid/` (new: `reader.py`), `config/rfid.yaml`
+(new), `raspberry_pi/amr/utils/config.py` (`RfidConfig` + fail-fast validation),
+`raspberry_pi/amr/warehouse/task_manager.py` (identify before acting),
+`raspberry_pi/tests/test_rfid.py` (new, 63), `docs/rfid.md` (new), `README.md`,
+`showcase.html`, `AI_CONTEXT/CURRENT_STATUS.md`
+
+A reader contract (`RfidReader`: `name` + `inventory()`), a pure
+identification rule (`confirm`), and a `simulated` backend that reads tags out
+of `rfid.yaml` for the location the manager reports it is parked at. The
+manager confirms `PICK`/`PLACE` *before* the manipulator acts; a mismatch or
+an empty inventory fails the task with the reason recorded, and the end
+effector is never asked. Moves and dock returns are never identified.
+**No RFID hardware exists in this repository** — no antenna, no real tag;
+the shipped `rfid.backend: "null"` attaches **no reader**, so existing
+deployments behave exactly as before until an operator opts in.
+
+Misconfiguration fails fast at startup: unknown backend, tags with no reading
+backend (the silent no-op), malformed entries, and tags on map-unknown
+locations are all `ConfigError`.
+
+Tests: full suite **1488 passed, 2 skipped, 0 failed** (1425 at C15c + 63).
+Hardware NOT tested. See `docs/rfid.md`.
 
 ### C18 — ROS 2 bridge `[ ]`
 **Touches:** new `ros2/` package, docs

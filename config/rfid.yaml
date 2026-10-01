@@ -1,0 +1,34 @@
+# RFID shelf / payload identification (C17).
+#
+# The robot identifies the shelf it is parked at — and, on a pick, the payload
+# it is about to take — by reading tags, instead of trusting dead reckoning.
+# See docs/rfid.md.
+#
+# `backend` selects the reader:
+#   "null"      — no reader is attached. The task manager identifies nothing.
+#                 This is the shipped default, because enabling identification
+#                 has to be a decision an operator makes, not a surprise.
+#   "simulated" — reads the tags declared below. This is how the identification
+#                 path is exercised with no antenna present.
+#
+# NO RFID HARDWARE EXISTS IN THIS REPOSITORY. `simulated` is not a hardware
+# backend, and no real tag has ever been read by this code.
+rfid:
+  backend: "null"
+
+  # Tags physically in range while the robot is parked at each location.
+  #   kind: "location" — identifies the shelf; `ref` defaults to the location
+  #                      name, because that is the only thing it can identify.
+  #   kind: "payload"  — identifies an item; `ref` must name the payload.
+  #
+  # Every location named here must also appear in warehouse.locations.
+  #
+  # Example — enable the two lines below together with `backend: "simulated"`:
+  #
+  # tags:
+  #   shelf_a:
+  #     - {tag_id: "E200-3411-0001", kind: "location"}
+  #     - {tag_id: "E200-9001-0001", kind: "payload", ref: "box-1"}
+  #   station:
+  #     - {tag_id: "E200-3411-0005", kind: "location"}
+  tags: {}
