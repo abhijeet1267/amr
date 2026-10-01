@@ -435,7 +435,7 @@ and the recording. No existing test pinned the buggy behaviour.
 Tests: 1157 passed, 2 skipped, 0 failed (1127 at C14c + 30). Hardware and
 firmware NOT tested. See `docs/replay_dashboard.md` (C15 section).
 
-### C16 — Real manipulator (gripper / arm) `[ ]`
+### C16 — Real manipulator (gripper / arm) `[~]` (in progress, 2026-10-01)
 **Touches:** `raspberry_pi/amr/warehouse/tasks.py` (implement `Manipulator`),
 `config/warehouse.yaml` (`manipulator` backend name)
 Replace the `mock` backend. Keep `MockManipulator` for tests.
