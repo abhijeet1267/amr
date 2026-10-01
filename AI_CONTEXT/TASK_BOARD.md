@@ -440,7 +440,8 @@ firmware NOT tested. See `docs/replay_dashboard.md` (C15 section).
 `config/warehouse.yaml` (`manipulator` backend name)
 Replace the `mock` backend. Keep `MockManipulator` for tests.
 
-### C17 — RFID `[ ]`
+### C17 — RFID `[~]` IN PROGRESS
+**Owner: cline · Started: 2026-10-01**
 **Touches:** new module + `config/`, tests
 Not started anywhere in the repo. Define a reader interface, integrate with the
 warehouse task manager for shelf/payload identification.
