@@ -464,12 +464,31 @@ locations are all `ConfigError`.
 Tests: full suite **1488 passed, 2 skipped, 0 failed** (1425 at C15c + 63).
 Hardware NOT tested. See `docs/rfid.md`.
 
-### C18 — ROS 2 bridge `[ ]`
-**Touches:** new `ros2/` package, docs
-**Not present today.** Must be optional: the core stack must keep importing with
-no ROS installed. Publish `RobotState` / `HazardStatus`, subscribe to goals.
-A natural consumer of the C7 telemetry snapshot, but it must not become a
-control path of its own.
+### C18 — ROS 2 bridge `[x]` (complete)
+**Touches:** new `ros2/` package (`__init__.py`, `bridge.py`),
+`docs/ros2.md` (new), `raspberry_pi/tests/test_ros_bridge.py` (new, 25),
+`raspberry_pi/amr/navigation/` docstrings (stale "lives in ros2/..." claims
+corrected), `README.md`, `showcase.html`, `AI_CONTEXT/CURRENT_STATUS.md`
+
+Dependency-free message **translation** in `ros2/bridge.py`: telemetry
+snapshot → `PoseStamped`-shaped dict, `HazardStatus` → `diagnostic_msgs`-shaped
+dict, inbound `PoseStamped`-shaped dict → navigation `Goal`. Plain dicts shaped
+like the ROS messages, so **zero `rclpy` imports** anywhere and the core stack
+imports with no ROS installed (asserted by tests). The bridge never touches a
+motor driver, the serial transport, or `POST /command` (also asserted); inbound
+goals are meant for `WarehouseTaskManager.submit_move`, so Layer-3 safety keeps
+gating every motion.
+
+**Not built:** the `rclpy` node (`ros2/amr_bringup`), any actual
+publish/subscribe, Nav2 integration. No ROS exists in this repository or its
+CI, so **no topic has ever been published or received by this code** — the
+dict translators plus their tests are the entire delivery, and nothing more is
+claimed. Honesty rules carried through: absent coordinates stay `null`, NaN/inf
+degrade, an unreadable goal orientation degrades to yaw 0 with a note while a
+missing position raises, unknown hazard states map to `STALE` never `OK`.
+
+Tests: full suite **1513 passed, 2 skipped, 0 failed** (1488 at C17 + 25).
+ROS and hardware NOT tested. See `docs/ros2.md`.
 
 ### C19 — Housekeeping `[x]` (done by the hazard session)
 * Fix the stale `docs/architecture.md` link in `docs/safety.md` — **done**, now

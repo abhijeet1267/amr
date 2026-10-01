@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1488%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1513%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1488 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest` |
+| Test suite | **1513 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -267,7 +267,7 @@ into `SAFETY_STOP` are deterministic; the robot never auto-releases itself.
 | `amr/utils/` | Config loading + helpers | `load_config`, `SafetyConfig`, `RobotConfig` |
 | `config/` | YAML: `robot`, `safety`, `serial`, `warehouse`, `rfid` | — |
 | `firmware/arduino/` | Arduino C++ controller | `amr_controller.ino`, `MotorControl` |
-| `docs/` | `safety`, `serial_protocol`, `web_control`, `hazard`, `telemetry`, `rfid` | — |
+| `docs/` | `safety`, `serial_protocol`, `web_control`, `hazard`, `telemetry`, `rfid`, `ros2` | — |
 
 ---
 
@@ -679,13 +679,14 @@ one reaches `-qq`, which is quiet enough that pytest drops the `N passed` line.
 The command still runs (and still prints failures) — it just never shows you the
 number, which is the one thing you ran it to see.
 
-The 37 test files cover protocol parsing, the mode state machine, the safety
+The 38 test files cover protocol parsing, the mode state machine, the safety
 policy (including the C6 obstacle-avoidance policy
 `tests/test_avoidance.py` — turn/replan, stop priority, loop guard,
 determinism), differential-drive math, odometry/navigation, the warehouse task
 manager, the camera manager, the hazard layer, the vision-to-hazard pipeline
 (`tests/test_vision.py`, simulated detections only), the RFID identification
-path (`tests/test_rfid.py`, simulated reader only), the interface registry and
+path (`tests/test_rfid.py`, simulated reader only), the optional ROS 2 message
+translation (`tests/test_ros_bridge.py`, no ROS required), the interface registry and
 the applications hub (`tests/test_app_registry.py`, `tests/test_applications_hub.py`),
 and a real
 `ThreadingHTTPServer` driven against the
@@ -714,6 +715,7 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   ├── hazard.md               # context-aware multi-hazard safety layer
 │   ├── telemetry.md            # telemetry contract + read-only dashboard (C7)
 │   ├── rfid.md                 # shelf / payload identification (C17)
+│   ├── ros2.md                 # optional ROS 2 message translation (C18, no ROS)
 ├── AI_CONTEXT/                 # shared context for the multi-agent team
 │   ├── PROJECT_CONTEXT.md  CURRENT_STATUS.md  ARCHITECTURE.md
 │   └── TASK_BOARD.md  HANDOFF.md
@@ -726,8 +728,9 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   │   ├── safety/  hazard/  sensors/  navigation/  rfid/
 │   │   ├── warehouse/  camera/  web/  mocks/  utils/
 │   │   ├── apps/                # interface registry + applications hub data
-│   ├── tests/                  # pytest suite (37 files)
+│   ├── tests/                  # pytest suite (38 files)
 │   └── pyproject.toml          # packaging + [dev] extras
+├── ros2/                       # optional ROS 2 message translation (C18, no rclpy)
 ├── .github/workflows/ci.yml    # pytest matrix + ruff
 ├── LICENSE
 └── README.md
@@ -766,6 +769,12 @@ navigation → warehouse). Explicit next steps:
    place, and ships a **simulated** backend so the path is tested end to end.
    A real antenna plugs in behind the same protocol; **no tag has been read by
    this code**, and the shipped default attaches no reader at all.
+9. **ROS 2 node** — C18 ships the dependency-free message translation
+   (`ros2/bridge.py`) so outbound `RobotState`/`HazardStatus` and inbound
+   goals have tested, honest dict shapes. The `rclpy` node
+   (`ros2/amr_bringup`) that would publish/subscribe for real is **not built**:
+   no ROS exists in this repository or its CI, so **no topic has ever been
+   published or received**. See `docs/ros2.md`.
 
 ---
 

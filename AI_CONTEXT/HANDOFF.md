@@ -5,6 +5,41 @@
 
 ---
 
+## Session: C18 ROS 2 bridge — translation only, no ROS
+
+**Date:** 2026-10-01 · **Branch:** `main` · **Tests: 1513 passed, 2 skipped,
+0 failed** (1488 at C17 + 25 new)
+
+Delivered the *seam*, not the node: `ros2/bridge.py` translates a telemetry
+snapshot into a `PoseStamped`-shaped dict, a `HazardStatus` into a
+`diagnostic_msgs`-shaped dict, and an inbound `PoseStamped`-shaped dict into an
+`amr.navigation.Goal`. Everything is a plain dict shaped like its ROS message,
+so there is **zero `rclpy`** in `ros2/`, in `amr/`, or in CI — the core stack
+still imports with no ROS installed, and `tests/test_ros_bridge.py` (25) proves
+both that and the no-control-path rule (the bridge sources reference no motor
+driver, serial transport, or `POST /command`).
+
+**What did NOT happen:** no node, no topics, no `ros2/amr_bringup`, no Nav2.
+No topic has ever been published or received by this code. `docs/ros2.md` says
+so at the top and spells out what the future node must obey (import only
+`ros2.bridge`, hand goals to `submit_move`, keep `import amr` ROS-free).
+
+Also corrected two navigation docstrings that claimed the ROS implementation
+"lives in `ros2/amr_bringup`" — it does not exist; they now say *planned*.
+
+Surfaces synced to the measured run: README badge/table + prose (1513, 38
+files), showcase badge/table, CURRENT_STATUS header/table/per-file counts +
+module row, TASK_BOARD C18 `[x]`. The stale-count guards in
+`test_app_registry.py` went red mid-session (as designed) and are green again.
+
+*(Note: the C17 RFID session's handoff was never written — its details live in
+TASK_BOARD C17 and the commit `353abba`.)*
+
+**Next from the board:** C16 (real manipulator) or C19-style housekeeping;
+C4 gas/smoke sensor remains blocked on hardware.
+
+---
+
 ## Session: palette contrast, and verification steps that could not show their own result
 
 **Date:** 2026-10-01 · **Branch:** `main` · **Tests: 1425 passed, 2 skipped,

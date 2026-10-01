@@ -13,10 +13,11 @@ self-contained, deterministic local planner/controller that:
 * reports arrival, failure (a mid-motion safety veto), and cancellation.
 
 It is deliberately **not** a SLAM/Nav2 stack: global planning and
-localisation live on the ROS side (see ``ros2/amr_navigation``). This module
+localisation belong on a ROS side that **does not exist in this repository**
+(no ROS node, no Nav2 integration — see ``docs/ros2.md``). This module
 provides the deterministic Python counterpart so the entire stack runs and is
-unit-tested with no ROS and no hardware. The ROS bridge node implements the
-same :class:`Navigator` contract backed by Nav2.
+unit-tested with no ROS and no hardware. The planned ROS bridge node would
+implement the same :class:`Navigator` contract backed by Nav2.
 """
 
 from __future__ import annotations
