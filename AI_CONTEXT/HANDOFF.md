@@ -5,6 +5,44 @@
 
 ---
 
+## Session: C16 real manipulator — the gripper *driver*, no gripper
+
+**Date:** 2026-10-01 · **Branch:** `main` · **Tests: 1538 passed, 2 skipped,
+0 failed** (1513 at C18 + 25 new)
+
+Replaced the fake manipulator with a real, opt-in backend — while keeping the
+shipped default on `mock`. `GripperActuator` is the actuator protocol
+(`close()`/`open()` returning a confirmation bool, optional `holding()`
+feedback); `GripperManipulator` is the driver, and it is **confirm-first**: a
+motion only counts when the actuator confirms it. Unconfirmed motion,
+contradictory `holding()`, an actuator that raises, and a payload-ID mismatch
+all fail closed with the reason in `last_error`, which the task manager now
+copies onto the failing task instead of swallowing.
+
+Two silent-fallback holes are closed: `make_manipulator("gripper")` with no
+injected actuator raises, and an **unknown** backend name raises rather than
+degrading to mock. `WarehouseTaskManager.create(..., gripper_actuator=...)` is
+the injection point.
+
+**What did NOT happen:** no gripper was moved. There is no servo, arm, driver,
+firmware verb or serial command anywhere in this repository — the whole backend
+is validated against a fake actuator, including a full pick → place → return
+cycle through a stateful fake. `config/warehouse.yaml` still ships
+`manipulator: "mock"`, so nothing about default behaviour changed, and no
+claim is made about real I/O timing, limits or feedback latency.
+
+Surfaces synced to the measured run: README badge/table + prose + roadmap +
+config row, showcase badge/table, CURRENT_STATUS header/table/per-file counts +
+module row + not-started row, TASK_BOARD C16 `[x]`. The stale-count guards in
+`test_app_registry.py` went red mid-session (as designed) and are green again.
+
+**Next from the board:** C4 gas/smoke sensor and C1 hardware geometry remain
+blocked on hardware. Anything touching real I/O (a GPIO/servo actuator, a
+firmware `GRIP` verb) needs hardware access first — the driver seam is ready
+for it.
+
+---
+
 ## Session: C18 ROS 2 bridge — translation only, no ROS
 
 **Date:** 2026-10-01 · **Branch:** `main` · **Tests: 1513 passed, 2 skipped,
@@ -35,8 +73,8 @@ module row, TASK_BOARD C18 `[x]`. The stale-count guards in
 *(Note: the C17 RFID session's handoff was never written — its details live in
 TASK_BOARD C17 and the commit `353abba`.)*
 
-**Next from the board:** C16 (real manipulator) or C19-style housekeeping;
-C4 gas/smoke sensor remains blocked on hardware.
+**Next from the board:** C16 (real manipulator) was taken by a later session —
+see the C16 handoff above. C4 gas/smoke sensor remains blocked on hardware.
 
 ---
 

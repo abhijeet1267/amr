@@ -194,3 +194,35 @@ def test_shipped_camera_settings_are_actually_applied(config_dir):
     cfg = load_config(str(config_dir))
     assert cfg.robot.camera.device == "pi"
     assert cfg.robot.camera.resolution == "1280x720"
+
+
+# --------------------------------------------------------------------------- #
+# C16 — manipulator backend name validated fail-fast
+# --------------------------------------------------------------------------- #
+def test_unknown_manipulator_backend_rejected(tmp_path):
+    """A typo must not silently run the mock gripper forever.
+
+    Before C16 the factory fell through to ``MockManipulator`` for any
+    unknown name, so ``manipulator: "grippper"`` would look configured and
+    pick nothing while reporting success.
+    """
+    (tmp_path / "warehouse.yaml").write_text(
+        'warehouse:\n  enabled: true\n  manipulator: "grippper"\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="warehouse.manipulator"):
+        load_config(str(tmp_path))
+
+
+def test_shipped_manipulator_backend_is_valid(config_dir):
+    cfg = load_config(str(config_dir))
+    assert cfg.warehouse.manipulator == "mock"
+
+
+def test_every_documented_backend_passes_validation(tmp_path):
+    for backend in ("mock", "null", "gripper"):
+        (tmp_path / "warehouse.yaml").write_text(
+            f'warehouse:\n  enabled: true\n  manipulator: "{backend}"\n',
+            encoding="utf-8",
+        )
+        assert load_config(str(tmp_path)).warehouse.manipulator == backend

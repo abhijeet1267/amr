@@ -10,6 +10,9 @@ ROS and no hardware.
 
 from .map import MapError, WarehouseMap, default_map, map_from_config
 from .tasks import (
+    GripperActuator,
+    GripperManipulator,
+    MANIPULATOR_BACKENDS,
     Manipulator,
     MockManipulator,
     NullManipulator,
@@ -35,6 +38,9 @@ __all__ = [
     "Manipulator",
     "MockManipulator",
     "NullManipulator",
+    "GripperActuator",
+    "GripperManipulator",
+    "MANIPULATOR_BACKENDS",
     "make_manipulator",
     "WarehouseTaskManager",
     "ManagerStatus",

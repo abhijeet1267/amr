@@ -19,8 +19,11 @@ warehouse:
   # Max tasks that may be queued at once.
   queue_max: 16
 
-  # End-effector backend: "mock" (records picks/places) or "null" (no-op).
-  # Real gripper/ARM hardware plugs into amr.warehouse.tasks.Manipulator.
+  # End-effector backend: "mock" (records picks/places), "null" (no-op), or
+  # "gripper" (C16 — the real-backend driver, requires an injected
+  # GripperActuator: no gripper hardware ships with this repository, and the
+  # factory refuses to build this backend without one, so it can never
+  # silently degrade into the mock). Unknown names are a ConfigError.
   manipulator: "mock"
 
   # The map. Every name used by a task must appear here.

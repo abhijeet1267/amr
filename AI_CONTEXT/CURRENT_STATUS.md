@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
-**Last verified:** 2026-10-01, C18 ROS 2 bridge merged — full suite
-**1511 passed, 2 skipped, 0 failed**.
+**Last verified:** 2026-10-01, C16 real manipulator backend merged — full suite
+**1538 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,7 +10,7 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check | Result |
 |---|---|
-| `cd raspberry_pi && python -m pytest` | **1511 passed, 2 skipped, 0 failed** |
+| `cd raspberry_pi && python -m pytest` | **1538 passed, 2 skipped, 0 failed** |
 | Test files | 38 (`tests/test_*.py`) |
 | `python -m compileall amr` | clean |
 | Orphan scan (every module imported by prod or tests) | none — no dead modules |
@@ -30,7 +30,7 @@ those are installed and skip gracefully otherwise. They are the only conditional
 tests.
 
 Per-file test counts (regenerated from `pytest --collect-only -q` — 38 files,
-1515 tests: 1513 run + 2 skipped):
+1540 tests: 1538 run + 2 skipped):
 
 ```
 test_app_registry.py           46    test_mode_controller.py        13
@@ -42,7 +42,7 @@ test_camera_frame.py           49    test_replay.py                 59
 test_camera_manager.py          9    test_replay_control.py         68
 test_camera_overlay.py         40    test_rfid.py                   63
 test_command_center.py         63    test_robot_manager.py          23
-test_config.py                 22    test_robot_state.py             5
+test_config.py                 25    test_robot_state.py             5
 test_connectivity.py           14    test_ros_bridge.py             25
 test_console.py                35    test_safety_manager.py         14
 test_differential_drive.py     25    test_startup_banner.py          2
@@ -50,13 +50,14 @@ test_digital_twin.py           37    test_telemetry.py              52
 test_hazard.py                 48    test_ultrasonic.py              9
 test_hazard_visualisation.py   23    test_unified_demo.py           30
 test_logging.py                17    test_vision.py                101
-test_map.py                   111    test_warehouse.py              39
+test_map.py                   111    test_warehouse.py              61
 test_mission_monitoring.py     45    test_web_server.py            101
 ```
 
-C17 added `test_rfid.py` (63) and C18 added `test_ros_bridge.py` (25); the
-header, file count and total above were regenerated from the same measured
-`pytest --collect-only -q` run.
+C17 added `test_rfid.py` (63), C18 added `test_ros_bridge.py` (25), and C16
+added 22 gripper tests (18 in `test_warehouse.py`, 3 config-validation in
+`test_config.py`, 1 factory test); the header, file count and total above were
+regenerated from the same measured `pytest --collect-only -q` run.
 
 ---
 
@@ -72,7 +73,7 @@ header, file count and total above were regenerated from the same measured
 | `robot` (manager, modes, state) | **Implemented, unit-tested** | `test_robot_manager.py`, `test_mode_controller.py`, `test_robot_state.py` |
 | `camera` | **Implemented, partially tested** (2 tests need OpenCV) | `test_camera_manager.py` |
 | `navigation` (incl. C6 avoidance gate) | **Implemented, unit-tested** | `test_navigation.py` (50), `test_avoidance.py` (76) |
-| `warehouse` (tasks, map, manipulator) | **Implemented, unit-tested** | `test_warehouse.py` (39) |
+| `warehouse` (tasks, map, manipulator, C16 gripper backend) | **Implemented, unit-tested** | `test_warehouse.py` (60); `manipulator: "gripper"` needs an injected `GripperActuator` — **no gripper hardware exists**, shipped default is `mock` |
 | `rfid` (C17 shelf/payload identification, opt-in) | **Implemented, unit-tested, opt-in** | `test_rfid.py` (63); shipped default attaches no reader (`rfid.backend: "null"`) |
 | `ros2` (C18 dependency-free translation bridge) | **Implemented, unit-tested** | `test_ros_bridge.py` (25); no `rclpy` anywhere; `ros2/amr_bringup` (the rclpy node) **not built** |
 | `telemetry` (C7 read-only contract + collector) | **Implemented, unit-tested** | `test_telemetry.py` (52) |
@@ -80,7 +81,7 @@ header, file count and total above were regenerated from the same measured
 | `map` (C9 2D state + SVG, C10 3D twin state) | **Implemented, unit-tested** | `test_map.py` (111), `test_digital_twin.py` (37) |
 | `telemetry` (C7 contract, C11 console, C12 mission monitoring) | **Implemented, unit-tested** | `test_telemetry.py` (52), `test_console.py` (35), `test_mission_monitoring.py` (45) |
 | `logging` | **Implemented, unit-tested** | `test_logging.py` |
-| `utils/config` | **Implemented, unit-tested** | `test_config.py` (22) |
+| `utils/config` | **Implemented, unit-tested** | `test_config.py` (25) |
 | `mocks` | **Implemented**, indirectly covered by every suite | — |
 
 ### Offline entry points that are known to work
@@ -164,7 +165,7 @@ python -m amr.hazard.visualisation   # render the events JSONL onto the map (SVG
 |---|---|
 | **ROS 2 (runtime)** | The **translation bridge** exists (`ros2/bridge.py`, C18, `test_ros_bridge.py` 25) but **zero `rclpy` imports anywhere**: no node, no publisher, no subscription, no `ros2/amr_bringup` package, no ROS in CI. No topic has ever been published or received by this code. Navigation is a dependency-free `LocalNavigator`. |
 | **RFID hardware** | No antenna, no reader, no real tag. C17 ships the reader contract (`amr/rfid.RfidReader`), the pick/place identification rule (`confirm`), and a `simulated` backend tested end to end (`test_rfid.py`, 63). Shipped default attaches no reader. |
-| **Real manipulator** | `warehouse.yaml` uses `manipulator: "mock"`; only `MockManipulator` / `NullManipulator` exist. |
+| **Real manipulator (hardware)** | C16 ships the *driver* — `GripperActuator` protocol + `GripperManipulator` + the `"gripper"` config backend, tested end to end with a fake actuator (`test_warehouse.py` 60). **No servo, no arm, no firmware verb exists**: the factory refuses `"gripper"` without an injected actuator, and `warehouse.yaml` ships `manipulator: "mock"`. |
 | **Marker / QR / shelf recognition** | No implementation; `CameraManager.capture()` is the seam. |
 | **Gas / smoke / fire hardware** | No sensor code, no pins, no drivers — `amr.hazard` provides the aggregation layer and the seam. |
 | **Real hazard detector** | `VisionHazardSource` is a working pipeline over a **simulated** detector. No YOLO, no OpenCV, no camera-backed detector. Thresholds in `config/hazard.yaml` are unvalidated software defaults. |

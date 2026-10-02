@@ -435,10 +435,41 @@ and the recording. No existing test pinned the buggy behaviour.
 Tests: 1157 passed, 2 skipped, 0 failed (1127 at C14c + 30). Hardware and
 firmware NOT tested. See `docs/replay_dashboard.md` (C15 section).
 
-### C16 — Real manipulator (gripper / arm) `[~]` (in progress, 2026-10-01)
-**Touches:** `raspberry_pi/amr/warehouse/tasks.py` (implement `Manipulator`),
-`config/warehouse.yaml` (`manipulator` backend name)
-Replace the `mock` backend. Keep `MockManipulator` for tests.
+### C16 — Real manipulator (gripper / arm) `[x]` (complete, 2026-10-01)
+**Touches:** `raspberry_pi/amr/warehouse/tasks.py` (`GripperActuator`,
+`GripperManipulator`, `make_manipulator`),
+`raspberry_pi/amr/warehouse/task_manager.py` (`create(..., gripper_actuator=)`,
+`last_error` propagation), `raspberry_pi/amr/warehouse/__init__.py` (exports),
+`raspberry_pi/amr/utils/config.py` (backend validation), `config/warehouse.yaml`
+(comments), `raspberry_pi/tests/test_warehouse.py` (21), `test_config.py` (3),
+`README.md`, `showcase.html`, `AI_CONTEXT/CURRENT_STATUS.md`
+
+The driver, not the hardware. `GripperActuator` is a one-method protocol —
+`close() -> bool`, `open() -> bool`, optional `holding() -> bool` — and
+`GripperManipulator` drives it *confirm-first*: a motion counts only if the
+actuator says it happened. Unconfirmed close/open, contradictory `holding()`
+feedback, an actuator that raises, and a payload-ID mismatch on `place()` all
+fail closed, with the reason recorded in `last_error` and copied onto the
+task; the end effector is never asked to act on a state it cannot confirm.
+State is carry-at-most-one: no pick without a released gripper, no place
+without a held one.
+
+Selected by config (`warehouse.manipulator: "gripper"`), and
+`WarehouseTaskManager.create(..., gripper_actuator=...)` injects the I/O.
+**No silent fallback is possible**: `"gripper"` with no actuator raises at
+startup, and so does an unknown backend name — previously both quietly
+produced a mock. The shipped `config/warehouse.yaml` still says
+`manipulator: "mock"`, so existing deployments are byte-for-byte unchanged.
+
+**No gripper hardware exists in this repository** — no servo, no arm, no
+firmware verb, no serial command. Everything here is validated against a fake
+actuator in `test_warehouse.py`, including a full pick → place → return cycle
+through a stateful fake. **No physical gripper has ever been moved by this
+code**, and no claim is made about real I/O timings, limits, or feedback
+latency.
+
+Tests: full suite **1538 passed, 2 skipped, 0 failed** (1513 at C18 + 25).
+Hardware NOT tested.
 
 ### C17 — RFID `[x]` (complete)
 **Touches:** `raspberry_pi/amr/rfid/` (new: `reader.py`), `config/rfid.yaml`

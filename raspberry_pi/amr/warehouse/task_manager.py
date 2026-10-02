@@ -32,6 +32,7 @@ from ..rfid import RfidReader, confirm, make_rfid_reader
 from ..robot import RobotCommandError, RobotManager, RobotMode
 from .map import WarehouseMap, map_from_config
 from .tasks import (
+    GripperActuator,
     Manipulator,
     QueueFullError,
     Task,
@@ -138,11 +139,19 @@ class WarehouseTaskManager:
         warehouse_map: Optional[WarehouseMap] = None,
         mission_id: Optional[str] = None,
         rfid: Optional[RfidReader] = None,
+        gripper_actuator: Optional[GripperActuator] = None,
     ) -> "WarehouseTaskManager":
-        """Build from an :class:`AppConfig` (reads ``config.warehouse``)."""
+        """Build from an :class:`AppConfig` (reads ``config.warehouse``).
+
+        ``gripper_actuator`` (C16) is the physical I/O for the configured
+        ``"gripper"`` backend. An injected ``manipulator`` always wins over
+        the configured name (same rule as the injected RFID reader); without
+        one, ``manipulator: "gripper"`` and no actuator raises here — at
+        startup — rather than silently running the mock.
+        """
         whcfg = config.warehouse
         mapping = warehouse_map or map_from_config(whcfg)
-        manip = manipulator or make_manipulator(whcfg.manipulator)
+        manip = manipulator or make_manipulator(whcfg.manipulator, gripper_actuator)
         mgr = cls(
             robot=robot,
             navigator=navigator,
@@ -293,12 +302,22 @@ class WarehouseTaskManager:
         self.log.info("finished %s (%s)", task.task_id, task.status.value)
 
     def _perform(self, action: Optional[TaskType], task: Task):
-        """Run the (optional) end-effector action for a completed drive."""
+        """Run the (optional) end-effector action for a completed drive.
+
+        When the manipulator reports failure *and* carries a ``last_error``
+        (the C16 gripper backend records why it refused), that reason becomes
+        the task's ``last_error`` — an unexplained failed pick is useless to
+        whoever has to debug it.
+        """
         if action is TaskType.PICK:
-            return self._manip.pick(task.payload_id or task.location), None
-        if action is TaskType.PLACE:
-            return self._manip.place(task.payload_id or task.location), None
-        return True, None  # MOVE / RETURN_TO_DOCK: nothing to manipulate
+            ok = self._manip.pick(task.payload_id or task.location)
+        elif action is TaskType.PLACE:
+            ok = self._manip.place(task.payload_id or task.location)
+        else:
+            return True, None  # MOVE / RETURN_TO_DOCK: nothing to manipulate
+        if ok:
+            return True, None
+        return False, getattr(self._manip, "last_error", None)
 
     # -- C17: shelf / payload identification -------------------------------- #
     def _current_location(self) -> Optional[str]:

@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot *cannot* move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1513%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1538%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim | Value | Reproduce |
 |---|---|---|
-| Test suite | **1513 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest` |
+| Test suite | **1538 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest` |
 | Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
 | Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
@@ -334,8 +334,12 @@ mocks. The map (`config/warehouse.yaml`) is a set of world-frame waypoints
   drives them to completion under the same lock discipline as the web loop.
 - **Task types** — `PICK`, `PLACE`, `RETURN` (and compound round-trips) compose
   `Navigator` goals with a **manipulator** backend (`mock` records picks/places;
-  `null` is a no-op). Real gripper/ARM hardware plugs into
-  `amr.warehouse.tasks.Manipulator`.
+  `null` is a no-op; `gripper` is the C16 real-backend driver). Real gripper
+  hardware plugs into the `GripperActuator` protocol — the driver
+  (`GripperManipulator`) only reports success when the injected actuator
+  *confirms* the motion, and **no gripper hardware ships with this repo**: the
+  factory refuses `"gripper"` without an actuator, and the shipped config is
+  `mock`.
 - **Motion tuning** — `task_speed` 0.5 m/s, `turn_speed` 1.0 rad/s,
   `wheel_base_m` 0.30 (overridden by measured `robot.wheel_track_m` when set).
 - **Identification (C17)** — an optional RFID reader confirms the shelf the robot
@@ -582,7 +586,7 @@ All config lives in [`config/`](config) and is loaded by `amr/utils/config.py`.
 | `robot.yaml` | robot name, `wheel_track_m`/`wheel_diameter_m` (**`null`** until measured), `motors.max_speed` 255, ultrasonic pins (`TODO_VERIFY`), camera `pi` 1280×720 |
 | `safety.yaml` | `watchdog_timeout_ms` 1000, stop distances F/R 20 · L/R 15, valid window 2–400 cm, `status: NOT_VERIFIED` |
 | `serial.yaml` | `port` `/dev/ttyACM0`, `baudrate` 9600, per-command timeouts, `protocol_version` `1.0` |
-| `warehouse.yaml` | `enabled`, `dock`, task/turn speed, `wheel_base_m`, `queue_max` 16, `manipulator: mock`, `locations` map |
+| `warehouse.yaml` | `enabled`, `dock`, task/turn speed, `wheel_base_m`, `queue_max` 16, `manipulator: mock` (also `null`, `gripper` — actuator required), `locations` map |
 | `applications.yaml` | Phase B/C interface registry: ids, categories, platforms, declared status, `url` / `api_base` / `launch_command`, `read_only` flags (read by `amr/apps/registry.py`) |
 
 Values marked `null` / `TODO_VERIFY` / `NOT_VERIFIED` are placeholders that must
@@ -714,6 +718,8 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   ├── web_control.md          # web panel + HTTP API
 │   ├── hazard.md               # context-aware multi-hazard safety layer
 │   ├── telemetry.md            # telemetry contract + read-only dashboard (C7)
+│   ├── map.md                  # warehouse map + task locations
+│   ├── manipulator.md          # gripper driver, injected actuator (C16)
 │   ├── rfid.md                 # shelf / payload identification (C17)
 │   ├── ros2.md                 # optional ROS 2 message translation (C18, no ROS)
 ├── AI_CONTEXT/                 # shared context for the multi-agent team
@@ -750,7 +756,12 @@ navigation → warehouse). Explicit next steps:
    `Navigator` on hardware.
 3. **Obstacle avoidance** — promote `SafetyAction.TURN` / `REPLAN` from reserved
    to active policy.
-4. **Manipulation** — replace the `mock` manipulator with real gripper/ARM I/O.
+4. **Manipulation hardware** — C16 ships the gripper *driver*
+   (`GripperActuator` protocol + `GripperManipulator`, selected by
+   `warehouse.manipulator: "gripper"`), tested end to end against a fake
+   actuator. What is missing is the hardware itself: a servo/arm, its power
+   and wiring, and a firmware verb to drive it. **No gripper has ever been
+   moved by this code**, and the shipped config stays `mock`.
 5. **Vision** — build marker/QR/shelf recognition on `CameraManager.capture()`.
 6. **Hazard hardware & telemetry** — wire real gas/smoke/fire sensors into
    `amr/hazard` and surface `HazardManager.snapshot()` plus the spatial event

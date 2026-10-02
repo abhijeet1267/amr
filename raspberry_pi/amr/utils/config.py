@@ -556,6 +556,17 @@ def _validate_warehouse(c: WarehouseConfig) -> None:
         raise ConfigError("warehouse.wheel_base_m must be > 0")
     if c.queue_max < 1:
         raise ConfigError("warehouse.queue_max must be >= 1")
+    # C16: an unknown backend name used to fall through to the mock, so a typo
+    # like "grippper" silently ran the pretend gripper forever. Validate the
+    # name here, in the same vocabulary the factory uses.
+    from ..warehouse.tasks import MANIPULATOR_BACKENDS
+
+    backend = str(c.manipulator or "mock").strip().lower()
+    if backend not in MANIPULATOR_BACKENDS:
+        raise ConfigError(
+            f"warehouse.manipulator {c.manipulator!r} is not one of "
+            f"{sorted(MANIPULATOR_BACKENDS)}"
+        )
     if c.dock and not c.locations and c.dock != "dock":
         # No map supplied but a non-default dock requested: keep it, but the
         # map layer will fall back to the default (which defines "dock").

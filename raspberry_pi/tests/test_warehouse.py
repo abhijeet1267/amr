@@ -27,6 +27,8 @@ from amr.navigation import LocalNavigator, NavStatus, Pose
 from amr.robot import RobotCommandError, RobotManager, RobotMode
 from amr.utils.config import WarehouseConfig, load_config
 from amr.warehouse import (
+    GripperManipulator,
+    MANIPULATOR_BACKENDS,
     Manipulator,
     MapError,
     ManagerStatus,
@@ -209,11 +211,175 @@ class TestManipulators:
         assert isinstance(make_manipulator("null"), NullManipulator)
         assert isinstance(make_manipulator("mock"), MockManipulator)
         assert isinstance(make_manipulator(None), MockManipulator)
-        assert isinstance(make_manipulator("gripper"), MockManipulator)
+        # C16: "gripper" is a real backend — without an actuator it must fail
+        # loudly rather than degrade into the mock (the old behaviour, pinned
+        # by this very test, was that silent fallback).
+        with pytest.raises(ValueError, match="GripperActuator"):
+            make_manipulator("gripper")
+
+    def test_make_manipulator_gripper_needs_an_actuator(self):
+        class FakeActuator:
+            def close(self):
+                return True
+
+            def open(self):
+                return True
+
+            def holding(self):
+                return None
+
+        m = make_manipulator("gripper", FakeActuator())
+        assert isinstance(m, GripperManipulator)
+        assert isinstance(m, Manipulator)
+
+    def test_make_manipulator_unknown_backend_raises(self):
+        with pytest.raises(ValueError, match="unknown manipulator backend"):
+            make_manipulator("crane")
+        # Whitespace / case are tolerated; nonsense is not.
+        assert isinstance(make_manipulator("  Mock "), MockManipulator)
 
     def test_implementations_satisfy_protocol(self):
         assert isinstance(MockManipulator(), Manipulator)
         assert isinstance(NullManipulator(), Manipulator)
+
+
+# =========================================================================== #
+# C16 — GripperManipulator (real backend behind an injected actuator)
+# =========================================================================== #
+class FakeActuator:
+    """Test double for GripperActuator: configurable answers, records calls."""
+
+    def __init__(self, close=True, open_=True, holding=None, raise_on=None):
+        self.close_result = close
+        self.open_result = open_
+        self.holding_result = holding
+        self.raise_on = raise_on          # "close" / "open" / "holding"
+        self.calls: list = []
+
+    def _maybe_raise(self, method: str) -> None:
+        self.calls.append(method)
+        if self.raise_on == method:
+            raise IOError(f"{method} failed (fake hardware fault)")
+
+    def close(self) -> bool:
+        self._maybe_raise("close")
+        return self.close_result
+
+    def open(self) -> bool:
+        self._maybe_raise("open")
+        return self.open_result
+
+    def holding(self):
+        self._maybe_raise("holding")
+        return self.holding_result
+
+
+class TestGripperManipulator:
+    def test_requires_an_actuator(self):
+        with pytest.raises(ValueError, match="requires an actuator"):
+            GripperManipulator(None)  # type: ignore[arg-type]
+
+    def test_confirmed_pick_and_place_cycle(self):
+        m = GripperManipulator(FakeActuator(holding=True))
+        assert m.pick("p1") is True
+        assert m.has_payload() and m.payload == "p1"
+        assert (m.picks, m.places) == (1, 0)
+        assert m.last_error is None
+        # The fake now reports released payload for the place cross-check.
+        m._actuator.holding_result = False
+        assert m.place("p1") is True
+        assert not m.has_payload() and (m.picks, m.places) == (1, 1)
+        assert m.last_error is None
+
+    def test_unconfirmed_close_is_a_failed_pick(self):
+        # A command sent is not a motion that happened.
+        m = GripperManipulator(FakeActuator(close=False))
+        assert m.pick("p1") is False
+        assert not m.has_payload() and m.picks == 0
+        assert m.last_error == "gripper close not confirmed by actuator"
+
+    def test_unconfirmed_open_is_a_failed_place(self):
+        actuator = FakeActuator(open_=False, holding=False)
+        m = GripperManipulator(actuator)
+        m.payload = "p1"          # carrying, as after a successful pick
+        assert m.place("p1") is False
+        assert m.has_payload() and m.places == 0
+        assert m.last_error == "gripper open not confirmed by actuator"
+
+    def test_closed_on_nothing_is_not_a_pick(self):
+        # holding() says False: the gripper confirmed closing but grabbed air.
+        m = GripperManipulator(FakeActuator(holding=False))
+        assert m.pick("p1") is False
+        assert not m.has_payload()
+        assert m.last_error == "gripper reports holding nothing after close"
+
+    def test_still_holding_after_open_is_not_a_place(self):
+        m = GripperManipulator(FakeActuator(holding=True))
+        m.payload = "p1"
+        assert m.place("p1") is False
+        assert m.has_payload()
+        assert m.last_error == "gripper still reports holding payload after open"
+
+    def test_uninstrumented_actuator_trusts_confirmation_only(self):
+        # holding() -> None: no presence sensor. Confirmation alone decides.
+        m = GripperManipulator(FakeActuator(holding=None))
+        assert m.pick("p1") is True and m.place("p1") is True
+
+    def test_actuator_exception_fails_the_action_without_crashing(self):
+        m = GripperManipulator(FakeActuator(raise_on="close"))
+        assert m.pick("p1") is False
+        assert not m.has_payload()
+        assert "raised" in m.last_error and "close" in m.last_error
+
+    def test_feedback_sensor_exception_degrades_to_confirmation_only(self):
+        m = GripperManipulator(FakeActuator(raise_on="holding"))
+        assert m.pick("p1") is True   # close confirmed; sensor unread
+
+    def test_rejects_second_pick_while_carrying(self):
+        m = GripperManipulator(FakeActuator(holding=True))
+        assert m.pick("p1") is True
+        assert m.pick("p2") is False
+        assert m.payload == "p1" and m.picks == 1
+        assert "already carrying" in m.last_error
+
+    def test_rejects_place_when_empty(self):
+        m = GripperManipulator(FakeActuator())
+        assert m.place("p1") is False
+        assert m.last_error == "not carrying anything"
+
+    def test_rejects_place_of_a_different_payload(self):
+        # Dropping the carried box at a station that asked for another one is
+        # worse than failing: the jaws must not move at all.
+        actuator = FakeActuator(holding=True)
+        m = GripperManipulator(actuator)
+        assert m.pick("p1") is True
+        assert m.place("p2") is False
+        assert m.has_payload() and m.payload == "p1" and m.places == 0
+        assert m.last_error == "asked to place 'p2' but carrying 'p1'"
+        assert "open" not in actuator.calls   # the end effector was never asked
+
+    def test_missing_method_is_reported_not_attributed_to_hardware(self):
+        class NoOpen:
+            def close(self):
+                return True
+
+        m = GripperManipulator(NoOpen())
+        assert m.pick("p1") is True
+        assert m.place("p1") is False
+        assert m.last_error == "actuator has no open()"
+
+    def test_reset_clears_local_state_only(self):
+        m = GripperManipulator(FakeActuator(holding=True))
+        m.pick("p1")
+        m.reset()
+        assert m.payload is None and m.last_error is None
+        assert (m.picks, m.places) == (1, 0)   # counters are a record, not state
+
+    def test_gripper_satisfies_the_manipulator_protocol(self):
+        assert isinstance(GripperManipulator(FakeActuator()), Manipulator)
+
+    def test_backend_vocabulary_is_pinned(self):
+        assert MANIPULATOR_BACKENDS == ("null", "mock", "gripper")
 
 
 # =========================================================================== #
@@ -495,3 +661,99 @@ class TestStatusAndFactory:
         assert wh.queue_size() == 1
         with pytest.raises(MapError):
             wh.submit_move("dock")  # not in the custom map
+
+
+# =========================================================================== #
+# C16 — the "gripper" backend over the real gated stack
+# =========================================================================== #
+class TestGripperIntegration:
+    """The configured real backend, end to end, still under Layer-3 safety.
+
+    **No gripper hardware exists here** — the actuator is a fake, the robot is
+    the mock. What is real is the wiring: config name -> factory ->
+    GripperManipulator -> task lifecycle.
+    """
+
+    @staticmethod
+    def _gripper_config(app_config, backend="gripper"):
+        return dataclasses.replace(
+            app_config,
+            warehouse=dataclasses.replace(app_config.warehouse,
+                                          manipulator=backend),
+        )
+
+    @staticmethod
+    def _stack(cfg, actuator=None):
+        mgr, transport = RobotManager.create_mock(cfg)
+        mgr.start()
+        nav = LocalNavigator(
+            command=mgr.move,
+            start_pose=Pose(0, 0, 0),
+            wheel_base_m=cfg.warehouse.wheel_base_m,
+            max_linear_speed=cfg.warehouse.task_speed,
+            max_angular_speed=cfg.warehouse.turn_speed,
+            max_pwm=cfg.robot.motors.max_speed,
+        )
+        wh = WarehouseTaskManager.create(cfg, mgr, nav,
+                                         gripper_actuator=actuator)
+        return mgr, transport, nav, wh
+
+    def test_configured_gripper_needs_an_actuator(self, app_config):
+        # Fail at construction (startup), never fall back to the mock.
+        with pytest.raises(ValueError, match="GripperActuator"):
+            self._stack(self._gripper_config(app_config), actuator=None)
+
+    def test_injected_actuator_drives_a_full_pick_place_return(self, app_config):
+        # A stateful fake: close() grabs (holding True), open() releases
+        # (holding False) — the feedback a real limit-switch gripper gives.
+        class StatefulActuator:
+            def __init__(self):
+                self.gripping = False
+                self.closed = 0
+                self.opened = 0
+
+            def close(self):
+                self.closed += 1
+                self.gripping = True
+                return True
+
+            def open(self):
+                self.opened += 1
+                self.gripping = False
+                return True
+
+            def holding(self):
+                return self.gripping
+
+        actuator = StatefulActuator()
+        _, _, _, wh = self._stack(self._gripper_config(app_config), actuator)
+        manip = wh._manip
+        assert isinstance(manip, GripperManipulator)
+
+        pick = wh.submit_pick("shelf_a", "p1")
+        place = wh.submit_place("station", "p1")
+        ret = wh.submit_return_to_dock()
+        run_to_empty(wh)
+
+        assert [t.status for t in (pick, place, ret)] == [
+            TaskStatus.DONE, TaskStatus.DONE, TaskStatus.DONE,
+        ]
+        assert (manip.picks, manip.places) == (1, 1)
+        assert not manip.has_payload()
+        assert (actuator.closed, actuator.opened) == (1, 1)
+        # Robot still ends stopped, back at the dock, through the safety gate.
+        assert wh.status().idle is True
+
+    def test_unconfirmed_gripper_fails_the_task_with_a_reason(self, app_config):
+        actuator = FakeActuator(close=False)   # hardware never confirms
+        _, _, _, wh = self._stack(self._gripper_config(app_config), actuator)
+        pick = wh.submit_pick("shelf_a", "p1")
+        run_to_empty(wh)
+        assert pick.status is TaskStatus.FAILED
+        assert pick.last_error == "gripper close not confirmed by actuator"
+        assert wh._manip.picks == 0
+
+    def test_mock_backend_unchanged_when_configured(self, app_config):
+        # The default deployment still gets exactly the old behaviour.
+        _, _, _, wh = self._stack(self._gripper_config(app_config, "mock"))
+        assert isinstance(wh._manip, MockManipulator)
