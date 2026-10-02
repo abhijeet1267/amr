@@ -24,6 +24,35 @@
   /* Hover is its own token because light mode's accent is dark: a lightened
      hover like #67e8f9 on a dark-teal button is a flash, not a highlight. */
   --accent-hover: #67e8f9;
+  /* The classic accents -- brass and a deep plum -- so the console is not one
+     blue voice. --gold carries the heritage/primary-action emphasis (brand,
+     the selected view, primary buttons, "verified" states); --plum is the
+     analytics colour, so a three series chart is not three blues. Both are
+     text-bearing and both hold AA body text on every pairing the rules below
+     actually draw; the measured numbers are recorded beside the shared
+     palette in ``server.py``. */
+  --gold: #dcb35d; --plum: #c08cf0;
+  --gold-bg: #231c0d; --gold-line: #5c4a1d;
+  --plum-bg: #1e1733; --plum-line: #40305f;
+  /* Ambience: the washes that give a flat --bg some depth. They tint no text,
+     so they are decoration rather than information. */
+  --sheen: rgba(255,255,255,.05);
+  --glow-1: rgba(34,211,238,.13); --glow-2: rgba(61,139,253,.11);
+  --glow-3: rgba(220,179,93,.07);
+  /* Motion is described once. Every transition reads these two, so "how this
+     console moves" is one decision, not thirty. */
+  --ease: cubic-bezier(.4, 0, .2, 1); --dur: .22s;
+  /* Hover washes: the neutral lift shared by sidenav, icon buttons and links.
+     They are decoration over --card-2, so they do not carry text contrast. */
+  --hover-wash: rgba(127,160,200,.10);
+  --hover-wash-strong: rgba(127,160,200,.12);
+  --accent-wash: rgba(34,211,238,.10);
+  /* Soft accent edge, e.g. the card hover ring. A border, not text, so it is
+     allowed to be subtler than any text-bearing pairing. */
+  --accent-line: rgba(34,211,238,.30);
+  /* Hairline row dividers in dense lists. Same neutral family as the hover
+     washes, fainter still. */
+  --hairline: rgba(127,160,200,.08);
   --radius: 10px;
   --gap: 12px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -44,6 +73,23 @@ html, body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ambient depth. Three fixed washes over the flat --bg: a cool one top-right,
+   a cooler one bottom-left, and a faint brass corner, so the page and the brand
+   share a temperature. Every panel over them is opaque, so no text is tinted
+   and nothing here has to be re-measured for contrast -- it is decoration.
+   background-image rather than an overlay pseudo-element on purpose: a negative
+   z-index child of <body> would depend on which ancestor happened to be a
+   stacking context, and this cannot break. */
+body {
+  background-image:
+    radial-gradient(1200px 680px at 84% -14%, var(--glow-1), transparent 60%),
+    radial-gradient(1020px 560px at -10% 106%, var(--glow-2), transparent 58%),
+    radial-gradient(720px 420px at 50% 118%, var(--glow-3), transparent 62%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  min-height: 100vh;
 }
 
 /* Visible focus for keyboard operators — restyled, never removed. */
@@ -74,7 +120,7 @@ html, body {
   position: sticky; top: 0; z-index: 20;
 }
 .brand { display: flex; align-items: baseline; gap: 10px; }
-.brand h1 { font-size: 17px; margin: 0; letter-spacing: .06em; text-transform: uppercase; }
+.brand h1 { font-size: 17px; margin: 0; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
 .brand .sub { color: var(--dim); font-size: 12px; }
 
 .chip {
@@ -83,7 +129,7 @@ html, body {
   background: var(--card); border: 1px solid var(--line);
   font-size: 12px; font-weight: 600; letter-spacing: .03em;
   white-space: nowrap;
-  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
 .chip .lbl {
@@ -106,7 +152,7 @@ button, select {
   color: var(--text); background: var(--card);
   border: 1px solid var(--line); border-radius: 6px;
   padding: 6px 11px; cursor: pointer;
-  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .1s ease, box-shadow .18s ease;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease), transform .1s var(--ease), box-shadow var(--dur) var(--ease);
 }
 button:hover, select:hover {
   background: var(--card-2);
@@ -131,16 +177,16 @@ main {
   background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 12px 14px;
   min-width: 0; display: flex; flex-direction: column;
-  transition: border-color .2s ease, box-shadow .2s ease, opacity .25s ease;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), opacity .25s var(--ease);
   box-shadow: var(--shadow);
 }
 .card:hover {
-  border-color: rgba(34, 211, 238, .3);
+  border-color: var(--accent-line);
   box-shadow: var(--shadow-lift);
 }
 .card > h2 {
-  margin: 0 0 10px; font-size: 11px; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  margin: 0 0 10px; font-size: 13px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--text);
   display: flex; align-items: center; gap: 8px;
 }
 .card > h2 .count {
@@ -161,10 +207,10 @@ main {
   gap: 4px 12px; margin: 0; font-size: 12px;
 }
 .kv dt {
-  color: var(--dim); text-transform: uppercase; font-size: 10px;
-  letter-spacing: .07em; padding-top: 2px;
+  color: var(--dim); font-variant-caps: all-small-caps; font-size: 10px;
+  letter-spacing: .05em; padding-top: 2px;
 }
-.kv dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.kv dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .kv dd.na   { color: var(--dim); font-style: italic; }
 .kv dd.ok   { color: var(--ok); }
 .kv dd.warn { color: var(--warn); }
@@ -175,7 +221,7 @@ main {
   height: 6px; background: var(--track); border-radius: 3px;
   overflow: hidden; margin: 8px 0 4px;
 }
-.bar > i { display: block; height: 100%; background: var(--ok); width: 0; transition: width .25s ease; }
+.bar > i { display: block; height: 100%; background: var(--ok); width: 0; transition: width .25s var(--ease); }
 .bar.warn > i { background: var(--warn); }
 .bar.crit > i { background: var(--crit); }
 .bar-label {
@@ -231,7 +277,7 @@ main {
 }
 .chart-title {
   display: flex; justify-content: space-between; font-size: 10px;
-  color: var(--dim); text-transform: uppercase; letter-spacing: .07em;
+  color: var(--dim); font-variant-caps: all-small-caps; letter-spacing: .05em;
   margin: 10px 0 4px;
 }
 .chart-title .val {
@@ -307,7 +353,7 @@ main {
   background: var(--accent); border-radius: 3px; width: 0;
 }
 
-.mono { font-family: var(--mono); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 .dim { color: var(--dim); }
 .na { color: var(--dim); font-style: italic; }
@@ -319,12 +365,12 @@ main {
 .tabs button {
   border: none; background: transparent; padding: 5px 12px;
   font-size: 12px; color: var(--muted); border-radius: 5px;
-  transition: background-color .18s ease, color .18s ease, transform .1s ease;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), transform .1s var(--ease);
 }
 .tabs button:hover { background: var(--card-2); color: var(--text); border: none; }
 .tabs button:active { transform: translateY(1px); }
 .tabs button[aria-selected="true"] {
-  background: var(--info-bg); color: var(--accent); font-weight: 700;
+  background: var(--gold-bg); color: var(--gold); font-weight: 700;
 }
 /* A focused view promotes its section to the full grid width. */
 main.view-twin .card, main.view-map .card, main.view-camera .card,
@@ -389,7 +435,7 @@ main.view-map #sec-map, main.view-replay #sec-replay {
   background: var(--card-2); border: 1px solid var(--line);
   border-radius: 10px; padding: 12px; }
 .ident-id { font: 600 18px/1.2 var(--mono, ui-monospace, monospace);
-  letter-spacing: .04em; }
+  letter-spacing: .04em; font-variant-numeric: tabular-nums; }
 .ident-name { color: var(--dim); font-size: 11px; margin-bottom: 8px; }
 .ident-kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px;
   font-size: 11px; margin: 0; }
@@ -398,18 +444,18 @@ main.view-map #sec-map, main.view-replay #sec-replay {
 .health-mini { border-top: 1px solid var(--line); padding-top: 10px; }
 .health-label { color: var(--dim); font-size: 10px; letter-spacing: .09em; }
 .health-state { font: 600 15px/1.4 var(--mono, ui-monospace, monospace);
-  margin-top: 2px; }
+  margin-top: 2px; font-variant-numeric: tabular-nums; }
 .sidenav { display: flex; flex-direction: column; gap: 2px; }
 .sidenav button { display: flex; flex-direction: column; align-items: flex-start;
   gap: 1px; text-align: left; padding: 7px 9px; border-radius: 7px;
   background: transparent; border: 1px solid transparent; color: var(--text);
   cursor: pointer; font-size: 12px;
-  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .1s ease; }
-.sidenav button small { color: var(--dim); font-size: 10px; transition: color .18s ease; }
-.sidenav button:hover { background: rgba(127, 160, 200, .10); transform: translateX(2px); }
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease), transform .1s var(--ease); }
+.sidenav button small { color: var(--dim); font-size: 10px; transition: color var(--dur) var(--ease); }
+.sidenav button:hover { background: var(--hover-wash); transform: translateX(2px); }
 .sidenav button:active { transform: translateX(1px); }
-.sidenav button[aria-selected="true"] { background: var(--ok-bg);
-  border-color: var(--ok-line); }
+.sidenav button[aria-selected="true"] { background: var(--gold-bg);
+  border-color: var(--gold-line); }
 .sidenav button:focus-visible, .icon-btn:focus-visible, .bell:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px; }
 .side-foot { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
@@ -424,14 +470,14 @@ a.icon-btn.hub-link { color: var(--accent); }
   display: block; margin-top: 8px; padding: 6px 8px; text-align: center;
   border: 1px solid var(--line); border-radius: 6px; text-decoration: none;
   color: var(--accent); font-size: 11px; font-weight: 600; letter-spacing: .03em;
-  transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
-.side-link:hover { background: rgba(34, 211, 238, .10); border-color: var(--accent); }
+.side-link:hover { background: var(--accent-wash); border-color: var(--accent); }
 .bell, .icon-btn { position: relative; background: transparent; cursor: pointer;
   color: var(--text); border: 1px solid var(--line); border-radius: 7px;
   font-size: 15px; line-height: 1; padding: 6px 8px;
-  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .1s ease; }
-.bell:hover, .icon-btn:hover { background: rgba(127, 160, 200, .12); transform: scale(1.04); }
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease), transform .1s var(--ease); }
+.bell:hover, .icon-btn:hover { background: var(--hover-wash-strong); transform: scale(1.04); }
 .bell:active, .icon-btn:active { transform: scale(0.96); }
 .bell-count { position: absolute; top: -5px; right: -5px; min-width: 16px;
   padding: 1px 4px; border-radius: 9px; background: var(--crit);
@@ -442,13 +488,13 @@ a.icon-btn.hub-link { color: var(--accent); }
 .health-hero { display: flex; flex-direction: column; gap: 2px;
   padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
   margin-bottom: 10px; }
-.health-big { font: 600 20px/1.2 var(--mono, ui-monospace, monospace); }
+.health-big { font: 600 20px/1.2 var(--mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; }
 .health-why { color: var(--dim); font-size: 11px; }
 .matrix { width: 100%; border-collapse: collapse; font-size: 11px; }
 .matrix th { text-align: left; color: var(--dim); font-weight: 500;
   padding: 3px 6px; border-bottom: 1px solid var(--line); }
 .matrix td { padding: 3px 6px; vertical-align: top;
-  border-bottom: 1px solid rgba(127, 160, 200, .08); }
+  border-bottom: 1px solid var(--hairline); }
 .matrix td:last-child { color: var(--dim); }
 /* Health matrices, system layers, timeline, alerts, event search.
 
@@ -471,8 +517,8 @@ a.icon-btn.hub-link { color: var(--accent); }
   padding: 3px 0; border-bottom: 1px solid rgba(127, 160, 200, .08); }
 .layers li b { font-weight: 500; }
 .layers li em { font-style: normal; color: var(--dim); font-size: 10px; }
-.sub-h { font-size: 11px; color: var(--dim); text-transform: uppercase;
-  letter-spacing: .08em; margin: 12px 0 4px; }
+.sub-h { font-size: 11px; color: var(--dim); font-variant-caps: all-small-caps;
+  letter-spacing: .05em; margin: 12px 0 4px; }
 .timeline { list-style: none; margin: 0; padding: 0 0 0 16px;
   border-left: 2px solid var(--line); }
 .timeline li { position: relative; padding: 3px 0; font-size: 11px; }
@@ -485,7 +531,7 @@ a.icon-btn.hub-link { color: var(--accent); }
 .haz-recent, .alerts { list-style: none; margin: 0; padding: 0; font-size: 11px;
   max-height: 190px; overflow-y: auto; }
 .haz-recent li, .alerts li { padding: 3px 0;
-  border-bottom: 1px solid rgba(127, 160, 200, .08); }
+  border-bottom: 1px solid var(--hairline); }
 .alerts li.sev-critical { color: var(--crit); }
 .alerts li.sev-warning { color: var(--warn); }
 .alerts li .cat { color: var(--dim); margin-right: 6px; }
@@ -546,6 +592,24 @@ body.light {
   --info: #1a5fc4;
   --accent: #0e7490;
   --accent-hover: #0f8ba9;
+  /* The classic accents, darkened for white the same way the status colours
+     are: dark-theme brass on white measures about 1.8:1 and is unreadable. */
+  --gold: #7a5210; --plum: #6b3fa0;
+  --gold-bg: #fdf3dd; --gold-line: #dcc389;
+  --plum-bg: #f3ebfd; --plum-line: #cbb2ec;
+  /* Light ambience is ink-tinted: a white wash on a near-white page is
+     invisible, which would make "depth" a claim the CSS does not keep. */
+  --sheen: rgba(15,23,42,.03);
+  --glow-1: rgba(14,116,144,.10); --glow-2: rgba(26,95,196,.08);
+  --glow-3: rgba(122,82,16,.07);
+  /* Hover washes, edges and hairline dividers, ink-tinted like the ambience
+     above: a white wash on a near-white page is invisible and a cyan one would
+     look like a marker pen. The accent wash/line follow the darkened accent. */
+  --hover-wash: rgba(15,23,42,.04);
+  --hover-wash-strong: rgba(15,23,42,.07);
+  --accent-wash: rgba(14,116,144,.10);
+  --accent-line: rgba(14,116,144,.28);
+  --hairline: rgba(15,23,42,.05);
   /* The accent sits behind white text in .skip-link and .app-open, so it must
      stay dark enough to carry that text in either theme. */
   --on-accent: #ffffff;

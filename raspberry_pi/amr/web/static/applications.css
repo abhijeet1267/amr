@@ -2,13 +2,17 @@
    Phase C — Applications Hub
 
    Loaded AFTER command_center.css on purpose: the console supplies the design
-   tokens (--ok/--warn/--crit/--info, radius, gap, mono) and the shared
-   components (.topbar, .chip, .card, button/select, skip-link, scrollbars,
-   reduced-motion guard). This file only adds the hub's own layout, so the two
-   pages cannot disagree about what "warning" looks like.
+   tokens (--ok/--warn/--crit/--info, --gold/--gold-bg/--gold-line, the accent
+   set, radius, gap, mono) and the shared components (.topbar, .chip, .card,
+   button/select, skip-link, scrollbars, reduced-motion guard). This file only
+   adds the hub's own layout, so the two pages cannot disagree about what
+   "warning" looks like.
 
-   Colour is never the only signal: every card prints its status verbatim, and
-   the left rail is decoration for scanning rather than information.
+   The hub is a *status instrument*, not a card wall: brass (--gold) is earned
+   by the one thing this project actually trusts — a verified status — so it is
+   sparse. Cyan (--accent) is action; the status four are status, never
+   repurposed. Colour is never the only signal: every card prints its status
+   and its verified/not-verified prose in words.
    ========================================================================== */
 
 /* The console's <main> is a 12-column dashboard grid. The hub is a document,
@@ -16,210 +20,606 @@
 .hub {
   display: block;
   grid-template-columns: none;
-  max-width: 1320px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 14px 16px 32px;
+  padding: 20px 20px 40px;
 }
 
-/* --- what this page is ---------------------------------------------------- */
-.hub-intro { margin-bottom: 14px; }
+/* --- wordmark ----------------------------------------------------------- */
+/* The one place brass is always on: this is the machine, not a data point.
+   Uppercase as a wordmark, not as an eyebrow label. */
+.brand h1 {
+  color: var(--gold);
+  letter-spacing: 0.12em;
+}
+
+/* --- what this page is -------------------------------------------------- */
+.hub-intro {
+  margin-bottom: 16px;
+}
 .hub-intro > h2 {
-  margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .12em;
-  text-transform: uppercase; color: var(--muted);
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  /* Overrides the shared .card > h2 eyebrow so a section title reads as a
+     title, not a tracked-out ALL-CAPS label. */
+  text-transform: none;
 }
-.hub-intro p { margin: 0 0 8px; color: var(--text); }
-.hub-intro p:last-child { margin-bottom: 0; }
-.hub-fine { color: var(--muted); font-size: 12px; }
-.hub-intro code, .hub-foot code {
-  font-family: var(--mono); font-size: 12px;
-  background: var(--bg-2); border: 1px solid var(--line);
-  border-radius: 4px; padding: 1px 5px;
+.hub-intro p {
+  margin: 0 0 8px;
+  color: var(--text);
+  max-width: 76ch;
+}
+.hub-intro p:last-child {
+  margin-bottom: 0;
+}
+.hub-fine {
+  color: var(--muted);
+  font-size: 12px;
+}
+.hub-intro code,
+.hub-foot code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* --- start here ------------------------------------------------------------- */
+/* --- status key --------------------------------------------------------- */
+/* A gauge legend rendered from the live payload: one segment per status class
+   actually present, counts and all. Hairline rules between segments read like
+   an instrument face; the "verified" segment (AVAILABLE) is brass because
+   brass is the proof colour and proof is the only thing this page celebrates. */
+#hub-status-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 18px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.sk-cell {
+  flex: 1 1 auto;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-right: 1px solid var(--hairline);
+}
+.sk-cell:last-child {
+  border-right: 0;
+}
+.sk-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.sk-count {
+  font: 650 22px/1 var(--mono);
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.sk-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sk-label b {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.sk-label small {
+  font-size: 10px;
+  color: var(--dim);
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+/* Verified is brass, not green: green reports a *state*, brass reports *proof*.
+   The status four still carry the chips below — this is a legend, not a chip. */
+.sk-cell.ok {
+  background: var(--gold-bg);
+}
+.sk-cell.ok .sk-dot {
+  background: var(--gold);
+}
+.sk-cell.ok .sk-count {
+  color: var(--gold);
+}
+.sk-cell.ok .sk-label b {
+  color: var(--gold);
+}
+.sk-cell.ok .sk-label small {
+  color: var(--gold);
+}
+/* Decoration mirrors the status chip colours; the text stays neutral. */
+.sk-cell.warn .sk-dot {
+  background: var(--warn);
+}
+.sk-cell.crit .sk-dot {
+  background: var(--crit);
+}
+.sk-cell.info .sk-dot {
+  background: var(--info);
+}
+
+/* --- start here --------------------------------------------------------- */
 /* The "how do I actually run this" card. It sits above the filters because it
    is the first thing somebody opening the hub needs, and it is generated from
    the registry rather than typed into the HTML so a command cannot go stale. */
-.hub-start { margin-bottom: 14px; }
+.hub-start {
+  margin-bottom: 16px;
+}
 .hub-start > h2 {
-  margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .12em;
-  text-transform: uppercase; color: var(--muted);
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-transform: none;
 }
 .hub-steps {
-  margin: 0 0 10px; padding-left: 20px; color: var(--text); font-size: 13px;
+  margin: 0 0 10px;
+  padding-left: 22px;
+  color: var(--text);
+  font-size: 13px;
   line-height: 1.7;
 }
-.hub-start .sub-h { margin-top: 14px; }
+.hub-start .sub-h {
+  margin-top: 16px;
+}
 .hub-start code {
-  font-family: var(--mono); font-size: 12px;
-  background: var(--card-2); border: 1px solid var(--line);
-  border-radius: 4px; padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
 }
 .hub-demos {
-  display: grid; gap: 8px; margin-top: 8px;
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
   grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
 }
 .hub-demo {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 12px; border: 1px solid var(--line);
-  border-radius: 8px; background: var(--card-2);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-2);
+  transition: border-color var(--dur) var(--ease);
 }
-.hub-demo-text { flex: 1 1 auto; min-width: 0; }
+.hub-demo:hover {
+  border-color: var(--accent-line);
+}
+.hub-demo-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .hub-demo-head {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
 }
-.hub-demo-head strong { font-size: 13px; }
+.hub-demo-head strong {
+  font-size: 13px;
+}
 /* The command is the payload of this row, so it gets monospace and wraps
    rather than overflowing on a phone. */
 .hub-cmd {
-  display: block; font-family: var(--mono); font-size: 11.5px;
-  color: var(--accent); background: var(--bg-2);
-  border: 1px solid var(--line); border-radius: 5px;
-  padding: 5px 7px; overflow-wrap: anywhere; user-select: all;
+  display: block;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--accent);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 8px;
+  overflow-wrap: anywhere;
+  user-select: all;
 }
-.hub-demo .app-desc { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); }
+.hub-demo .app-desc {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
 .hub-copy {
-  flex: 0 0 auto; align-self: flex-start; font-size: 11px; padding: 5px 10px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  font-size: 11px;
+  padding: 5px 10px;
 }
-.hub-copy.copied { border-color: var(--ok); color: var(--ok); }
-.hub-copy.copy-failed { border-color: var(--crit); color: var(--crit); }
+.hub-copy.copied {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.hub-copy.copy-failed {
+  border-color: var(--crit);
+  color: var(--crit);
+}
 
 /* Troubleshooting. Collapsed by default so it does not compete with the task,
    but it is IN the page rather than only in the README: someone staring at a
    dead link needs the answer where they are looking, not in another file. */
 .hub-help {
-  margin-top: 12px; border: 1px solid var(--line);
-  border-radius: 8px; background: var(--card-2);
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-2);
 }
 .hub-help > summary {
-  padding: 8px 12px; cursor: pointer; font-size: 12px; font-weight: 600;
-  color: var(--muted); list-style-position: inside;
+  padding: 9px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  list-style-position: inside;
 }
-.hub-help > summary:hover { color: var(--text); }
-.hub-help[open] > summary { border-bottom: 1px solid var(--line); }
-.hub-help .kv { padding: 10px 12px; margin: 0; }
-.hub-help dt { color: var(--warn); }
+.hub-help > summary:hover {
+  color: var(--text);
+}
+.hub-help[open] > summary {
+  border-bottom: 1px solid var(--hairline);
+}
+.hub-help .kv {
+  padding: 10px 14px;
+  margin: 0;
+}
+.hub-help dt {
+  color: var(--warn);
+}
 .hub-help dd {
-  font-family: inherit; margin-bottom: 8px; line-height: 1.55;
+  font-family: inherit;
+  margin-bottom: 8px;
+  line-height: 1.55;
 }
-.hub-help dd:last-child { margin-bottom: 0; }
+.hub-help dd:last-child {
+  margin-bottom: 0;
+}
 .hub-help code {
-  font-family: var(--mono); font-size: 11.5px;
-  background: var(--bg-2); border: 1px solid var(--line);
-  border-radius: 4px; padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
 }
 
-/* --- filters -------------------------------------------------------------- */
+/* --- filters ------------------------------------------------------------ */
 .hub-controls {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 10px 12px; margin-bottom: 14px;
-  background: var(--bg-2); border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
+  position: sticky;
+  top: 8px;
+  z-index: 10;
 }
-.filters { display: flex; flex-wrap: wrap; gap: 6px; }
-.filter-btn { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
-.filter-btn .n { color: var(--dim); font-weight: 500; }
-.field { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
-.field > span { color: var(--dim); text-transform: uppercase; font-size: 10px; letter-spacing: .08em; }
-.hub-show { cursor: pointer; }
-.hub-show input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
-.hub-hint { margin: 0 0 0 auto; color: var(--muted); font-size: 12px; }
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.filter-btn {
+  font-size: 11px;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.03em;
+}
+.filter-btn .n {
+  color: var(--dim);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.field > span {
+  color: var(--dim);
+  font-variant-caps: all-small-caps;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.hub-show {
+  cursor: pointer;
+}
+.hub-show input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.hub-hint {
+  margin: 0 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
 
 /* --- category groups ------------------------------------------------------ */
-.group { margin-bottom: 18px; }
-.group > h2 {
-  display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
-  font-size: 11px; font-weight: 700; letter-spacing: .12em;
-  text-transform: uppercase; color: var(--muted);
+.group {
+  margin-bottom: 22px;
 }
+.group > h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+/* A quiet brass tick instead of a cyan bar: the copper rule is the instrument
+   marking, not a safety colour borrowed for decoration. */
 .group > h2::before {
-  content: ""; width: 3px; height: 14px; border-radius: 2px;
-  background: var(--accent);
+  content: "";
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--gold);
 }
 .group > h2 .count {
-  color: var(--dim); font-weight: 500; letter-spacing: 0; text-transform: none;
+  color: var(--dim);
+  font-weight: 500;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .grid {
-  display: grid; gap: var(--gap);
-  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 
 /* --- application card ----------------------------------------------------- */
-.app-card { gap: 8px; border-left-width: 3px; }
-.app-card.s-ok   { border-left-color: var(--ok); }
-.app-card.s-warn { border-left-color: var(--warn); }
-.app-card.s-crit { border-left-color: var(--crit); }
-.app-card.s-info { border-left-color: var(--info); }
-.app-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.app-head h3 { margin: 0; font-size: 14px; letter-spacing: .01em; }
-.app-desc { margin: 0; color: var(--text); font-size: 12.5px; line-height: 1.55; }
-.app-detail { margin: 0; color: var(--warn); font-size: 11.5px; }
-.app-detail.s-ok { color: var(--muted); }
+/* Refined: a 1px border and a thin 3px status edge on the left — hierarchy,
+   not a heavy rail. The card lifts on hover with the shared accent edge. */
+.app-card {
+  gap: 10px;
+  border-left-width: 3px;
+}
+.app-card.s-ok {
+  border-left-color: var(--ok);
+}
+.app-card.s-warn {
+  border-left-color: var(--warn);
+}
+.app-card.s-crit {
+  border-left-color: var(--crit);
+}
+.app-card.s-info {
+  border-left-color: var(--info);
+}
+/* Verified is brass: a faint ring and brass title. The prose ("Verified working
+   in this build.") is still printed, so brass is not the only signal. */
+.app-card.verified {
+  border-color: var(--gold-line);
+}
+.app-card.verified .app-head h3 {
+  color: var(--gold);
+}
+.app-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.app-head h3 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  font-weight: 650;
+}
+.app-desc {
+  margin: 0;
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.app-detail {
+  margin: 0;
+  color: var(--warn);
+  font-size: 11.5px;
+}
+.app-detail.s-ok {
+  color: var(--muted);
+}
 .app-meta {
-  display: grid; grid-template-columns: auto 1fr; gap: 2px 10px;
-  margin: 2px 0 0; font-size: 11px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  margin: 2px 0 0;
+  font-size: 11px;
 }
 .app-meta dt {
-  color: var(--dim); text-transform: uppercase; letter-spacing: .07em;
-  font-size: 10px; padding-top: 1px;
+  color: var(--dim);
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  padding-top: 1px;
 }
-.app-meta dd { margin: 0; color: var(--text); font-family: var(--mono); word-break: break-all; }
-.app-meta dd.plain { font-family: inherit; }
-.app-reason { color: var(--muted); font-size: 11px; margin: 0; }
-.app-flags { display: flex; gap: 6px; flex-wrap: wrap; margin: 0; }
+.app-meta dd {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--mono);
+  word-break: break-all;
+  font-variant-numeric: tabular-nums;
+}
+.app-meta dd.plain {
+  font-family: inherit;
+  font-variant-numeric: normal;
+}
+.app-reason {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0;
+}
+.app-flags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+}
 .flag {
-  font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 7px;
 }
-.flag.warn { color: var(--warn); border-color: var(--warn-line); }
-.app-actions { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; align-items: center; }
-/* The primary action. Text colour comes from --on-accent because the accent is
-   dark in light mode: the hardcoded #04121a here was near-black text on a dark
-   teal button, which is how this looked fine before and unreadable after. */
+.flag.warn {
+  color: var(--warn);
+  border-color: var(--warn-line);
+}
+.app-actions {
+  margin-top: auto;
+  padding-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+/* The primary action stays cyan: cyan is action, brass is proof, and the two
+   never trade jobs. Text colour comes from --on-accent because the accent is
+   dark in light mode. */
 .app-open {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; border-radius: 6px; text-decoration: none;
-  font-size: 12px; font-weight: 600; color: var(--on-accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--on-accent);
   background: var(--accent);
-  transition: background-color .18s ease, transform .1s ease, box-shadow .18s ease;
+  transition:
+    background-color var(--dur) var(--ease),
+    transform 0.1s var(--ease),
+    box-shadow var(--dur) var(--ease);
 }
-.app-open:hover { background: var(--accent-hover); box-shadow: var(--shadow-lift); }
-.app-open:active { transform: translateY(1px); }
+.app-open:hover {
+  background: var(--accent-hover);
+  box-shadow: var(--shadow-lift);
+}
+.app-open:active {
+  transform: translateY(1px);
+}
 /* A card with no URL is not a link at all. Saying "no interface" is the point:
    a dead link would read as a broken application. */
-.app-none { color: var(--dim); font-size: 11.5px; font-style: italic; }
+.app-none {
+  color: var(--dim);
+  font-size: 11.5px;
+  font-style: italic;
+}
 
 /* --- messages + footer ---------------------------------------------------- */
 /* The failure banner. A hardcoded dark red stayed dark red on a white page; it
    now uses the same crit tokens as every other critical state. */
 .hub-banner {
-  margin: 12px 16px 0; padding: 10px 12px; border-radius: var(--radius);
-  background: var(--crit-bg); border: 1px solid var(--crit-line);
-  color: var(--crit); font-size: 12.5px;
+  margin: 12px 16px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--crit-bg);
+  border: 1px solid var(--crit-line);
+  color: var(--crit);
+  font-size: 12.5px;
 }
 .hub-empty {
-  padding: 18px; text-align: center; color: var(--muted);
-  border: 1px dashed var(--line); border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
 }
 .hub-foot {
-  max-width: 1320px; margin: 0 auto; padding: 0 16px 28px;
-  color: var(--dim); font-size: 11.5px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px 28px;
+  color: var(--dim);
+  font-size: 11.5px;
 }
-.hub-foot p { margin: 4px 0; }
+.hub-foot p {
+  margin: 4px 0;
+}
+.hub-foot .mono {
+  font-variant-numeric: tabular-nums;
+}
 
 /* Freshness chip. A poll that failed must not look like a poll that worked. */
-.chip.stale { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
-.chip.stale .dot { background: var(--warn); }
-.chip.dead  { color: var(--crit); border-color: var(--crit-line); background: var(--crit-bg); }
-.chip.dead  .dot { background: var(--crit); }
+.chip.stale {
+  color: var(--warn);
+  border-color: var(--warn-line);
+  background: var(--warn-bg);
+}
+.chip.stale .dot {
+  background: var(--warn);
+}
+.chip.dead {
+  color: var(--crit);
+  border-color: var(--crit-line);
+  background: var(--crit-bg);
+}
+.chip.dead .dot {
+  background: var(--crit);
+}
+
+/* Numbers read like a gauge cluster. */
+.hub .chip {
+  font-variant-numeric: tabular-nums;
+}
 
 @media (max-width: 720px) {
-  .hub-hint { margin-left: 0; }
-  .grid { grid-template-columns: 1fr; }
+  .hub-hint {
+    margin-left: 0;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
   /* The demo grid collapses to one column and the copy button drops below the
      command, so a phone is not a 420px-wide command with a clipped button. */
-  .hub-demos { grid-template-columns: 1fr; }
-  .hub-demo { flex-direction: column; }
-  .hub-copy { align-self: stretch; }
+  .hub-demos {
+    grid-template-columns: 1fr;
+  }
+  .hub-demo {
+    flex-direction: column;
+  }
+  .hub-copy {
+    align-self: stretch;
+  }
+  /* The status key stacks into a single column of hairlines. */
+  .sk-cell {
+    border-right: 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .sk-cell:last-child {
+    border-bottom: 0;
+  }
 }

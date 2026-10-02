@@ -25,25 +25,27 @@ var HUB = {
   payload: null,
   lastOk: 0,
   failed: false,
-  filter: { category: "ALL", platform: "ALL", onlyOpen: false }
+  filter: { category: "ALL", platform: "ALL", onlyOpen: false },
 };
 
 /* Status → chip colour. Decoration only: the status TEXT is always rendered,
    so a colour-blind operator (or a bright factory floor) loses nothing. */
 var STATUS_CLASS = {
-  "AVAILABLE": "ok",
-  "MOCK": "warn",
-  "PARTIAL": "warn",
+  AVAILABLE: "ok",
+  MOCK: "warn",
+  PARTIAL: "warn",
   "HARDWARE REQUIRED": "warn",
   "BUILD NOT AVAILABLE": "warn",
   "NOT INSTALLED": "warn",
-  "DEVELOPMENT": "warn",
+  DEVELOPMENT: "warn",
   "COMING SOON": "warn",
-  "OFFLINE": "crit"
+  OFFLINE: "crit",
 };
 
 /* -- tiny DOM helpers (same shape as the console's) ----------------------- */
-function $(id) { return document.getElementById(id); }
+function $(id) {
+  return document.getElementById(id);
+}
 function el(tag, cls, text) {
   var n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -52,11 +54,17 @@ function el(tag, cls, text) {
 }
 function clockAt(ms) {
   var d = new Date(ms);
-  return String(d.getHours()).padStart(2, "0") + ":" +
-         String(d.getMinutes()).padStart(2, "0") + ":" +
-         String(d.getSeconds()).padStart(2, "0");
+  return (
+    String(d.getHours()).padStart(2, "0") +
+    ":" +
+    String(d.getMinutes()).padStart(2, "0") +
+    ":" +
+    String(d.getSeconds()).padStart(2, "0")
+  );
 }
-function statusClass(status) { return STATUS_CLASS[status] || "info"; }
+function statusClass(status) {
+  return STATUS_CLASS[status] || "info";
+}
 function titleCase(s) {
   return String(s || "").replace(/(^|[\s-_])([a-z])/g, function (m, a, b) {
     return (a ? " " : "") + b.toUpperCase();
@@ -73,6 +81,10 @@ function metaRow(dl, label, value, plain) {
 function card(app) {
   var cls = statusClass(app.status);
   var node = el("article", "card app-card s-" + cls);
+  /* Brass marks the one thing this page celebrates: a verified (AVAILABLE)
+     status. Colour is added, never substituted for -- the status text and its
+     detail prose are still printed in words. */
+  if (cls === "ok") node.classList.add("verified");
   /* Machine-readable hooks, so the DOM itself states why a card looks the way
      it does — a test (or a curious operator) can read the reason without
      parsing prose. */
@@ -92,7 +104,9 @@ function card(app) {
 
   node.appendChild(el("p", "app-desc", app.description || ""));
   if (app.detail) {
-    node.appendChild(el("p", "app-detail" + (cls === "ok" ? " s-ok" : ""), app.detail));
+    node.appendChild(
+      el("p", "app-detail" + (cls === "ok" ? " s-ok" : ""), app.detail),
+    );
   }
 
   var flags = el("p", "app-flags");
@@ -102,8 +116,10 @@ function card(app) {
     flags.appendChild(el("span", "flag", "read-only"));
   }
   if (app.requires_robot) flags.appendChild(el("span", "flag", "needs robot"));
-  if (app.requires_camera) flags.appendChild(el("span", "flag", "needs camera"));
-  if (app.requires_hardware) flags.appendChild(el("span", "flag", "needs hardware"));
+  if (app.requires_camera)
+    flags.appendChild(el("span", "flag", "needs camera"));
+  if (app.requires_hardware)
+    flags.appendChild(el("span", "flag", "needs hardware"));
   node.appendChild(flags);
 
   var dl = el("dl", "app-meta");
@@ -153,8 +169,14 @@ function copyText(text, button) {
   // may not have it. The textarea fallback is what actually works on a Pi over
   // http, which is the deployment this project targets.
   if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(text).then(function () { done(true); },
-                                              function () { fallback(text, done); });
+    navigator.clipboard.writeText(text).then(
+      function () {
+        done(true);
+      },
+      function () {
+        fallback(text, done);
+      },
+    );
   } else {
     fallback(text, done);
   }
@@ -171,7 +193,11 @@ function fallback(text, done) {
   document.body.appendChild(ta);
   ta.select();
   var ok = false;
-  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  try {
+    ok = document.execCommand("copy");
+  } catch (e) {
+    ok = false;
+  }
   document.body.removeChild(ta);
   done(ok);
 }
@@ -182,8 +208,13 @@ function demoRow(app) {
   var head = el("div", "hub-demo-head");
   head.appendChild(el("strong", null, app.name));
   // The status is printed, not just coloured, for the same reason as the cards.
-  head.appendChild(el("span", "flag " + (statusClass(app.status) === "ok" ? "" : "warn"),
-                      app.status));
+  head.appendChild(
+    el(
+      "span",
+      "flag " + (statusClass(app.status) === "ok" ? "" : "warn"),
+      app.status,
+    ),
+  );
   text.appendChild(head);
   var code = el("code", "hub-cmd", app.launch_command);
   text.appendChild(code);
@@ -194,7 +225,9 @@ function demoRow(app) {
   var btn = el("button", "hub-copy", "Copy");
   btn.type = "button";
   btn.setAttribute("aria-label", "Copy the command for " + app.name);
-  btn.addEventListener("click", function () { copyText(app.launch_command, btn); });
+  btn.addEventListener("click", function () {
+    copyText(app.launch_command, btn);
+  });
   row.appendChild(btn);
   return row;
 }
@@ -209,18 +242,26 @@ function renderDemos(payload) {
   if (!demos.length) {
     // Say so rather than showing an empty box: no demos is a real, visible
     // state of this repository, not a rendering failure.
-    host.appendChild(el("p", "hub-empty",
-      "No runnable demos are registered in config/applications.yaml."));
+    host.appendChild(
+      el(
+        "p",
+        "hub-empty",
+        "No runnable demos are registered in config/applications.yaml.",
+      ),
+    );
     return;
   }
-  demos.forEach(function (a) { host.appendChild(demoRow(a)); });
+  demos.forEach(function (a) {
+    host.appendChild(demoRow(a));
+  });
 }
 
 /* -- filtering ------------------------------------------------------------- */
 function matches(app) {
   var f = HUB.filter;
   if (f.category !== "ALL" && app.category !== f.category) return false;
-  if (f.platform !== "ALL" && (app.platforms || []).indexOf(f.platform) < 0) return false;
+  if (f.platform !== "ALL" && (app.platforms || []).indexOf(f.platform) < 0)
+    return false;
   if (f.onlyOpen && !app.url) return false;
   return true;
 }
@@ -235,7 +276,8 @@ function platformList(apps) {
     });
   });
   seen.sort(function (a, b) {
-    var ia = PLATFORM_ORDER.indexOf(a), ib = PLATFORM_ORDER.indexOf(b);
+    var ia = PLATFORM_ORDER.indexOf(a),
+      ib = PLATFORM_ORDER.indexOf(b);
     if (ia < 0) ia = PLATFORM_ORDER.length;
     if (ib < 0) ib = PLATFORM_ORDER.length;
     return ia - ib || a.localeCompare(b);
@@ -256,14 +298,19 @@ function renderFilters(payload) {
   host.textContent = "";
   var all = [["ALL", "All", apps.length]];
   cats.forEach(function (c) {
-    var n = apps.filter(function (a) { return a.category === c; }).length;
+    var n = apps.filter(function (a) {
+      return a.category === c;
+    }).length;
     all.push([c, titleCase(c), n]);
   });
   all.forEach(function (entry) {
     var b = el("button", "filter-btn");
     b.type = "button";
     b.setAttribute("data-cat", entry[0]);
-    b.setAttribute("aria-pressed", HUB.filter.category === entry[0] ? "true" : "false");
+    b.setAttribute(
+      "aria-pressed",
+      HUB.filter.category === entry[0] ? "true" : "false",
+    );
     b.appendChild(el("span", null, entry[1] + " "));
     b.appendChild(el("span", "n", entry[2]));
     b.addEventListener("click", function () {
@@ -289,10 +336,56 @@ function renderFilters(payload) {
   sel.value = HUB.filter.platform;
 }
 
+/* -- status key (the instrument's legend) ---------------------------------- */
+/* One segment per status class actually present in the payload, so the band is
+   a legend of *this* run rather than a static key with empty segments. The
+   AVAILABLE segment takes the brass "verified" treatment; every segment keeps a
+   text label, so the colour is never the only signal. */
+var STATUS_LABELS = {
+  ok: "online",
+  warn: "needs attention",
+  crit: "offline",
+  info: "no live data",
+};
+
+function renderStatusKey(payload) {
+  var host = $("hub-status-key");
+  if (!host) return;
+  host.textContent = "";
+  var apps = payload.applications || [];
+  /* Order is fixed (verified → attention → offline → info), and empty classes
+     are dropped so the band is not full of zero-count segments. */
+  var key = [
+    ["ok", "VERIFIED"],
+    ["warn", "ATTENTION"],
+    ["crit", "OFFLINE"],
+    ["info", "OTHER"],
+  ];
+  var counts = {};
+  apps.forEach(function (a) {
+    var c = statusClass(a.status);
+    counts[c] = (counts[c] || 0) + 1;
+  });
+  key.forEach(function (entry) {
+    var cls = entry[0];
+    if (!counts[cls]) return;
+    var cell = el("div", "sk-cell " + cls);
+    var dot = el("span", "sk-dot");
+    cell.appendChild(dot);
+    cell.appendChild(el("span", "sk-count", counts[cls]));
+    var label = el("div", "sk-label");
+    label.appendChild(el("b", null, entry[1]));
+    label.appendChild(el("small", null, STATUS_LABELS[cls]));
+    cell.appendChild(label);
+    host.appendChild(cell);
+  });
+}
+
 /* -- rendering ------------------------------------------------------------- */
 function render() {
   var payload = HUB.payload;
   if (!payload) return;
+  renderStatusKey(payload);
   renderFilters(payload);
   // Demos live in the Start-here card, outside the filtered grid: they are the
   // "how do I run this" answer, so they must not disappear when the operator
@@ -308,26 +401,31 @@ function render() {
     var inCat = (payload.applications || []).filter(function (a) {
       return a.category === cat && matches(a);
     });
-    if (!inCat.length) return;  /* no empty headings, ever */
+    if (!inCat.length) return; /* no empty headings, ever */
     var section = el("section", "group");
     section.setAttribute("data-category", cat);
     var h = el("h2", null, titleCase(cat) + " ");
     h.appendChild(el("span", "count", inCat.length));
     section.appendChild(h);
     var grid = el("div", "grid");
-    inCat.forEach(function (app) { grid.appendChild(card(app)); });
+    inCat.forEach(function (app) {
+      grid.appendChild(card(app));
+    });
     section.appendChild(grid);
     groups.appendChild(section);
     shown += inCat.length;
   });
 
   $("hub-empty").hidden = shown > 0;
-  $("hub-count-text").textContent = String(payload.count === undefined
-    ? total : payload.count);
-  $("hub-hint").textContent = shown === total
-    ? total + " interface" + (total === 1 ? "" : "s")
-    : "showing " + shown + " of " + total;
-  $("hub-stamp").textContent = "source GET /applications/state \u00b7 last read " +
+  $("hub-count-text").textContent = String(
+    payload.count === undefined ? total : payload.count,
+  );
+  $("hub-hint").textContent =
+    shown === total
+      ? total + " interface" + (total === 1 ? "" : "s")
+      : "showing " + shown + " of " + total;
+  $("hub-stamp").textContent =
+    "source GET /applications/state \u00b7 last read " +
     (HUB.lastOk ? clockAt(HUB.lastOk) : "\u2014");
   paintFreshness();
 }
@@ -351,7 +449,9 @@ function note(msg) {
 
 /* -- read: GET only -------------------------------------------------------- */
 function load() {
-  return fetch("/applications/state", { headers: { "Accept": "application/json" } })
+  return fetch("/applications/state", {
+    headers: { Accept: "application/json" },
+  })
     .then(function (res) {
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
@@ -365,13 +465,19 @@ function load() {
     })
     .catch(function (err) {
       HUB.failed = true;
-      note("Could not read /applications/state (" + err.message + "). " +
-        (HUB.lastOk
-          ? "The cards below are from the last successful read at " +
-            clockAt(HUB.lastOk) + " \u2014 they are not current."
-          : "No statuses are known, so none are shown. Nothing here is " +
-            "assumed to be working."));
-      if (HUB.lastOk) render(); else paintFreshness();
+      note(
+        "Could not read /applications/state (" +
+          err.message +
+          "). " +
+          (HUB.lastOk
+            ? "The cards below are from the last successful read at " +
+              clockAt(HUB.lastOk) +
+              " \u2014 they are not current."
+            : "No statuses are known, so none are shown. Nothing here is " +
+              "assumed to be working."),
+      );
+      if (HUB.lastOk) render();
+      else paintFreshness();
     });
 }
 
@@ -380,7 +486,9 @@ function load() {
    presentation preference, never a backend change. */
 function applyTheme() {
   var light = false;
-  try { light = localStorage.getItem("amr-theme") === "light"; } catch (e) { }
+  try {
+    light = localStorage.getItem("amr-theme") === "light";
+  } catch (e) {}
   if (!light) {
     // No explicit choice stored yet: defer to the OS, matching
     // preferredTheme() in command_center.js. Without this the two pages
@@ -388,10 +496,13 @@ function applyTheme() {
     // stored "dark" is left alone, because defaulting to light for someone who
     // deliberately picked dark is worse than the reverse mistake.
     try {
-      light = !localStorage.getItem("amr-theme") &&
-        !!(window.matchMedia &&
-           window.matchMedia("(prefers-color-scheme: light)").matches);
-    } catch (e) { }
+      light =
+        !localStorage.getItem("amr-theme") &&
+        !!(
+          window.matchMedia &&
+          window.matchMedia("(prefers-color-scheme: light)").matches
+        );
+    } catch (e) {}
   }
   light = !!light;
   document.body.classList.toggle("light", light);
@@ -401,7 +512,9 @@ function applyTheme() {
 
 /* -- boot ----------------------------------------------------------------- */
 function init() {
-  $("hub-refresh").addEventListener("click", function () { load(); });
+  $("hub-refresh").addEventListener("click", function () {
+    load();
+  });
   $("hub-platforms").addEventListener("change", function (ev) {
     HUB.filter.platform = ev.target.value;
     render();
@@ -414,7 +527,9 @@ function init() {
   if (themeBtn) {
     themeBtn.addEventListener("click", function () {
       var light = !document.body.classList.contains("light");
-      try { localStorage.setItem("amr-theme", light ? "light" : "dark"); } catch (e) { }
+      try {
+        localStorage.setItem("amr-theme", light ? "light" : "dark");
+      } catch (e) {}
       applyTheme();
     });
   }

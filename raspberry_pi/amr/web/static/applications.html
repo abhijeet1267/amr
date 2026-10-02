@@ -1,157 +1,209 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AMR Applications Hub</title>
-<!-- The hub borrows the Command Center's design tokens and components, then
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AMR Applications Hub</title>
+    <!-- The hub borrows the Command Center's design tokens and components, then
      adds its own layout. Two stylesheets rather than a copy of the palette:
      one place defines what "warning" looks like, so the two pages cannot
      drift apart. -->
-<link rel="stylesheet" href="/static/command_center.css">
-<link rel="stylesheet" href="/static/applications.css">
-</head>
-<body>
-<a class="skip-link" href="#main">Skip to main content</a>
+    <link rel="stylesheet" href="/static/command_center.css" />
+    <link rel="stylesheet" href="/static/applications.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
 
-<header class="topbar">
-  <div class="brand">
-    <h1>Applications Hub</h1>
-    <span class="sub">Every interface this AMR ships &mdash; and whether it works right now</span>
-  </div>
-  <span class="spacer"></span>
-  <span class="chip" id="hub-count"><span class="lbl">INTERFACES</span><span id="hub-count-text">&mdash;</span></span>
-  <span class="chip" id="hub-fresh"><span class="dot"></span><span id="hub-fresh-text">LOADING</span></span>
-  <span class="chip mono"><span id="hub-clock">--:--:--</span></span>
-  <button type="button" id="hub-refresh" aria-label="Reload application statuses">Refresh</button>
-  <button type="button" class="icon-btn" id="hub-theme"
-          aria-label="Toggle light and dark theme">
-    <span aria-hidden="true" id="hub-theme-icon">&#9789;</span>
-  </button>
-  <a class="icon-btn hub-link" href="/command-center"
-     title="Back to the Command Center" aria-label="Back to the Command Center">
-    <span aria-hidden="true">&#8592;</span>
-  </a>
-</header>
+    <header class="topbar">
+      <div class="brand">
+        <h1>Applications Hub</h1>
+        <span class="sub"
+          >Every interface this AMR ships &mdash; and whether it works right
+          now</span
+        >
+      </div>
+      <span class="spacer"></span>
+      <span class="chip" id="hub-count"
+        ><span class="lbl">INTERFACES</span
+        ><span id="hub-count-text">&mdash;</span></span
+      >
+      <span class="chip" id="hub-fresh"
+        ><span class="dot"></span><span id="hub-fresh-text">LOADING</span></span
+      >
+      <span class="chip mono"><span id="hub-clock">--:--:--</span></span>
+      <button
+        type="button"
+        id="hub-refresh"
+        aria-label="Reload application statuses"
+      >
+        Refresh
+      </button>
+      <button
+        type="button"
+        class="icon-btn"
+        id="hub-theme"
+        aria-label="Toggle light and dark theme"
+      >
+        <span aria-hidden="true" id="hub-theme-icon">&#9789;</span>
+      </button>
+      <a
+        class="icon-btn hub-link"
+        href="/command-center"
+        title="Back to the Command Center"
+        aria-label="Back to the Command Center"
+      >
+        <span aria-hidden="true">&#8592;</span>
+      </a>
+    </header>
 
-<!-- Failures are stated, never smoothed over: a status that could not be read
+    <!-- Failures are stated, never smoothed over: a status that could not be read
      is UNKNOWN, not "probably fine". -->
-<p class="hub-banner" id="hub-banner" role="alert" hidden></p>
+    <p class="hub-banner" id="hub-banner" role="alert" hidden></p>
 
-<main id="main" class="hub" tabindex="-1">
-  <section class="hub-intro card" aria-labelledby="hub-why">
-    <h2 id="hub-why">What this page is</h2>
-    <p>
-      A read-only directory of the interfaces in this repository, rendered from
-      <code>GET /applications/state</code>. Each card carries the status it has
-      <em>right now</em>; the declared baseline lives in
-      <code>config/applications.yaml</code>. Runtime conditions may make a
-      status worse, never better: a camera that is not attached cannot be
-      reported as a working camera.
-    </p>
-    <p class="hub-fine">
-      This page issues GET requests only. Nothing here can command the robot,
-      and a card that can command motion says so on its face.
-    </p>
-  </section>
+    <main id="main" class="hub" tabindex="-1">
+      <section class="hub-intro card" aria-labelledby="hub-why">
+        <h2 id="hub-why">What this page is</h2>
+        <p>
+          A read-only directory of the interfaces in this repository, rendered
+          from
+          <code>GET /applications/state</code>. Each card carries the status it
+          has <em>right now</em>; the declared baseline lives in
+          <code>config/applications.yaml</code>. Runtime conditions may make a
+          status worse, never better: a camera that is not attached cannot be
+          reported as a working camera.
+        </p>
+        <p class="hub-fine">
+          This page issues GET requests only. Nothing here can command the
+          robot, and a card that can command motion says so on its face.
+        </p>
+      </section>
 
-  <!-- START HERE. The commonest way to use this project is: start the server,
+      <!-- The instrument's legend: a gauge band of every status class the
+       payload actually reports, counts and all. Rendered by applications.js
+       from /applications/state, so it can never go stale against the cards
+       below it. -->
+      <section id="hub-status-key" aria-label="Interfaces by status"></section>
+
+      <!-- START HERE. The commonest way to use this project is: start the server,
        click a link. The demos below are terminal commands rather than pages, so
        they get a copy-to-clipboard button instead of a link. Both lists are
        built by applications.js from /applications/state -- nothing here is a
        hand-maintained copy of the README, which is how the two used to drift. -->
-  <section class="card hub-start" aria-labelledby="hub-start-h">
-    <h2 id="hub-start-h">Start here</h2>
-    <p class="hub-fine">
-      This page only answers while the server is running. If it loads, you are
-      already past the hard part.
-    </p>
-    <ol class="hub-steps">
-      <li>Open a terminal in the <code>raspberry_pi/</code> folder.</li>
-      <li>Run <code>python -m amr.main --mock --web</code> and leave it running.</li>
-      <li>Click a link below — this page refreshes itself as the robot changes.</li>
-    </ol>
-    <p class="hub-fine">
-      <code>--mock</code> means nothing touches real hardware. Drop both flags to
-      run against a real robot, but read the README first: the hazard and safety
-      layers are off by default and their thresholds are unverified.
-    </p>
-    <details class="hub-help">
-      <summary>Something not working?</summary>
-      <dl class="kv">
-        <dt>Blank page, link does nothing</dt>
-        <dd>The server stopped. <code>Ctrl-C</code> stops it; rerun the command
-          above and the links work again.</dd>
-        <dt>Site cannot be reached</dt>
-        <dd>You are on a different machine. Use the Pi's IP instead of
-          <code>localhost</code>, e.g. <code>http://192.168.1.42:8080/applications</code>.</dd>
-        <dt><code>No module named 'yaml'</code></dt>
-        <dd>Dependencies are not installed. Run
-          <code>pip install -e ".[dev]"</code> inside the virtualenv.</dd>
-        <dt>Port 8080 already in use</dt>
-        <dd>Start with <code>--port 8090</code> and change <code>8080</code> to
-          <code>8090</code> in the link.</dd>
-        <dt>Page looks broken or unstyled</dt>
-        <dd>Hard-refresh: <code>Ctrl-Shift-R</code>. The browser is holding an
-          older cached copy of the CSS.</dd>
-      </dl>
-    </details>
-    <h3 class="sub-h">Or run a demo in your terminal</h3>
-    <p class="hub-fine">
-      Every command below was executed and exits 0. All are mock or simulated:
-      no camera, no motors, no serial port.
-    </p>
-    <div id="hub-demos" class="hub-demos"></div>
-  </section>
+      <section class="card hub-start" aria-labelledby="hub-start-h">
+        <h2 id="hub-start-h">Start here</h2>
+        <p class="hub-fine">
+          This page only answers while the server is running. If it loads, you
+          are already past the hard part.
+        </p>
+        <ol class="hub-steps">
+          <li>Open a terminal in the <code>raspberry_pi/</code> folder.</li>
+          <li>
+            Run <code>python -m amr.main --mock --web</code> and leave it
+            running.
+          </li>
+          <li>
+            Click a link below — this page refreshes itself as the robot
+            changes.
+          </li>
+        </ol>
+        <p class="hub-fine">
+          <code>--mock</code> means nothing touches real hardware. Drop both
+          flags to run against a real robot, but read the README first: the
+          hazard and safety layers are off by default and their thresholds are
+          unverified.
+        </p>
+        <details class="hub-help">
+          <summary>Something not working?</summary>
+          <dl class="kv">
+            <dt>Blank page, link does nothing</dt>
+            <dd>
+              The server stopped. <code>Ctrl-C</code> stops it; rerun the
+              command above and the links work again.
+            </dd>
+            <dt>Site cannot be reached</dt>
+            <dd>
+              You are on a different machine. Use the Pi's IP instead of
+              <code>localhost</code>, e.g.
+              <code>http://192.168.1.42:8080/applications</code>.
+            </dd>
+            <dt><code>No module named 'yaml'</code></dt>
+            <dd>
+              Dependencies are not installed. Run
+              <code>pip install -e ".[dev]"</code> inside the virtualenv.
+            </dd>
+            <dt>Port 8080 already in use</dt>
+            <dd>
+              Start with <code>--port 8090</code> and change
+              <code>8080</code> to <code>8090</code> in the link.
+            </dd>
+            <dt>Page looks broken or unstyled</dt>
+            <dd>
+              Hard-refresh: <code>Ctrl-Shift-R</code>. The browser is holding an
+              older cached copy of the CSS.
+            </dd>
+          </dl>
+        </details>
+        <h3 class="sub-h">Or run a demo in your terminal</h3>
+        <p class="hub-fine">
+          Every command below was executed and exits 0. All are mock or
+          simulated: no camera, no motors, no serial port.
+        </p>
+        <div id="hub-demos" class="hub-demos"></div>
+      </section>
 
-  <section class="hub-controls" aria-label="Filter applications">
-    <div class="filters" id="hub-categories" role="group" aria-label="Filter by category"></div>
-    <label class="field" for="hub-platforms">
-      <span>Platform</span>
-      <select id="hub-platforms">
-        <option value="ALL">All platforms</option>
-      </select>
-    </label>
-    <label class="field hub-show" for="hub-only-open">
-      <input type="checkbox" id="hub-only-open">
-      <span>Only openable</span>
-    </label>
-    <p class="hub-hint" id="hub-hint" role="status" aria-live="polite"></p>
-  </section>
+      <section class="hub-controls" aria-label="Filter applications">
+        <div
+          class="filters"
+          id="hub-categories"
+          role="group"
+          aria-label="Filter by category"
+        ></div>
+        <label class="field" for="hub-platforms">
+          <span>Platform</span>
+          <select id="hub-platforms">
+            <option value="ALL">All platforms</option>
+          </select>
+        </label>
+        <label class="field hub-show" for="hub-only-open">
+          <input type="checkbox" id="hub-only-open" />
+          <span>Only openable</span>
+        </label>
+        <p class="hub-hint" id="hub-hint" role="status" aria-live="polite"></p>
+      </section>
 
-  <!-- One <section> per category, built by applications.js from the payload.
+      <!-- One <section> per category, built by applications.js from the payload.
        Only categories that survive the current filter are rendered, so the
        page can never show an empty heading. -->
-  <div id="hub-groups"></div>
+      <div id="hub-groups"></div>
 
-  <p class="hub-empty" id="hub-empty" hidden>
-    No interface matches this filter.
-  </p>
+      <p class="hub-empty" id="hub-empty" hidden>
+        No interface matches this filter.
+      </p>
 
-  <noscript>
-    <p class="hub-empty">
-      This hub is rendered from <code>/applications/state</code>, so it needs
-      JavaScript. The endpoint itself needs none: it returns the same directory
-      as JSON to any client that can issue a GET.
-    </p>
-  </noscript>
-</main>
+      <noscript>
+        <p class="hub-empty">
+          This hub is rendered from <code>/applications/state</code>, so it
+          needs JavaScript. The endpoint itself needs none: it returns the same
+          directory as JSON to any client that can issue a GET.
+        </p>
+      </noscript>
+    </main>
 
-<footer class="hub-foot">
-  <p>
-    Statuses are decided by <code>amr/apps/registry.py</code>, not by this page.
-    &ldquo;API &mdash; no interface&rdquo; means the entry is an endpoint rather
-    than a screen, and is deliberately not a link.
-  </p>
-  <p class="hub-nav">
-    <a href="/command-center">Command Center</a>
-    <a href="/dashboard">Monitoring dashboard</a>
-    <a href="/">Legacy control panel</a>
-    <a href="/applications/state">Raw JSON</a>
-  </p>
-  <p class="mono" id="hub-stamp">&mdash;</p>
-</footer>
+    <footer class="hub-foot">
+      <p>
+        Statuses are decided by <code>amr/apps/registry.py</code>, not by this
+        page. &ldquo;API &mdash; no interface&rdquo; means the entry is an
+        endpoint rather than a screen, and is deliberately not a link.
+      </p>
+      <p class="hub-nav">
+        <a href="/command-center">Command Center</a>
+        <a href="/dashboard">Monitoring dashboard</a>
+        <a href="/">Legacy control panel</a>
+        <a href="/applications/state">Raw JSON</a>
+      </p>
+      <p class="mono" id="hub-stamp">&mdash;</p>
+    </footer>
 
-<script src="/static/applications.js"></script>
-</body>
+    <script src="/static/applications.js"></script>
+  </body>
 </html>

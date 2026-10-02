@@ -16,6 +16,7 @@ HARDWARE REQUIRED, because no camera has ever been verified on this project.
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 import urllib.error
 import urllib.request
@@ -356,3 +357,51 @@ class TestHubDegradesHonestly:
         assert served["command_center"]["status"] == "OFFLINE"
         assert served["command_center"]["reason"] == "server-unreachable"
         mgr.shutdown()
+
+
+# --------------------------------------------------------------------------- #
+# The brass palette is real, themed, and consumed
+# --------------------------------------------------------------------------- #
+_STATIC = (
+    pathlib.Path(__file__).resolve().parent.parent / "amr" / "web" / "static"
+)
+
+
+def _declares(text: str, selector: str) -> set:
+    """Tokens declared in one top-level ``selector { ... }`` rule, brace-matched."""
+    for m in re.finditer(r"(?<![\w-])" + re.escape(selector) + r"\s*\{", text):
+        depth, i = 1, m.end()
+        while i < len(text) and depth:
+            depth += (text[i] == "{") - (text[i] == "}")
+            i += 1
+        return set(re.findall(r"(--[a-z0-9-]+)\s*:", text[m.end() : i - 1]))
+    raise AssertionError(f"selector {selector!r} not found")
+
+
+class TestBrassIsConsumed:
+    """The hub's "brass = proof" look depends on tokens that must actually
+    resolve in both themes and be used by the hub's own stylesheet.
+
+    A palette round added --gold/--gold-bg/--gold-line and then rendered none of
+    them — a measured-but-never-drawn accent, which is exactly the silent drift
+    the palette tests elsewhere are built to catch. Those guards check the
+    "consumed but never declared" direction (a typo'd ``var()``); this closes the
+    other direction: a token that is *declared* but never consumed is just as
+    invisible as one that is consumed but never declared.
+    """
+
+    def test_brass_defined_in_both_themes(self):
+        css = (_STATIC / "command_center.css").read_text(encoding="utf-8")
+        dark = _declares(css, ":root")
+        light = _declares(css, "body.light")
+        for token in ("--gold", "--gold-bg", "--gold-line"):
+            assert token in dark, f"{token} not declared in :root"
+            assert token in light, f"{token} not declared in body.light (light mode loses brass)"
+
+    def test_hub_stylesheet_consumes_brass(self):
+        hub = (_STATIC / "applications.css").read_text(encoding="utf-8")
+        assert "var(--gold)" in hub and "var(--gold-bg)" in hub, (
+            "applications.css must actually render the brass accent somewhere "
+            "(wordmark, status-key, or verified card); a declared-but-unused "
+            "--gold is the drift this guard exists to catch"
+        )

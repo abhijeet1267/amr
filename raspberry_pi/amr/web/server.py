@@ -154,6 +154,33 @@ _PALETTE_CSS = """  :root {
     --ok:#2fbf71; --warn:#e8a33d; --crit:#ef4d5a; --info:#3d8bfd;
     --accent:#22d3ee; --accent-hover:#67e8f9;
     --on-accent:#04121a;
+    /* --- the classic half of the palette ---------------------------------
+       The status four (--ok/--warn/--crit/--info) and --accent say *what an
+       operator must act on*; these two say *what a thing is*, so a console of
+       nothing but blue-on-black can carry a second and third voice without ever
+       borrowing a safety colour to do it. --gold is the heritage/brass accent:
+       brand marks, primary actions, and the "verified" emphasis. --plum is the
+       analytics accent: the third series in a chart, so multi-series telemetry
+       is not three shades of the same blue.
+
+       Both are text-bearing, so both are held to the same floor as the status
+       colours. Measured against every surface they can land on (--bg, --bg-2,
+       --card, --card-2, --well, --btn, --btn-hover, and their own tint below):
+       --gold 5.44-9.73:1, --plum 4.30-7.54:1 across both themes -- body text
+       everywhere except one decoration-adjacent pair (dark-mode --plum on
+       --btn-hover at 4.30:1, which no rule in this file renders; the darkest
+       pairing any rule actually draws is 5.11:1). */
+    --gold:#dcb35d; --plum:#c08cf0;
+    /* Tinted chip surfaces, paired with the two above exactly as the status
+       tints are paired with theirs. */
+    --gold-bg:#231c0d; --gold-line:#5c4a1d;
+    --plum-bg:#1e1733; --plum-line:#40305f;
+    /* Ambience. The page is one flat --bg everywhere else; these three washes
+       give it depth without tinting any text, so they are decoration and are
+       deliberately theme-independent in *meaning* (depth), not in value. */
+    --sheen:rgba(255,255,255,.05);
+    --glow-1:rgba(34,211,238,.13); --glow-2:rgba(61,139,253,.11);
+    --glow-3:rgba(220,179,93,.07);
     --shadow:0 1px 3px rgba(0,0,0,.2); --shadow-lift:0 4px 12px rgba(0,0,0,.3);
     /* Stages are data, not chrome: the map/twin/camera views stay dark in both
        themes so sensor imagery reads the same way everywhere. Same values as
@@ -196,6 +223,17 @@ _PALETTE_CSS = """  :root {
     --line:#d8e0ea; --text:#0f172a; --muted:#4a5a70; --dim:#5b6b80;
     --ok:#14713f; --warn:#8a5300; --crit:#b3202e; --info:#1a5fc4;
     --accent:#0e7490; --accent-hover:#0f8ba9; --on-accent:#ffffff;
+    /* The classic accents, darkened the same way the status colours are: the
+       dark-theme brass would sit at about 1.8:1 on white. These are the values
+       the guard measures, and they clear AA on every surface above. */
+    --gold:#7a5210; --plum:#6b3fa0;
+    --gold-bg:#fdf3dd; --gold-line:#dcc389;
+    --plum-bg:#f3ebfd; --plum-line:#cbb2ec;
+    /* Light-mode ambience: ink-tinted, not white-tinted -- a white wash on a
+       near-white page is invisible, which is how "depth" becomes a no-op. */
+    --sheen:rgba(15,23,42,.03);
+    --glow-1:rgba(14,116,144,.10); --glow-2:rgba(26,95,196,.08);
+    --glow-3:rgba(122,82,16,.07);
     /* Tinted, not black: shallow black shadows read as smudges on white. */
     --shadow:0 1px 3px rgba(15,23,42,.10); --shadow-lift:0 6px 18px rgba(15,23,42,.14);
     /* Light counterparts of the legacy component surfaces. --btn-warn is

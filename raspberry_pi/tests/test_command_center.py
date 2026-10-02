@@ -596,9 +596,10 @@ class TestMissionRidesTheControlLoop:
 # HTTP: faster, and they still run when the server fixture is unavailable.
 _STATIC = pathlib.Path(__file__).resolve().parent.parent / "amr" / "web" / "static"
 
-# Geometry tokens are deliberately shared between themes: spacing, radius and
-# font do not change with the background. Only colours must be restated.
-_SHARED_TOKENS = {"--gap", "--radius", "--mono"}
+# Geometry *and motion* tokens are deliberately shared between themes: spacing,
+# radius, font and easing do not change with the background. Only colours must
+# be restated. --ease/--dur are a cubic-bezier and a duration, not paint.
+_SHARED_TOKENS = {"--gap", "--radius", "--mono", "--ease", "--dur"}
 
 
 def _rule_body(text: str, selector: str) -> str:
@@ -753,6 +754,24 @@ class TestTheming:
                 f"{name} ignores the OS light/dark preference")
             assert 'localStorage.getItem("amr-theme")' in js, (
                 f"{name} does not honour the stored explicit choice")
+
+    def test_brass_is_consumed_by_the_console(self):
+        """Brass exists to mark brand and the selected view; it must be drawn.
+
+        The classic-accents palette landed with --gold/--gold-bg/--gold-line
+        declared and rendered nowhere -- a measured-but-never-drawn accent, the
+        same declared-but-unused drift ``test_every_referenced_token_is_defined``
+        catches in the other direction (a typo'd ``var()``). This pins the
+        consumption half: the wordmark, the two selected-state rules, and the
+        hairline row dividers all actually read the tokens they were given.
+        """
+        css = (_STATIC / "command_center.css").read_text(encoding="utf-8")
+        assert "color: var(--gold)" in css, "the wordmark is not brass"
+        # Both the top tab and the sidebar use brass for the selected view.
+        assert css.count("background: var(--gold-bg)") >= 2, (
+            "the selected view is not brass in both the top tab and the sidebar"
+        )
+        assert "var(--hairline)" in css, "the hairline token is declared but unused"
 
 
 
