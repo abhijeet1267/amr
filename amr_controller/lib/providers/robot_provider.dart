@@ -162,11 +162,13 @@ class RobotProvider extends ChangeNotifier {
   Future<void> _pollOnce() async {
     try {
       await Future.wait([_refreshTelemetry(), _refreshRegistry()]);
+      if (_disposed) return;
       if (connection != RobotConnectionState.connected) {
         connection = RobotConnectionState.connected;
         lastError = null;
       }
     } on RobotApiException catch (e) {
+      if (_disposed) return;
       // A dropped connection should not hammer the network with retries if the
       // operator asked for auto-reconnect: schedule one gentle re-probe and
       // back off until it succeeds.
@@ -194,12 +196,14 @@ class RobotProvider extends ChangeNotifier {
   // ----------------------------------------------------------------------
   Future<void> _refreshRegistry() async {
     final json = await _api.fetchApplications(_origin);
+    if (_disposed) return;
     registry = RegistryPayload.fromJson(json);
     notifyListeners();
   }
 
   Future<void> _refreshTelemetry() async {
     final json = await _api.fetchTelemetry(_origin);
+    if (_disposed) return;
     telemetry = TelemetryState.fromJson(json);
     notifyListeners();
   }
