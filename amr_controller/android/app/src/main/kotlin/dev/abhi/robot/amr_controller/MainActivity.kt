@@ -1,4 +1,4 @@
-package com.example.amr_controller
+package dev.abhi.robot.amr_controller
 
 import io.flutter.embedding.android.FlutterActivity
 

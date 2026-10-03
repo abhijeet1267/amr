@@ -1,0 +1,200 @@
+# Builds the AMR Controller Flutter app for the platforms that cannot be built
+# on a macOS arm64 host (Windows, Linux) plus Android, and uploads each artifact
+# as a downloadable ZIP. Every job fails the run on a real build error (there is
+# no `|| true` and no swallowed step).
+#
+# The app speaks the robot's real HTTP contract over plain http:// on the LAN;
+# the Android manifest and iOS ATS plist already grant the narrow cleartext /
+# local-network permission that requires — this workflow changes none of that.
+
+name: flutter-build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "amr_controller/**"
+      - ".github/workflows/flutter-build.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: flutter-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: "3.47.6"
+
+jobs:
+  analyze-test:
+    name: analyze + test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amr_controller
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  android:
+    name: Android APK + AAB
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amr_controller
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - run: flutter build appbundle --release
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/AMR_Controller_Android.apk
+          cp build/app/outputs/bundle/release/app-release.aab dist/AMR_Controller_Android.aab
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AMR_Controller_Android
+          path: amr_controller/dist/
+          if-no-files-found: error
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: amr_controller
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Collect artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dist/AMR_Controller_Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AMR_Controller_Windows
+          path: amr_controller/dist/AMR_Controller_Windows.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amr_controller
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build linux --release
+      - name: Collect artifact
+        run: |
+          mkdir -p dist
+          tar -czf dist/AMR_Controller_Linux.tar.gz -C build/linux/x64/release/bundle .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AMR_Controller_Linux
+          path: amr_controller/dist/AMR_Controller_Linux.tar.gz
+          if-no-files-found: error
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amr_controller
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build web --release
+      - name: Collect artifact
+        run: |
+          mkdir -p dist
+          (cd build/web && zip -r ../dist/AMR_Controller_Web.zip .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AMR_Controller_Web
+          path: amr_controller/dist/AMR_Controller_Web.zip
+          if-no-files-found: error
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: amr_controller
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Collect artifact
+        run: |
+          mkdir -p dist
+          (cd build/macos/Build/Products/Release && zip -r ../../../dist/AMR_Controller_macOS.zip "AMR Controller.app")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AMR_Controller_macOS
+          path: amr_controller/dist/AMR_Controller_macOS.zip
+          if-no-files-found: error
+
+  ios:
+    name: iOS (unsigned)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: amr_controller
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      - run: flutter pub get
+      # --no-codesign: produces the .app bundle without a signing identity.
+      # This is the maximum buildable step without Apple credentials; the IPA
+      # and device install remain gated on a signing identity.
+      - run: flutter build ios --release --no-codesign
+      - name: Collect artifact
+        run: |
+          mkdir -p dist
+          (cd build/ios/iphoneos && zip -r ../dist/AMR_Controller_iOS_unsigned.zip "Runner.app")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AMR_Controller_iOS
+          path: amr_controller/dist/AMR_Controller_iOS_unsigned.zip
+          if-no-files-found: error

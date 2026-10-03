@@ -4,5 +4,10 @@
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+	<!-- Outgoing network access is the app's job: it reaches the robot's web
+	     server over Wi-Fi/LAN. Absent this, the firewall drops every request
+	     in the sandboxed release build. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>

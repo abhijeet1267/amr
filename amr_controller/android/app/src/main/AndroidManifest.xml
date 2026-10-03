@@ -1,8 +1,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Network access is the app's entire job: it talks to the robot's web
+         server over Wi-Fi/LAN. Without INTERNET the connection screen can
+         never reach http://<ROBOT_IP>:8080. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
     <application
-        android:label="amr_controller"
+        android:label="AMR Controller"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- usesCleartextTraffic is deliberate: the robot serves plain http://
+             on the LAN (a stdlib Python server with no TLS), so a release build
+             must be permitted to open that cleartext connection or teleop and
+             telemetry silently break. This does not weaken the command path:
+             every motion command still funnels through the robot's own gated
+             RobotManager/safety layer. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
