@@ -1,0 +1,40 @@
+name: amr_controller
+description: >-
+  AMR Controller — a cross-platform operator client for the AMR smart-warehouse
+  robot. Connects over Wi-Fi/LAN to the robot's Python web server
+  (http://<ROBOT_IP>:8080) to monitor and control it from macOS, Windows,
+  Android and iOS.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # REST client for /applications/state, /telemetry, /health, /status and the
+  # command POSTs. Chosen over dio deliberately: the robot server is a stdlib
+  # HTTP server with a tiny JSON surface, so a full client library is dead
+  # weight here.
+  http: ^1.2.1
+  # State management: a single RobotProvider (ChangeNotifier) is the one place
+  # every screen reads connection state, telemetry and the app registry from.
+  provider: ^6.1.1
+  # Non-blocking loading indicators for connection probes and polling states.
+  flutter_spinkit: ^5.2.0
+  # Persistence for the saved host/port, so an operator does not retype the
+  # robot's address every launch. First-party (flutter.dev), no platform
+  # channels to hand-wire.
+  shared_preferences: ^2.2.2
+  # Opens a card's URL in the platform browser. First-party (flutter.dev).
+  url_launcher: ^6.2.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
