@@ -6,6 +6,12 @@
 // robot's speed range. A stop accompanies every release so a dropped drag can
 // never leave the robot driving.
 //
+// The robot boots in IDLE and refuses motion ("motion not allowed in mode
+// IDLE", HTTP 400) until the operator selects MANUAL — so a mode selector
+// (Idle / Manual / Autonomous) sits above the stick, mirroring the web panel's
+// mode buttons. After an E-STOP (SAFETY_STOP) the state machine only accepts a
+// reset back to IDLE; the chip + hint make that two-step release visible.
+//
 // E-STOP is guarded (long-press to arm, then a confirm) and, like the shell, is
 // replicated here in a banner so it is reachable the moment this screen is
 // visible, even if the operator never opens the drawer.
@@ -45,6 +51,17 @@ class _TeleopScreenState extends State<TeleopScreen> {
       _lastFeedback = ok
           ? '$cmd ok'
           : '${provider.lastCommandError ?? 'command failed'}';
+    });
+  }
+
+  Future<void> _setMode(String mode) async {
+    final provider = context.read<RobotProvider>();
+    final ok = await provider.command('mode', mode: mode);
+    if (!mounted) return;
+    setState(() {
+      _lastFeedback = ok
+          ? 'mode -> $mode'
+          : '${provider.lastCommandError ?? 'mode change failed'}';
     });
   }
 
@@ -105,7 +122,12 @@ class _TeleopScreenState extends State<TeleopScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _TelemetryStrip(telemetry: telemetry),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
+                  _ModeSelector(
+                    current: telemetry?.mode,
+                    onSelect: _setMode,
+                  ),
+                  const SizedBox(height: 16),
                   Text(
                     _lastFeedback ?? 'Drive the robot',
                     textAlign: TextAlign.center,
@@ -151,6 +173,56 @@ class _ModeChip extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+/// The Idle / Manual / Autonomous selector, mirroring the web panel's mode
+/// buttons and the robot's `RobotMode` state machine. The current mode is
+/// highlighted; selecting a mode POSTs `/command {cmd:"mode", mode:<lowercase>}`.
+/// Motion needs MANUAL or AUTONOMOUS, so the hint names the actual blocker
+/// (mirroring the robot's "motion not allowed in mode X" refusal).
+class _ModeSelector extends StatelessWidget {
+  const _ModeSelector({required this.current, required this.onSelect});
+  final String? current;
+  final void Function(String mode) onSelect;
+
+  static const _modes = ['idle', 'manual', 'autonomous'];
+
+  @override
+  Widget build(BuildContext context) {
+    final currentLower = (current ?? '').toLowerCase();
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppPalette.surface,
+        border: Border.all(color: AppPalette.line),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          for (final m in _modes) ...[
+            Expanded(
+              child: TextButton(
+                onPressed: () => onSelect(m),
+                style: TextButton.styleFrom(
+                  backgroundColor: currentLower == m
+                      ? AppPalette.gold
+                      : Colors.transparent,
+                  foregroundColor: currentLower == m
+                      ? AppPalette.onAccent
+                      : AppPalette.muted,
+                ),
+                child: Text(
+                  m[0].toUpperCase() + m.substring(1),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            if (m != _modes.last) const SizedBox(width: 4),
+          ],
+        ],
       ),
     );
   }

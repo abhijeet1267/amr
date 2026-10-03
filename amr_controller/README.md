@@ -57,6 +57,11 @@ Two honesty notes carried straight from the robot's own docs:
 - **Desktop (macOS/Windows):** `NavigationRail` split view — Applications,
   Teleop, Connection.
 - **Mobile (Android/iOS):** bottom `NavigationBar` with the same destinations.
+- **Teleop** has an **Idle / Manual / Autonomous** selector above the stick,
+  mirroring the web panel: the robot boots in `IDLE` and refuses motion until
+  the operator selects `MANUAL`, and after an E-STOP its state machine only
+  accepts a reset back to `IDLE` — the selector and its feedback make that
+  two-step release visible.
 - The **E-STOP** is reachable from the Teleop screen at all times (long-press
   to arm, release to fire) and every motion command is confirmed with a
   readable result.
