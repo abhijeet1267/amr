@@ -50,7 +50,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
     setState(() {
       _lastFeedback = ok
           ? '$cmd ok'
-          : '${provider.lastCommandError ?? 'command failed'}';
+          : provider.lastCommandError ?? 'command failed';
     });
   }
 
@@ -61,7 +61,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
     setState(() {
       _lastFeedback = ok
           ? 'mode -> $mode'
-          : '${provider.lastCommandError ?? 'mode change failed'}';
+          : provider.lastCommandError ?? 'mode change failed';
     });
   }
 

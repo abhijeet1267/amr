@@ -134,7 +134,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                       : provider.connectionDetail,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: provider.connection == ConnectionState.error
+                    color: provider.connection == RobotConnectionState.error
                         ? AppPalette.crit
                         : AppPalette.muted,
                   ),
@@ -151,15 +151,15 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 class _ConnectionBadge extends StatelessWidget {
   const _ConnectionBadge({required this.state});
 
-  final ConnectionState state;
+  final RobotConnectionState state;
 
   @override
   Widget build(BuildContext context) {
     final (color, icon, label) = switch (state) {
-      ConnectionState.connected => (AppPalette.ok, Icons.check_circle, 'Connected'),
-      ConnectionState.connecting => (AppPalette.info, Icons.sync, 'Connecting…'),
-      ConnectionState.error => (AppPalette.crit, Icons.error_outline, 'Disconnected'),
-      ConnectionState.disconnected => (AppPalette.muted, Icons.circle_outlined, 'Disconnected'),
+      RobotConnectionState.connected => (AppPalette.ok, Icons.check_circle, 'Connected'),
+      RobotConnectionState.connecting => (AppPalette.info, Icons.sync, 'Connecting…'),
+      RobotConnectionState.error => (AppPalette.crit, Icons.error_outline, 'Disconnected'),
+      RobotConnectionState.disconnected => (AppPalette.muted, Icons.circle_outlined, 'Disconnected'),
     };
 
     return Container(

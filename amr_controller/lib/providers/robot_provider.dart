@@ -18,7 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_state.dart';
 import '../services/robot_api_service.dart';
 
-enum ConnectionState { disconnected, connecting, connected, error }
+enum RobotConnectionState { disconnected, connecting, connected, error }
 
 class RobotProvider extends ChangeNotifier {
   RobotProvider({RobotApiService? api}) : _api = api ?? RobotApiService();
@@ -29,14 +29,14 @@ class RobotProvider extends ChangeNotifier {
   static const _prefsAutoReconnectKey = 'amr.auto_reconnect';
 
   String host = '';
-  ConnectionState connection = ConnectionState.disconnected;
+  RobotConnectionState connection = RobotConnectionState.disconnected;
   String connectionDetail = '';
   bool autoReconnect = true;
 
   RegistryPayload? registry;
   TelemetryState? telemetry;
 
-  bool get isConnected => connection == ConnectionState.connected;
+  bool get isConnected => connection == RobotConnectionState.connected;
 
   bool _busy = false;
   bool get busy => _busy;
@@ -94,13 +94,13 @@ class RobotProvider extends ChangeNotifier {
   // ----------------------------------------------------------------------
   Future<bool> ping() async {
     _setBusy(true);
-    connection = ConnectionState.connecting;
+    connection = RobotConnectionState.connecting;
     connectionDetail = 'checking $host';
     notifyListeners();
 
     try {
       final health = await _api.fetchHealth(_origin);
-      connection = ConnectionState.connected;
+      connection = RobotConnectionState.connected;
       connectionDetail = _describeHealth(health);
       lastError = null;
 
@@ -114,7 +114,7 @@ class RobotProvider extends ChangeNotifier {
       _startPolling();
       return true;
     } on RobotApiException catch (e) {
-      connection = ConnectionState.error;
+      connection = RobotConnectionState.error;
       connectionDetail = e.message;
       lastError = e.message;
       _stopPolling();
@@ -127,7 +127,7 @@ class RobotProvider extends ChangeNotifier {
 
   void disconnect() {
     _stopPolling();
-    connection = ConnectionState.disconnected;
+    connection = RobotConnectionState.disconnected;
     connectionDetail = '';
     registry = null;
     telemetry = null;
@@ -148,7 +148,7 @@ class RobotProvider extends ChangeNotifier {
   void _startPolling() {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
-      if (!_disposed && connection == ConnectionState.connected) {
+      if (!_disposed && connection == RobotConnectionState.connected) {
         _pollOnce();
       }
     });
@@ -162,8 +162,8 @@ class RobotProvider extends ChangeNotifier {
   Future<void> _pollOnce() async {
     try {
       await Future.wait([_refreshTelemetry(), _refreshRegistry()]);
-      if (connection != ConnectionState.connected) {
-        connection = ConnectionState.connected;
+      if (connection != RobotConnectionState.connected) {
+        connection = RobotConnectionState.connected;
         lastError = null;
       }
     } on RobotApiException catch (e) {
@@ -176,7 +176,7 @@ class RobotProvider extends ChangeNotifier {
   }
 
   void _markDisconnected(String detail) {
-    connection = ConnectionState.error;
+    connection = RobotConnectionState.error;
     connectionDetail = detail;
     lastError = detail;
     notifyListeners();
@@ -184,7 +184,7 @@ class RobotProvider extends ChangeNotifier {
 
   void _scheduleReconnect() {
     Future<void>.delayed(const Duration(seconds: 3), () async {
-      if (_disposed || connection == ConnectionState.connected) return;
+      if (_disposed || connection == RobotConnectionState.connected) return;
       await ping();
     });
   }

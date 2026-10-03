@@ -35,19 +35,6 @@ class RobotApiService {
 
   final Duration timeout;
 
-  /// Host with or without a scheme/path; normalised to a clean origin.
-  String _normaliseOrigin(String host) {
-    var h = host.trim();
-    if (h.isEmpty) return '';
-    if (!h.startsWith('http://') && !h.startsWith('https://')) {
-      h = 'http://$h';
-    }
-    while (h.endsWith('/')) {
-      h = h.substring(0, h.length - 1);
-    }
-    return h;
-  }
-
   Uri _uri(String origin, String path) => Uri.parse('$origin$path');
 
   Future<Map<String, dynamic>> _getJson(

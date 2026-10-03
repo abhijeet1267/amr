@@ -20,8 +20,7 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColour = statusColour(app.status);
-    final accent = statusColour;
+    final accent = statusColour(app.status);
 
     return Container(
       decoration: BoxDecoration(
@@ -54,7 +53,7 @@ class AppCard extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.only(right: 10),
-                child: _StatusChip(status: app.status, colour: statusColour),
+                child: _StatusChip(status: app.status, colour: accent),
               ),
             ],
           ),
