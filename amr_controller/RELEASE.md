@@ -3,6 +3,8 @@
 Cross-platform operator client for the AMR robot. Connects over Wi-Fi/LAN to
 the robot's Python web server at `http://<ROBOT_IP>:8080`.
 
+Verification is tracked separately in [`VERIFICATION.md`](VERIFICATION.md).
+
 ## Artifacts
 
 Artifacts are produced by `.github/workflows/flutter-build.yml` (CI) and, where

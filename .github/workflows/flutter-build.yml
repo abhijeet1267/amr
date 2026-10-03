@@ -39,7 +39,30 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter analyze
+      # Real-client integration tests: production RobotApiService/RobotProvider
+      # over real TCP sockets against MockRobot (in-process, loopback). No fake.
       - run: flutter test
+
+  integration:
+    name: integration test (real client + real widgets + mock robot)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amr_controller
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux desktop deps (integration_test needs a native app)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      - run: flutter pub get
+      # xvfb-run provides the virtual display the GTK runner needs; the test's
+      # real HTTP client reaches the loopback MockRobot (real sockets).
+      - run: xvfb-run -a flutter test integration_test/connection_test.dart -d linux
 
   android:
     name: Android APK + AAB
