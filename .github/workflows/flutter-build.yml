@@ -141,7 +141,7 @@ jobs:
       - name: Collect artifact
         run: |
           mkdir -p dist
-          (cd build/web && zip -r ../dist/AMR_Controller_Web.zip .)
+          (cd build/web && zip -r -X "$GITHUB_WORKSPACE/amr_controller/dist/AMR_Controller_Web.zip" .)
       - uses: actions/upload-artifact@v4
         with:
           name: AMR_Controller_Web
@@ -165,7 +165,7 @@ jobs:
       - name: Collect artifact
         run: |
           mkdir -p dist
-          (cd build/macos/Build/Products/Release && zip -r ../../../dist/AMR_Controller_macOS.zip "AMR Controller.app")
+          (cd build/macos/Build/Products/Release && zip -r -X "$GITHUB_WORKSPACE/amr_controller/dist/AMR_Controller_macOS.zip" *.app)
       - uses: actions/upload-artifact@v4
         with:
           name: AMR_Controller_macOS
@@ -192,7 +192,7 @@ jobs:
       - name: Collect artifact
         run: |
           mkdir -p dist
-          (cd build/ios/iphoneos && zip -r ../dist/AMR_Controller_iOS_unsigned.zip "Runner.app")
+          (cd build/ios/iphoneos && zip -r -X "$GITHUB_WORKSPACE/amr_controller/dist/AMR_Controller_iOS_unsigned.zip" *.app)
       - uses: actions/upload-artifact@v4
         with:
           name: AMR_Controller_iOS
