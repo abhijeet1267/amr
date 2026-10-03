@@ -50,7 +50,7 @@ void main() {
 
     expect(find.text('Disconnected'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), 'localhost:${robot.port}');
+    await tester.enterText(find.byType(TextField), '127.0.0.1:${robot.port}');
     await tester.pump();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Ping / check connection'));
@@ -64,6 +64,9 @@ void main() {
 
     expect(provider.isConnected, isTrue,
         reason: 'provider never connected; requests=${robot.requests}');
+    // Render the frame that reflects the notify-from-ping.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Connected'), findsOneWidget);
     expect(find.text('Disconnected'), findsNothing);
   });

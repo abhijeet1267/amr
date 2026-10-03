@@ -23,7 +23,12 @@ void main() {
 }
 
 class AmrControllerApp extends StatelessWidget {
-  const AmrControllerApp({super.key});
+  const AmrControllerApp({super.key, this.provider});
+
+  /// Optional injected [RobotProvider]. Defaults to a fresh production provider,
+  /// so `main()` runs unchanged; tests and harnesses inject one wired to a mock
+  /// robot without forking the app's own networking path.
+  final RobotProvider? provider;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +37,7 @@ class AmrControllerApp extends StatelessWidget {
       // once here and lives for the app's lifetime; the connection persists
       // across navigation, which is what lets the E-STOP stay reachable from
       // every screen.
-      create: (_) => RobotProvider()..loadSavedConnection(),
+      create: (_) => (provider ?? RobotProvider())..loadSavedConnection(),
       child: MaterialApp(
         title: 'AMR Controller',
         debugShowCheckedModeBanner: false,

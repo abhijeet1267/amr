@@ -31,7 +31,7 @@ void main() {
     robot = await MockRobot.start();
     // Real production client against the mock robot's loopback origin.
     provider = RobotProvider(api: RobotApiService());
-    provider.host = 'localhost:${robot.port}';
+    provider.host = '127.0.0.1:${robot.port}';
   });
 
   tearDown(() async {
@@ -65,7 +65,7 @@ void main() {
 
     test('ping against an unreachable host goes to error, not connected',
         () async {
-      provider.host = 'localhost:1'; // nothing listens here
+      provider.host = '127.0.0.1:1'; // nothing listens here
       final ok = await provider.ping();
       expect(ok, isFalse);
       expect(provider.connection, RobotConnectionState.error);

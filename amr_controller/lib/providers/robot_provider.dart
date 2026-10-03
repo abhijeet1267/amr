@@ -121,7 +121,6 @@ class RobotProvider extends ChangeNotifier {
       return false;
     } finally {
       _setBusy(false);
-      notifyListeners();
     }
   }
 
@@ -233,11 +232,11 @@ class RobotProvider extends ChangeNotifier {
       return false;
     } finally {
       _setBusy(false);
-      notifyListeners();
     }
   }
 
   void _setBusy(bool value) {
+    if (_disposed) return;
     _busy = value;
     notifyListeners();
   }
