@@ -33,7 +33,10 @@ envs/
 # log directory is ignored by name. setup_logging() writes there by default, and
 # a robot left running for a week would otherwise commit its own logs.
 *.log
-logs/
+# The Python runtime log dirs only — NOT a blanket `logs/`, which would also
+# swallow the Flutter feature dir amr_controller/lib/features/logs/.
+raspberry_pi/logs/
+logs/amr.log
 *.db
 *.sqlite
 *.sqlite3
