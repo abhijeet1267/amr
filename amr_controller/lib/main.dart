@@ -1,21 +1,27 @@
 // AMR Controller — app entry point.
 //
-// Owns the MaterialApp, the shared theme, the ChangeNotifierProvider that every
-// screen reads, and the small navigation shell that swaps between the desktop
-// split view and the mobile bottom-nav layout. Nothing here reaches the robot:
-// the provider is constructed inert and only starts polling once an operator
-// has entered a host, so launching the app against a dead robot is a clean
-// "Disconnected" state rather than a background error storm.
-library;
+// Owns the MaterialApp, the shared theme, the provider injection, and the
+// responsive navigation shell. Desktop gets a rail-tabbed multi-panel command
+// center; mobile gets a bottom NavigationBar over the same destinations.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'features/camera/camera_screen.dart';
+import 'features/dashboard/dashboard_screen.dart';
+import 'features/diagnostics/diagnostics_screen.dart';
+import 'features/logs/logs_screen.dart';
+import 'features/map/map_screen.dart';
+import 'features/missions/missions_screen.dart';
+import 'features/sensors/sensors_screen.dart';
+import 'features/settings/settings_screen.dart';
 import 'providers/robot_provider.dart';
 import 'screens/applications_hub_screen.dart';
 import 'screens/connection_screen.dart';
 import 'screens/teleop_screen.dart';
 import 'theme/theme.dart';
+import 'widgets/console_rail.dart';
+import 'widgets/status_widgets.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,126 +31,155 @@ void main() {
 class AmrControllerApp extends StatelessWidget {
   const AmrControllerApp({super.key, this.provider});
 
-  /// Optional injected [RobotProvider]. Defaults to a fresh production provider,
-  /// so `main()` runs unchanged; tests and harnesses inject one wired to a mock
-  /// robot without forking the app's own networking path.
   final RobotProvider? provider;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      // The provider owns the API client and all shared state. It is created
-      // once here and lives for the app's lifetime; the connection persists
-      // across navigation, which is what lets the E-STOP stay reachable from
-      // every screen.
       create: (_) => (provider ?? RobotProvider())..loadSavedConnection(),
       child: MaterialApp(
         title: 'AMR Controller',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
-        home: const RootShell(),
+        home: const CommandCenterShell(),
       ),
     );
   }
 }
 
-/// The navigation root. Desktop gets a split-view sidebar (Rail on the left,
-/// content beside it); mobile gets a skimmable NavigationBar at the bottom.
-///
-/// Both shells expose the same three destinations, and the E-STOP affordance
-/// is hoisted into the shell so it is reachable from *any* screen, exactly as
-/// the spec requires.
-class RootShell extends StatefulWidget {
-  const RootShell({super.key});
+/// The navigation shell. Desktop > 800px uses a NavigationRail; mobile uses a
+/// bottom NavigationBar. Every screen reads the single provider via context.
+class CommandCenterShell extends StatefulWidget {
+  const CommandCenterShell({super.key});
 
   @override
-  State<RootShell> createState() => _RootShellState();
+  State<CommandCenterShell> createState() => _CommandCenterShellState();
 }
 
-class _RootShellState extends State<RootShell> {
+class _CommandCenterShellState extends State<CommandCenterShell> {
   int _index = 0;
 
-  static const _destinations = [
-    NavigationDestination(
-      icon: Icon(Icons.hub_outlined),
-      selectedIcon: Icon(Icons.hub),
-      label: 'Applications',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.gamepad_outlined),
-      selectedIcon: Icon(Icons.gamepad),
-      label: 'Teleop',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.settings_input_component_outlined),
-      selectedIcon: Icon(Icons.settings_input_component),
-      label: 'Connection',
-    ),
+  static const _items = [
+    (Icons.dashboard_outlined, Icons.dashboard, 'Dashboard'),
+    (Icons.videocam_outlined, Icons.videocam, 'Camera'),
+    (Icons.map_outlined, Icons.map, 'Map'),
+    (Icons.gamepad_outlined, Icons.gamepad, 'Teleop'),
+    (Icons.alt_route, Icons.alt_route, 'Missions'),
+    (Icons.hub_outlined, Icons.hub, 'Apps'),
+    (Icons.sensors, Icons.sensors, 'Sensors'),
+    (Icons.monitor_heart_outlined, Icons.monitor_heart, 'Diagnostics'),
+    (Icons.article_outlined, Icons.article, 'Logs'),
+    (Icons.settings_outlined, Icons.settings, 'Settings'),
+    (Icons.settings_input_component_outlined, Icons.settings_input_component, 'Connection'),
+  ];
+
+  static const _screens = <Widget>[
+    DashboardScreen(),
+    CameraScreen(),
+    MapScreen(),
+    TeleopScreen(),
+    MissionsScreen(),
+    ApplicationsHubScreen(),
+    SensorsScreen(),
+    DiagnosticsScreen(),
+    LogsScreen(),
+    SettingsScreen(),
+    ConnectionScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final sim = context.select<RobotProvider, bool>((p) => p.simulation);
+    final alerts = context.select<RobotProvider, List<OperatorAlert>>((p) => p.alerts);
     final isWide = MediaQuery.sizeOf(context).width >= 800;
-    final content = <Widget>[
-      const ApplicationsHubScreen(),
-      const TeleopScreen(),
-      const ConnectionScreen(),
-    ][_index];
-
-    if (isWide) {
-      return Scaffold(
-        body: Row(
-          children: [
-            NavigationRail(
-              selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
-              labelType: NavigationRailLabelType.all,
-              leading: const _RailHeader(),
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(Icons.hub_outlined),
-                  selectedIcon: Icon(Icons.hub),
-                  label: Text('Applications'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.gamepad_outlined),
-                  selectedIcon: Icon(Icons.gamepad),
-                  label: Text('Teleop'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.settings_input_component_outlined),
-                  selectedIcon: Icon(Icons.settings_input_component),
-                  label: Text('Connection'),
-                ),
-              ],
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(child: content),
-          ],
-        ),
-      );
-    }
 
     return Scaffold(
-      body: content,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: _destinations,
+      body: Column(
+        children: [
+          if (sim) const SimulationBanner(),
+          if (alerts.isNotEmpty) _AlertStrip(alerts: alerts),
+          Expanded(
+            child: isWide
+                ? Row(
+                    children: [
+                      ConsoleRail(
+                        index: _index,
+                        onSelect: (i) => setState(() => _index = i),
+                        items: _items,
+                      ),
+                      const VerticalDivider(width: 1),
+                      Expanded(child: _screens[_index]),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Expanded(child: _screens[_index]),
+                      NavigationBar(
+                        selectedIndex: _index,
+                        onDestinationSelected: (i) => setState(() => _index = i),
+                        destinations: [
+                          for (final (ic, icSel, label) in _items.take(5))
+                            NavigationDestination(
+                              icon: Icon(ic),
+                              selectedIcon: Icon(icSel),
+                              label: label,
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _RailHeader extends StatelessWidget {
-  const _RailHeader();
+/// Non-intrusive operator alert strip — critical first, most recent within a
+/// severity last. Colour is never the only signal: each alert prints its text.
+class _AlertStrip extends StatelessWidget {
+  const _AlertStrip({required this.alerts});
+
+  final List<OperatorAlert> alerts;
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      height: 96,
-      child: Center(
-        child: Tooltip(message: 'AMR Controller', child: Icon(Icons.precision_manufacturing)),
+    final sorted = [...alerts]..sort((a, b) => b.severity.index.compareTo(a.severity.index));
+    return Container(
+      width: double.infinity,
+      color: AppPalette.surfaceVariant,
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 4,
+        children: [
+          for (final a in sorted)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  a.severity == AlertSeverity.critical
+                      ? Icons.error
+                      : Icons.warning_amber,
+                  size: 13,
+                  color: a.severity == AlertSeverity.critical
+                      ? AppPalette.crit
+                      : AppPalette.warn,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  a.message,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: a.severity == AlertSeverity.critical
+                        ? AppPalette.crit
+                        : AppPalette.warn,
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }

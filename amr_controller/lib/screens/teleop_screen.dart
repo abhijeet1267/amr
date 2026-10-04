@@ -20,6 +20,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 
@@ -116,7 +117,11 @@ class _TeleopScreenState extends State<TeleopScreen> {
       ),
       body: !provider.isConnected
           ? const _NotConnected()
-          : SingleChildScrollView(
+          : KeyboardListener(
+              focusNode: _keyboardFocus,
+              autofocus: true,
+              onKeyEvent: _onKey,
+              child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -145,8 +150,37 @@ class _TeleopScreenState extends State<TeleopScreen> {
                 ],
               ),
             ),
+          ),
       bottomNavigationBar: provider.isConnected ? const _EstopBar() : null,
     );
+  }
+
+  final FocusNode _keyboardFocus = FocusNode();
+
+  void _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return;
+    final key = event.logicalKey;
+    // Desktop keyboard control, gated on connection + mode at the command layer
+    // (the robot's own /command gate never allows keyboard to bypass safety).
+    if (key == LogicalKeyboardKey.keyW) {
+      _send('forward', speed: _maxSpeed);
+    } else if (key == LogicalKeyboardKey.keyS) {
+      _send('backward', speed: _maxSpeed);
+    } else if (key == LogicalKeyboardKey.keyA) {
+      _send('rotate_left', speed: _maxSpeed);
+    } else if (key == LogicalKeyboardKey.keyD) {
+      _send('rotate_right', speed: _maxSpeed);
+    } else if (key == LogicalKeyboardKey.space) {
+      _send('stop');
+    } else if (key == LogicalKeyboardKey.keyE) {
+      _send('estop');
+    }
+  }
+
+  @override
+  void dispose() {
+    _keyboardFocus.dispose();
+    super.dispose();
   }
 }
 

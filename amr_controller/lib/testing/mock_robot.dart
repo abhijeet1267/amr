@@ -297,6 +297,102 @@ class MockRobot {
           },
         });
 
+      case '/map':
+        return (200, {
+          'schema_version': '1.0',
+          'source': 'SIMULATION',
+          'units': 'metres',
+          'frame': 'warehouse',
+          'y_axis': 'up',
+          'yaw_units': 'radians',
+          'warehouse': {
+            'waypoints': [
+              {'name': 'Dock', 'x': 0.5, 'y': 0.5, 'theta': 0.0, 'source': 'SIMULATION'},
+              {'name': 'Shelf A', 'x': 4.0, 'y': 1.0, 'theta': 0.0, 'source': 'SIMULATION'},
+              {'name': 'Shelf B', 'x': 7.0, 'y': 3.0, 'theta': 0.0, 'source': 'SIMULATION'},
+              {'name': 'Charging', 'x': 2.0, 'y': 6.0, 'theta': 0.0, 'source': 'SIMULATION'},
+            ],
+            'bounds': null,
+            'source': 'SIMULATION',
+            'note': 'not modelled: warehouse is named waypoints plus hazard zones',
+          },
+          'robot': {'x': 4.5, 'y': 3.0, 'yaw': 0.5, 'source': 'SIMULATION'},
+          'goal': null,
+          'route': <Object>[],
+          'path': <Object>[],
+          'hazards': <Object>[],
+          'unlocated': <Object>[],
+          'zones': [
+            {'name': 'restricted', 'x_min': 2.0, 'x_max': 3.0, 'y_min': 2.0, 'y_max': 4.0, 'severity': 'WARNING', 'kind': 'restricted', 'source': 'SIMULATION'},
+          ],
+          'safety': {
+            'state': 'IDLE',
+            'action': 'PROCEED',
+            'emergency_stop': mode == 'SAFETY_STOP',
+            'source': 'SIMULATION',
+          },
+          'navigation': {'state': 'IDLE'},
+        });
+
+      case '/connectivity':
+        return (200, {
+          'version': 1,
+          'read_only': true,
+          'interfaces': [
+            {'name': 'wlan0', 'kind': 'wireless', 'up': true},
+          ],
+          'counts': {'total': 1, 'wireless': 1, 'wired': 0, 'bluetooth': 0},
+          'wifi': {'present': true, 'up': true},
+          'bluetooth': {'present': false},
+          'note': 'read-only probe',
+        });
+
+      case '/camera/status':
+        return (200, {
+          'status': 'AVAILABLE',
+          'source': 'SIMULATION',
+          'source_name': 'MockCamera',
+          'width': 1280,
+          'height': 720,
+          'format': 'jpeg',
+          'frame_id': 7,
+          'timestamp': (DateTime.now().millisecondsSinceEpoch / 1000),
+          'has_frame': true,
+          'error': null,
+        });
+
+      case '/camera/overlay':
+        return (200, {
+          'schema_version': '1.0',
+          'space': 'image',
+          'units': 'pixels',
+          'image': {'width': 1280, 'height': 720, 'frame_id': 7},
+          'boxes': [
+            {
+              'kind': 'PERSON',
+              'severity': 'WARNING',
+              'confidence': 0.87,
+              'label': 'person',
+              'image_bbox': {'x': 400.0, 'y': 200.0, 'w': 120.0, 'h': 220.0},
+              'space': 'image',
+              'fully_visible': true,
+            },
+          ],
+          'box_count': 1,
+          'world_located': <Object>[],
+          'without_bbox': <Object>[],
+          'other_source': <Object>[],
+          'drawable': true,
+        });
+
+      case '/hazard':
+        return (200, {
+          'attached': false,
+          'severity': 'NONE',
+          'active': false,
+          'active_events': <Object>[],
+        });
+
       default:
         return (404, {'error': 'not found'});
     }

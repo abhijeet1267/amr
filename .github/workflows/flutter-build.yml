@@ -86,11 +86,11 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk dist/AMR_Controller_Android.apk
-          cp build/app/outputs/bundle/release/app-release.aab dist/AMR_Controller_Android.aab
+          cp build/app/outputs/flutter-apk/app-release.apk dist/AMR_Controller_V2_Android.apk
+          cp build/app/outputs/bundle/release/app-release.aab dist/AMR_Controller_V2_Android.aab
       - uses: actions/upload-artifact@v4
         with:
-          name: AMR_Controller_Android
+          name: AMR_Controller_V2_Android
           path: amr_controller/dist/
           if-no-files-found: error
 
@@ -112,11 +112,11 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dist/AMR_Controller_Windows.zip
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dist/AMR_Controller_V2_Windows.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: AMR_Controller_Windows
-          path: amr_controller/dist/AMR_Controller_Windows.zip
+          name: AMR_Controller_V2_Windows
+          path: amr_controller/dist/AMR_Controller_V2_Windows.zip
           if-no-files-found: error
 
   linux:
@@ -140,11 +140,11 @@ jobs:
       - name: Collect artifact
         run: |
           mkdir -p dist
-          tar -czf dist/AMR_Controller_Linux.tar.gz -C build/linux/x64/release/bundle .
+          tar -czf dist/AMR_Controller_V2_Linux.tar.gz -C build/linux/x64/release/bundle .
       - uses: actions/upload-artifact@v4
         with:
-          name: AMR_Controller_Linux
-          path: amr_controller/dist/AMR_Controller_Linux.tar.gz
+          name: AMR_Controller_V2_Linux
+          path: amr_controller/dist/AMR_Controller_V2_Linux.tar.gz
           if-no-files-found: error
 
   web:
@@ -164,11 +164,11 @@ jobs:
       - name: Collect artifact
         run: |
           mkdir -p dist
-          (cd build/web && zip -r -X "$GITHUB_WORKSPACE/amr_controller/dist/AMR_Controller_Web.zip" .)
+          (cd build/web && zip -r -X "$GITHUB_WORKSPACE/amr_controller/dist/AMR_Controller_V2_Web.zip" .)
       - uses: actions/upload-artifact@v4
         with:
-          name: AMR_Controller_Web
-          path: amr_controller/dist/AMR_Controller_Web.zip
+          name: AMR_Controller_V2_Web
+          path: amr_controller/dist/AMR_Controller_V2_Web.zip
           if-no-files-found: error
 
   macos:
@@ -188,11 +188,11 @@ jobs:
       - name: Collect artifact
         run: |
           mkdir -p dist
-          (cd build/macos/Build/Products/Release && zip -r -X "$GITHUB_WORKSPACE/amr_controller/dist/AMR_Controller_macOS.zip" *.app)
+          (cd build/macos/Build/Products/Release && zip -r -X "$GITHUB_WORKSPACE/amr_controller/dist/AMR_Controller_V2_macOS.zip" *.app)
       - uses: actions/upload-artifact@v4
         with:
-          name: AMR_Controller_macOS
-          path: amr_controller/dist/AMR_Controller_macOS.zip
+          name: AMR_Controller_V2_macOS
+          path: amr_controller/dist/AMR_Controller_V2_macOS.zip
           if-no-files-found: error
 
   ios:
@@ -215,9 +215,9 @@ jobs:
       - name: Collect artifact
         run: |
           mkdir -p dist
-          (cd build/ios/iphoneos && zip -r -X "$GITHUB_WORKSPACE/amr_controller/dist/AMR_Controller_iOS_unsigned.zip" *.app)
+          (cd build/ios/iphoneos && zip -r -X "$GITHUB_WORKSPACE/amr_controller/dist/AMR_Controller_V2_iOS_unsigned.zip" *.app)
       - uses: actions/upload-artifact@v4
         with:
-          name: AMR_Controller_iOS
-          path: amr_controller/dist/AMR_Controller_iOS_unsigned.zip
+          name: AMR_Controller_V2_iOS
+          path: amr_controller/dist/AMR_Controller_V2_iOS_unsigned.zip
           if-no-files-found: error

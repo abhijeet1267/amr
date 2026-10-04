@@ -115,6 +115,46 @@ class RobotApiService {
   Future<Map<String, dynamic>> fetchStatus(String origin) =>
       _getJson(origin, '/status');
 
+  Future<Map<String, dynamic>> fetchMap(String origin) =>
+      _getJson(origin, '/map');
+
+  Future<Map<String, dynamic>> fetchConnectivity(String origin) =>
+      _getJson(origin, '/connectivity');
+
+  Future<Map<String, dynamic>> fetchHazard(String origin) =>
+      _getJson(origin, '/hazard');
+
+  Future<Map<String, dynamic>> fetchCameraStatus(String origin) =>
+      _getJson(origin, '/camera/status');
+
+  Future<Map<String, dynamic>> fetchCameraOverlay(String origin) =>
+      _getJson(origin, '/camera/overlay');
+
+  /// One snapshot JPEG frame. The backend serves the *latest* cached frame, not
+  /// a continuous stream (it is a polled snapshot, not RTSP/MJPEG/WebRTC). This
+  /// returns the raw bytes, or throws [RobotApiException] on 503/error.
+  Future<List<int>> fetchCameraFrame(String origin) async {
+    final client = http.Client();
+    try {
+      final res = await client
+          .get(_uri(origin, '/camera/frame'))
+          .timeout(timeout);
+      if (res.statusCode != 200) {
+        throw RobotApiException(
+          'camera frame unavailable (HTTP ${res.statusCode})',
+          statusCode: res.statusCode,
+        );
+      }
+      return res.bodyBytes;
+    } on RobotApiException {
+      rethrow;
+    } catch (e) {
+      throw RobotApiException('Cannot reach robot at $origin: $e');
+    } finally {
+      client.close();
+    }
+  }
+
   /// Motion and safety commands. Returns the robot's `{ok, ...}` body on
   /// success and throws [RobotApiException] on refusal.
   Future<Map<String, dynamic>> sendCommand(

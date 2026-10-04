@@ -1,38 +1,37 @@
 // The visual identity of the AMR client.
 //
-// This palette is *not* invented for the app. It mirrors the robot's own
-// Command Center tokens (raspberry_pi/amr/web/static/command_center.css) value
-// for value, for the same reason the repo's web surfaces share one palette: an
-// operator who reads the console on the Pi and then opens this client should
-// not see a different product. Use AppTheme.statusColour / AppTheme.accent, not
-// raw hexes, everywhere below the theme layer.
-library;
+// Direction: a *classic, premium brass-instrument* palette, not a cold black +
+// blue terminal. Surfaces are warm charcoal/espresso rather than blue-black;
+// the primary accent is brass gold (the classic proof/brand colour of a control
+// station); status stays emerald/amber/ruby; and a muted steel-blue survives
+// only as the secondary "technical/info" voice so the palette is not one-note.
+//
+// Colour is never the only signal: every status also prints its text.
 
 import 'package:flutter/material.dart';
 
 abstract final class AppPalette {
-  // Surfaces — the console's slate ramp.
-  static const Color background = Color(0xFF0B0F16);
-  static const Color surface = Color(0xFF141D2B);
-  static const Color surfaceVariant = Color(0xFF1A2534);
-  static const Color line = Color(0xFF24334A);
-  static const Color text = Color(0xFFE6EDF7);
-  static const Color muted = Color(0xFF8FA3BD);
-  static const Color dim = Color(0xFF64768C);
+  // Surfaces — warm charcoal ramp (espresso, not blue-black).
+  static const Color background = Color(0xFF14100B);
+  static const Color surface = Color(0xFF1E1812);
+  static const Color surfaceVariant = Color(0xFF262019);
+  static const Color line = Color(0xFF3C3224);
+  static const Color text = Color(0xFFF3ECDD);
+  static const Color muted = Color(0xFFA89981);
+  static const Color dim = Color(0xFF776C57);
 
-  // The electric accent — the console's --accent (#22d3ee).
-  static const Color accent = Color(0xFF22D3EE);
-  static const Color onAccent = Color(0xFF04121A);
+  // The electric brass primary accent — classic instrument gold.
+  static const Color accent = Color(0xFFD9A23B);
+  static const Color onAccent = Color(0xFF231A08);
 
-  // Status four — the console's --ok/--warn/--crit/--info. Colour is never the
-  // only signal: every status is also printed as text.
-  static const Color ok = Color(0xFF2FBF71);
-  static const Color warn = Color(0xFFE8A33D);
-  static const Color crit = Color(0xFFEF4D5A);
-  static const Color info = Color(0xFF3D8BFD);
+  // Status four — emerald / amber / ruby / muted steel-blue.
+  static const Color ok = Color(0xFF3CB47D);
+  static const Color warn = Color(0xFFE0A23D);
+  static const Color crit = Color(0xFFE2544E);
+  static const Color info = Color(0xFF5A8CC4);
 
-  // Brass — the console's --gold (proof / brand).
-  static const Color gold = Color(0xFFDCB35D);
+  // Brass reserved for "proof / brand" emphasis (a touch richer than accent).
+  static const Color gold = Color(0xFFE0B354);
 }
 
 ThemeData buildAppTheme() {
@@ -61,14 +60,6 @@ ThemeData buildAppTheme() {
       backgroundColor: AppPalette.surface,
       foregroundColor: AppPalette.text,
       elevation: 0,
-    ),
-    navigationRailTheme: const NavigationRailThemeData(
-      backgroundColor: AppPalette.surface,
-      indicatorColor: AppPalette.accent,
-      selectedIconTheme: IconThemeData(color: AppPalette.onAccent),
-      selectedLabelTextStyle: TextStyle(color: AppPalette.accent),
-      unselectedIconTheme: IconThemeData(color: AppPalette.muted),
-      unselectedLabelTextStyle: TextStyle(color: AppPalette.muted),
     ),
     navigationBarTheme: const NavigationBarThemeData(
       backgroundColor: AppPalette.surface,
