@@ -1,47 +1,52 @@
 // The visual identity of the AMR client.
 //
-// Direction: a *classic, premium brass-instrument* palette, not a cold black +
-// blue terminal. Surfaces are warm charcoal/espresso rather than blue-black;
-// the primary accent is brass gold (the classic proof/brand colour of a control
-// station); status stays emerald/amber/ruby; and a muted steel-blue survives
-// only as the secondary "technical/info" voice so the palette is not one-note.
+// Direction: a *light industrial control* palette — white panels on a pale
+// neutral canvas, hairline separators, and a single restrained engineering
+// blue as the primary accent. Status keeps the emerald / amber / ruby /
+// steel-blue quartet, darkened to hold contrast on white. There is no
+// decorative colour: blue selects and informs, and the status quartet only
+// ever reports machine state.
 //
 // Colour is never the only signal: every status also prints its text.
 
 import 'package:flutter/material.dart';
 
 abstract final class AppPalette {
-  // Surfaces — warm charcoal ramp (espresso, not blue-black).
-  static const Color background = Color(0xFF14100B);
-  static const Color surface = Color(0xFF1E1812);
-  static const Color surfaceVariant = Color(0xFF262019);
-  static const Color line = Color(0xFF3C3224);
-  static const Color text = Color(0xFFF3ECDD);
-  static const Color muted = Color(0xFFA89981);
-  static const Color dim = Color(0xFF776C57);
+  // Surfaces — pale neutral canvas, white working panels, faint tile fill.
+  static const Color background = Color(0xFFF3F5F7);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surfaceVariant = Color(0xFFEDF0F3);
+  static const Color line = Color(0xFFD8DEE5);
 
-  // The electric brass primary accent — classic instrument gold.
-  static const Color accent = Color(0xFFD9A23B);
-  static const Color onAccent = Color(0xFF231A08);
+  // Text — near-black primary, two muted steps for secondary and metadata.
+  static const Color text = Color(0xFF182026);
+  static const Color muted = Color(0xFF51606E);
+  static const Color dim = Color(0xFF8592A0);
 
-  // Status four — emerald / amber / ruby / muted steel-blue.
-  static const Color ok = Color(0xFF3CB47D);
-  static const Color warn = Color(0xFFE0A23D);
-  static const Color crit = Color(0xFFE2544E);
-  static const Color info = Color(0xFF5A8CC4);
+  // Primary accent — restrained engineering blue (selects, informs, navigates).
+  static const Color accent = Color(0xFF1A5FB4);
+  static const Color onAccent = Color(0xFFFFFFFF);
 
-  // Brass reserved for "proof / brand" emphasis (a touch richer than accent).
-  static const Color gold = Color(0xFFE0B354);
+  // Status four — emerald / amber / ruby / steel-blue, tuned for white
+  // surfaces (every value holds ~4.5:1 against the panel colour).
+  static const Color ok = Color(0xFF1E7F4F);
+  static const Color warn = Color(0xFF9A6700);
+  static const Color crit = Color(0xFFC0392B);
+  static const Color info = Color(0xFF3B6EA5);
+
+  // Brand emphasis — the accent's deeper voice, used for the section bar and
+  // "proof" markers. (Formerly `gold` in the dark theme.)
+  static const Color brand = Color(0xFF15497F);
 }
 
 ThemeData buildAppTheme() {
   final base = ThemeData(
-    brightness: Brightness.dark,
+    brightness: Brightness.light,
     useMaterial3: true,
-    colorScheme: const ColorScheme.dark(
+    colorScheme: const ColorScheme.light(
       primary: AppPalette.accent,
       onPrimary: AppPalette.onAccent,
-      secondary: AppPalette.gold,
+      secondary: AppPalette.brand,
       surface: AppPalette.surface,
       error: AppPalette.crit,
       onSurface: AppPalette.text,
@@ -63,9 +68,9 @@ ThemeData buildAppTheme() {
     ),
     navigationBarTheme: const NavigationBarThemeData(
       backgroundColor: AppPalette.surface,
-      indicatorColor: AppPalette.accent,
+      indicatorColor: Color(0x1F1A5FB4),
       labelTextStyle: WidgetStatePropertyAll(
-        TextStyle(color: AppPalette.text, fontSize: 12),
+        TextStyle(color: AppPalette.muted, fontSize: 12),
       ),
     ),
     dividerTheme: const DividerThemeData(color: AppPalette.line),

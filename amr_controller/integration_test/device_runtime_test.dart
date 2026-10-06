@@ -46,12 +46,15 @@ void main() {
     await tester.pumpWidget(AmrControllerApp(provider: provider));
     await tester.pump();
 
-    // The shell's three nav destinations render.
-    expect(find.text('Applications'), findsWidgets);
+    // The shell's phone bottom bar renders its destinations. Six of the
+    // eleven live behind the 'More' sheet on a phone viewport.
     expect(find.text('Teleop'), findsWidgets);
+    expect(find.text('More'), findsWidgets);
 
-    // Navigate to Connection.
-    await tester.tap(find.widgetWithText(NavigationDestination, 'Connection'));
+    // Navigate to Connection: it lives behind the More sheet on a phone.
+    await tester.tap(find.widgetWithText(NavigationDestination, 'More'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Connection'));
     await tester.pump(const Duration(milliseconds: 300));
 
     // Enter the mock robot address and ping.

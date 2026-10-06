@@ -94,42 +94,91 @@ class _CommandCenterShellState extends State<CommandCenterShell> {
     final isWide = MediaQuery.sizeOf(context).width >= 800;
 
     return Scaffold(
-      body: Column(
-        children: [
-          if (sim) const SimulationBanner(),
-          if (alerts.isNotEmpty) _AlertStrip(alerts: alerts),
-          Expanded(
-            child: isWide
-                ? Row(
-                    children: [
-                      ConsoleRail(
-                        index: _index,
-                        onSelect: (i) => setState(() => _index = i),
-                        items: _items,
-                      ),
-                      const VerticalDivider(width: 1),
-                      Expanded(child: _screens[_index]),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      Expanded(child: _screens[_index]),
-                      NavigationBar(
-                        selectedIndex: _index,
-                        onDestinationSelected: (i) => setState(() => _index = i),
-                        destinations: [
-                          for (final (ic, icSel, label) in _items.take(5))
-                            NavigationDestination(
-                              icon: Icon(ic),
-                              selectedIcon: Icon(icSel),
-                              label: label,
+      // The console content is full-bleed on desktop; on a phone it must clear
+      // the status bar, which otherwise paints over the first card.
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (sim) const SimulationBanner(),
+            if (alerts.isNotEmpty) _AlertStrip(alerts: alerts),
+            Expanded(
+              child: isWide
+                  ? Row(
+                      children: [
+                        ConsoleRail(
+                          index: _index,
+                          onSelect: (i) => setState(() => _index = i),
+                          items: _items,
+                        ),
+                        const VerticalDivider(width: 1),
+                        Expanded(child: _screens[_index]),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        Expanded(child: _screens[_index]),
+                        NavigationBar(
+                          selectedIndex: _index < 5 ? _index : 5,
+                          onDestinationSelected: (i) {
+                            if (i < 5) {
+                              setState(() => _index = i);
+                            } else {
+                              _openMoreSheet();
+                            }
+                          },
+                          destinations: [
+                            for (final (ic, icSel, label) in _items.take(5))
+                              NavigationDestination(
+                                icon: Icon(ic),
+                                selectedIcon: Icon(icSel),
+                                label: label,
+                              ),
+                            // The rail has eleven destinations; a phone's
+                            // bottom bar fits six. The rest live behind this.
+                            const NavigationDestination(
+                              icon: Icon(Icons.widgets_outlined),
+                              selectedIcon: Icon(Icons.widgets),
+                              label: 'More',
                             ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Sheet with the destinations that do not fit the phone bottom bar.
+  void _openMoreSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 5; i < _items.length; i++)
+              ListTile(
+                leading: Icon(
+                  _index == i ? _items[i].$2 : _items[i].$1,
+                  color: _index == i ? AppPalette.accent : AppPalette.muted,
+                ),
+                title: Text(
+                  _items[i].$3,
+                  style: TextStyle(
+                    color: _index == i ? AppPalette.accent : AppPalette.text,
+                    fontWeight: _index == i ? FontWeight.w600 : FontWeight.w400,
                   ),
-          ),
-        ],
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  setState(() => _index = i);
+                },
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -4,8 +4,9 @@ A cross-platform Flutter client for the **AMR** (Autonomous Mobile Robot). It
 connects over Wi-Fi/LAN to the robot's Python web server at
 `http://<ROBOT_IP>:8080` and gives an operator a live directory, teleoperation
 joystick, telemetry read-out and a guarded E-STOP from macOS, Windows, Android
-and iOS — all in the same slate/cyan instrument palette as the robot's own
-Command Center.
+and iOS — in a clean light control-room theme (white panels on a neutral
+canvas, a single restrained engineering-blue accent, status colours that
+always print their text).
 
 ## Run it
 
@@ -98,5 +99,5 @@ lib/
   screens/teleop_screen.dart       joystick + D-pad + telemetry + E-STOP
   widgets/app_card.dart            one hub card
   widgets/joystick_widget.dart     pointer-driven virtual joystick
-  theme/theme.dart                 slate/cyan palette + status colours
+  theme/theme.dart                 light industrial palette + status colours
 ```

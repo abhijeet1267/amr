@@ -188,7 +188,7 @@ class _CategoryHeader extends StatelessWidget {
     return Row(
       children: [
         const SizedBox(width: 4, height: 16),
-        Container(width: 3, height: 16, color: AppPalette.gold),
+        Container(width: 3, height: 16, color: AppPalette.brand),
         const SizedBox(width: 10),
         Text(
           title,

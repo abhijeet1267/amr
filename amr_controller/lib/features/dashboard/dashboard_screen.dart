@@ -202,7 +202,7 @@ class _StatusHeader extends StatelessWidget {
           const Text(
             'AMR CONTROL CENTER',
             style: TextStyle(
-              color: AppPalette.gold,
+              color: AppPalette.brand,
               fontWeight: FontWeight.w800,
               letterSpacing: 1,
               fontSize: 15,

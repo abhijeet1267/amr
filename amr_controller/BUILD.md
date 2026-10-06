@@ -30,14 +30,14 @@ flutter build ios --release --no-codesign   # iOS .app (unsigned)
 
 ## Artifact locations
 
-| Target | Output path |
-|--------|-------------|
-| Android APK | `build/app/outputs/flutter-apk/app-release.apk` |
-| Android AAB | `build/app/outputs/bundle/release/app-release.aab` |
-| macOS | `build/macos/Build/Products/Release/AMR Controller.app` |
-| Windows | `build/windows/x64/runner/Release/` |
-| Linux | `build/linux/x64/release/bundle/` |
-| Web | `build/web/` |
+| Target      | Output path                                             |
+| ----------- | ------------------------------------------------------- |
+| Android APK | `build/app/outputs/flutter-apk/app-release.apk`         |
+| Android AAB | `build/app/outputs/bundle/release/app-release.aab`      |
+| macOS       | `build/macos/Build/Products/Release/AMR Controller.app` |
+| Windows     | `build/windows/x64/runner/Release/`                     |
+| Linux       | `build/linux/x64/release/bundle/`                       |
+| Web         | `build/web/`                                            |
 
 ## Automated CI
 
@@ -55,5 +55,5 @@ is no swallowed step.
   layer.
 - **macOS/iOS network entitlement + ATS** (`*.entitlements`, `Info.plist`):
   same reason — outgoing network access to a cleartext LAN server. This is
-  *not* `Access-Control-Allow-Origin: *`; the web build remains UI-only
+  _not_ `Access-Control-Allow-Origin: *`; the web build remains UI-only
   against the robot, untouched for browser security.

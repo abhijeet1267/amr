@@ -175,7 +175,7 @@ class MapPainter extends CustomPainter {
 
     // Waypoints.
     for (final w in map.waypoints) {
-      canvas.drawCircle(Offset(sx(w.x), sy(w.y)), 4, Paint()..color = AppPalette.gold);
+      canvas.drawCircle(Offset(sx(w.x), sy(w.y)), 4, Paint()..color = AppPalette.brand);
     }
 
     // Route (planned path).

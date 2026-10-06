@@ -184,17 +184,24 @@ class SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Container(width: 3, height: 16, color: AppPalette.gold),
+          Container(width: 3, height: 16, color: AppPalette.brand),
           const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppPalette.text,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+          // Console section titles are single-line. The text must be
+          // Expanded (not followed by a bare Spacer): a Spacer is laid out
+          // after inflexible children, so a long title would otherwise take
+          // the row's full width and push the 3px bar + gap into an overflow.
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppPalette.text,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-          const Spacer(),
           if (trailing != null) trailing!,
         ],
       ),
@@ -234,12 +241,12 @@ class SimulationBanner extends StatelessWidget {
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.science, size: 14, color: Colors.black),
+          Icon(Icons.science, size: 14, color: Colors.white),
           SizedBox(width: 6),
           Text(
             'SIMULATION — NO REAL ROBOT CONTROL',
             style: TextStyle(
-              color: Colors.black,
+              color: Colors.white,
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,

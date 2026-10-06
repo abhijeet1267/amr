@@ -106,6 +106,14 @@ class _CameraScreenState extends State<CameraScreen> {
                         ],
                       ),
                     ),
+                  // The simulated camera draws a flat placeholder image, which
+                  // reads as a dead panel unless it says what it is.
+                  if (bytes != null && cam?.status == 'SIMULATION')
+                    const Positioned(
+                      left: 8,
+                      bottom: 8,
+                      child: _FrameTag(label: 'SIMULATED FRAME'),
+                    ),
                   // Vision overlays (image-space pixels, from the real endpoint).
                   for (final d in overlay?.detections ?? const <DetectionBox>[])
                     if (ovW > 0 && ovH > 0)
@@ -197,6 +205,35 @@ class _CameraScreenState extends State<CameraScreen> {
             style: TextStyle(color: AppPalette.dim, fontSize: 10),
           ),
         ],
+      ),
+    );
+  }
+}
+/// Small in-preview tag stating what the panel is showing when the robot's
+/// camera is not a real sensor (SIMULATION source). A flat placeholder frame
+/// otherwise reads as a broken feed.
+class _FrameTag extends StatelessWidget {
+  const _FrameTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppPalette.surface.withValues(alpha: 0.9),
+        border: Border.all(color: AppPalette.line),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppPalette.warn,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+        ),
       ),
     );
   }

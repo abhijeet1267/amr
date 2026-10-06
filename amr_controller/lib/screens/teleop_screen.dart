@@ -242,7 +242,7 @@ class _ModeSelector extends StatelessWidget {
                 onPressed: () => onSelect(m),
                 style: TextButton.styleFrom(
                   backgroundColor: currentLower == m
-                      ? AppPalette.gold
+                      ? AppPalette.brand
                       : Colors.transparent,
                   foregroundColor: currentLower == m
                       ? AppPalette.onAccent
