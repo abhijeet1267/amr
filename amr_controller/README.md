@@ -31,6 +31,11 @@ flutter build windows            # Windows (from a Windows host)
 The app is **verified to compile clean**: `flutter analyze` reports "No issues
 found" and `flutter test` passes.
 
+Android release builds are signed with a local keystore:
+`android/app/amr-release.keystore` (alias `amr`), configured through
+`android/key.properties` — both gitignored, so a fresh clone falls back to the
+debug key and still builds a runnable APK.
+
 Then point it at a running robot:
 
 ```bash
