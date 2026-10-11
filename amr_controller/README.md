@@ -55,6 +55,44 @@ python -m amr.main --mock --web     # prints http://localhost:8080
 > **native** desktop/mobile builds (which use the OS HTTP stack, not a
 > browser's same-origin policy) to actually drive the robot.
 
+### Desktop build requirements
+
+The platform runners are committed, so each target builds on its own OS:
+
+| Target | Host | Needs |
+| ------ | ---- | ----- |
+| macOS | macOS | Full **Xcode** (`xcode-select --install` is *not* enough) + CocoaPods |
+| Windows | Windows | **Visual Studio** with the "Desktop development with C++" workload |
+| Linux | Linux | `clang cmake ninja-build pkg-config libgtk-3-dev` |
+| iOS | macOS | Full Xcode + an Apple signing identity |
+
+Flutter cannot cross-compile these: a macOS `.app` cannot be produced on
+Windows or Linux, and a Windows `.exe` cannot be produced on macOS.
+
+## First-run setup (every platform)
+
+A fresh install does **not** drop the operator straight into the console. It
+opens a four-step **setup wizard** — the same gate on Android, macOS, Windows,
+Linux and the web:
+
+1. **Welcome** — what the robot needs (power, same network, server running) and
+   the safety rules, before anything is touched.
+2. **Connect** — enter the robot's address and run a **connection test**. Every
+   endpoint (`/health`, `/status`, `/telemetry`, `/map`, `/heatmap`,
+   `/camera/status`, …) is probed **individually**, so a failure says *which*
+   part of the robot is down and how to fix it, instead of one opaque "failed".
+3. **Checks** — a **preflight** listing *fatal* conditions (no connection,
+   Pi↔Arduino link down, E-STOP latched, obstacle too close, battery critical)
+   and warnings (camera offline, high latency), then **live sensor readings**:
+   front/left/right/rear, battery, mode, speed. "Next" is blocked while a fatal
+   condition stands.
+4. **Ready** — a summary, then into the Command Center.
+
+A `-1` ultrasonic reading is shown as **clear** (no echo), never as `0 cm`, and
+an absent sensor reads `n/a` — the same honesty rule the backend uses.
+
+Re-run it any time from **Connection → "Run setup again"**.
+
 ## What it talks to
 
 The client speaks the robot's real HTTP contract, verified against
@@ -62,10 +100,12 @@ The client speaks the robot's real HTTP contract, verified against
 
 | Call   | Endpoint              | Used for                                                                                                |
 | ------ | --------------------- | ------------------------------------------------------------------------------------------------------- |
-| `GET`  | `/applications/state` | the 24 interface cards                                                                                  |
+| `GET`  | `/applications/state` | the 25 interface cards                                                                                  |
 | `GET`  | `/telemetry`          | battery / speed / ultrasonic / mode                                                                     |
 | `GET`  | `/health`             | the ping / connection check                                                                             |
 | `GET`  | `/status`             | raw robot snapshot                                                                                      |
+| `GET`  | `/map`                | the Map screen: pose, route, trail, hazards, zones                                                       |
+| `GET`  | `/heatmap`            | the Heat map screen: hazard + traffic density grids (C19)                                                |
 | `POST` | `/command`            | `forward` / `backward` / `turn_left` / `turn_right` / `rotate_left` / `rotate_right` / `stop` / `estop` |
 
 Two honesty notes carried straight from the robot's own docs:
@@ -95,10 +135,13 @@ Two honesty notes carried straight from the robot's own docs:
 
 ```
 lib/
-  main.dart                        entry, theme, responsive shell
+  main.dart                        entry, theme, first-run gate, responsive shell
   models/app_state.dart            registry + telemetry data models
+  models/robot_data.dart           map / camera / connectivity / heat-map models
   services/robot_api_service.dart  REST client (http package)
-  providers/robot_provider.dart    state + polling + command path
+  providers/robot_provider.dart    state + polling + command path + preflight
+  features/setup/setup_wizard.dart first-run setup, connection test, preflight
+  features/heatmap/heatmap_screen.dart   hazard + traffic density (C19)
   screens/connection_screen.dart   host/port, ping, auto-reconnect
   screens/applications_hub_screen.dart
   screens/teleop_screen.dart       joystick + D-pad + telemetry + E-STOP

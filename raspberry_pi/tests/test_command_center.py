@@ -472,6 +472,67 @@ class TestConsoleJavaScript:
 # --------------------------------------------------------------------------- #
 # The history module must stay read-only and hardware-free
 # --------------------------------------------------------------------------- #
+class TestHeatmapView:
+    """C19: the heat-map view — two graphs, one payload, no second data path.
+
+    The console is a *view*: it must render the heat map from the payload it
+    already polls, never from a second request, and it must never reach the
+    actuator endpoint. Both graphs must exist, because the feature is
+    deliberately two densities rather than one blended picture.
+    """
+
+    def test_the_view_is_known_and_navigable(self):
+        js = (_STATIC / "command_center.js").read_text(encoding="utf-8")
+        html = (_STATIC / "command_center.html").read_text(encoding="utf-8")
+        assert '"heatmap"' in js, "heatmap is not a known view"
+        assert 'id="sec-heatmap"' in html, "the heat-map panel is missing"
+        # Navigation is by data-view attribute: both the tab and the sidebar
+        # drive setView() through it, so both must exist.
+        assert html.count('data-view="heatmap"') >= 2, (
+            "the heat map is not reachable from both navigation surfaces")
+
+    def test_both_graphs_exist(self):
+        """Two graphs, not one: hazard density and traffic density."""
+        html = (_STATIC / "command_center.html").read_text(encoding="utf-8")
+        assert 'id="hm-hazard-svg"' in html, "no hazard graph"
+        assert 'id="hm-traffic-svg"' in html, "no traffic graph"
+        js = (_STATIC / "command_center.js").read_text(encoding="utf-8")
+        assert "function renderHeatmap" in js, "no heat-map renderer"
+        assert "drawHeatGrid(" in js, "the grid is not drawn"
+
+    def test_it_reads_the_console_payload_not_a_second_request(self):
+        """One request per tick: the heat map rides in /dashboard/state."""
+        js = (_STATIC / "command_center.js").read_text(encoding="utf-8")
+        body = js.split("function renderHeatmap")[1].split("\nfunction ")[0]
+        assert "s.heatmap" in body or "(s && s.heatmap)" in body, (
+            "renderHeatmap does not read the console payload")
+        assert "fetch" not in body and "fetchJSON" not in body, (
+            "the heat map issues its own request instead of riding the payload")
+
+    def test_the_renderer_never_reaches_the_actuator(self):
+        js = re.sub(r"(?<!:)//[^\n]*", "", _static_js())
+        js = re.sub(r"/\*.*?\*/", " ", js, flags=re.S)
+        body = js.split("function renderHeatmap")[1].split("\nfunction ")[0]
+        assert "/command" not in body, (
+            "the heat-map renderer must not reach the actuator endpoint")
+
+    def test_the_row_order_contract_is_honoured(self):
+        """Row 0 is y_min; drawing it upside down is plausible and wrong.
+
+        The payload publishes ``row_order`` precisely so a client does not have
+        to guess, and the renderer must say that it reads the grid bottom-up.
+        """
+        js = (_STATIC / "command_center.js").read_text(encoding="utf-8")
+        body = js.split("function drawHeatGrid")[1].split("\nfunction ")[0]
+        assert "y_min" in body, "the renderer ignores the published row order"
+
+    def test_the_view_gets_a_css_rule(self):
+        css = (_STATIC / "command_center.css").read_text(encoding="utf-8")
+        assert "main.view-heatmap #sec-heatmap" in css, (
+            "the focused heat-map view is not promoted like the other views")
+        assert ".stage.heat" in css, "the heat stage has no styling"
+
+
 class TestHistoryIsReadOnly:
     def test_history_module_imports_no_hardware(self):
         import pathlib
@@ -676,7 +737,7 @@ class TestTheming:
         detection-box halo, which sits on camera video, and the map gridlines,
         which are drawn on the always-dark --stage surface.
         """
-        allowed = ("rgba(0, 0, 0, .5)", "#141d29", "#2f4258", "#a855f7",
+        allowed = ("rgba(0, 0, 0, 0.5)", "#141d29", "#2f4258", "#a855f7",
                    "#e8a33d", "#3d8bfd", "#8fa3bd", "#5a6b80", "#2fbf71",
                    "#ef4d5a", "#0b0f16", "#ffffff")
         for name in ("command_center.css", "applications.css"):
@@ -742,18 +803,39 @@ class TestTheming:
             "the connectivity renderer must not reach the actuator endpoint"
         )
 
-    def test_both_pages_follow_the_system_preference(self):
+    def test_both_pages_open_light_and_honour_an_explicit_choice(self):
         """Console and hub must agree, or a phone shows one page light, one dark.
 
-        They share the ``amr-theme`` localStorage key; the gap was that neither
-        consulted ``prefers-color-scheme``, so the OS setting was ignored.
+        C19 changed the *default*: all four surfaces now open light rather than
+        following the OS, because the console is specified as a white control
+        room and a dark desktop setting was overriding that on first run. What
+        must not regress is the agreement between the pages, and that an
+        explicit operator choice still wins — defaulting to light for someone
+        who deliberately picked dark would be the worse mistake.
+
+        The earlier version of this test asserted the opposite default
+        (``prefers-color-scheme``), so it is rewritten rather than deleted: the
+        property it protects — the pages agree about the theme — is unchanged.
         """
         for name in ("command_center.js", "applications.js"):
             js = (_STATIC / name).read_text(encoding="utf-8")
-            assert "prefers-color-scheme" in js, (
-                f"{name} ignores the OS light/dark preference")
-            assert 'localStorage.getItem("amr-theme")' in js, (
+            # Comments are stripped: these files explain the decision by naming
+            # the API they no longer consult, and prose is not behaviour.
+            code = re.sub(r"/\*.*?\*/", " ", js, flags=re.S)
+            code = re.sub(r"(?<!:)//[^\n]*", " ", code)
+            assert "prefers-color-scheme" not in code, (
+                f"{name} follows the OS again: a dark desktop setting would "
+                f"override the white console on first run")
+            assert 'localStorage.getItem("amr-theme")' in code, (
                 f"{name} does not honour the stored explicit choice")
+            assert '"dark"' in code, (
+                f"{name} does not honour an explicit dark choice")
+
+    def test_the_console_opens_light(self):
+        js = (_STATIC / "command_center.js").read_text(encoding="utf-8")
+        body = js.split("function preferredTheme")[1][:600]
+        assert 'return "light"' in body, (
+            "preferredTheme() no longer opens light")
 
     def test_brass_is_consumed_by_the_console(self):
         """Brass exists to mark brand and the selected view; it must be drawn.

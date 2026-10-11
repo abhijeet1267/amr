@@ -29,16 +29,16 @@ serves, so a box always describes the picture actually on screen.
 
 This is the part C13 exists to protect.
 
-* A detector's bounding box is **image space** — pixels. It is never a
+- A detector's bounding box is **image space** — pixels. It is never a
   warehouse coordinate.
-* C13 **reuses** the existing validated `VisionBoundingBox` from
+- C13 **reuses** the existing validated `VisionBoundingBox` from
   `amr.hazard.vision` rather than inventing a second box type. A test asserts
   they are the same object.
-* `OverlayBox` has **no world-position field at all**, and the payload names the
+- `OverlayBox` has **no world-position field at all**, and the payload names the
   field `image_bbox` (not `bbox`) with an explicit `"space": "image"`.
-* The payload publishes `"world_transform": null`. The project stores no camera
+- The payload publishes `"world_transform": null`. The project stores no camera
   calibration, so none is performed or implied.
-* A source-level test fails if a helper named `image_to_world`,
+- A source-level test fails if a helper named `image_to_world`,
   `metres_per_pixel`, `pixels_per_metre`, `ray_cast` or similar ever appears in
   `amr/camera/overlay.py`.
 
@@ -46,12 +46,12 @@ This is the part C13 exists to protect.
 
 An event lands in exactly one bucket, and the buckets are deliberately distinct:
 
-| Bucket | Meaning | Drawn on image? |
-|---|---|---|
-| `boxes` | Has an image bbox **and** matches this camera | ✅ yes, in pixels |
-| `world_located` | Has a real `location` — belongs on the C9 map | ❌ no |
-| `without_bbox` | No usable image geometry | ❌ no |
-| `other_source` | From a different camera | ❌ no |
+| Bucket          | Meaning                                       | Drawn on image?   |
+| --------------- | --------------------------------------------- | ----------------- |
+| `boxes`         | Has an image bbox **and** matches this camera | ✅ yes, in pixels |
+| `world_located` | Has a real `location` — belongs on the C9 map | ❌ no             |
+| `without_bbox`  | No usable image geometry                      | ❌ no             |
+| `other_source`  | From a different camera                       | ❌ no             |
 
 A detection carrying **both** a world location and an image box goes to
 `world_located`: the world position is the stronger fact, and the image box is
@@ -76,7 +76,7 @@ camera:
   enabled: true
   device: "pi"
   resolution: "1280x720"
-  camera_id: "camera_front"   # the identity detections are stamped with
+  camera_id: "camera_front" # the identity detections are stamped with
 ```
 
 It defaults to `None` ("not declared"), in which case the overlay falls back to
@@ -95,12 +95,12 @@ now accepted, with a regression test asserting the shipped file is honoured.
 C5's named scenarios carried **no bbox at all**, so C13 added four that
 exercise image geometry. All are simulation input and imply no accuracy:
 
-| Scenario | Purpose |
-|---|---|
-| `person_bbox` | One person, 640×480 frame |
-| `bbox_multiple` | Three hazards at different positions |
-| `bbox_partially_outside` | A box overhanging the right edge |
-| `bbox_world_and_image` | Both spaces at once, to prove separation |
+| Scenario                 | Purpose                                  |
+| ------------------------ | ---------------------------------------- |
+| `person_bbox`            | One person, 640×480 frame                |
+| `bbox_multiple`          | Three hazards at different positions     |
+| `bbox_partially_outside` | A box overhanging the right edge         |
+| `bbox_world_and_image`   | Both spaces at once, to prove separation |
 
 The twelve original scenarios are unchanged and still asserted present.
 
@@ -111,24 +111,43 @@ deployment gets a valid empty schema rather than an error.
 
 ```json
 {
-  "schema_version": "1.0", "space": "image", "units": "pixels",
+  "schema_version": "1.0",
+  "space": "image",
+  "units": "pixels",
   "world_transform": null,
-  "image": {"width": 640, "height": 480, "camera_id": "camera_front",
-            "backend": "RaspberryPiCamera", "frame_id": 1245,
-            "timestamp": 1700000000.0, "status": "LIVE"},
-  "boxes": [{"kind": "PERSON", "severity": "WARNING", "confidence": 0.91,
-             "label": "PERSON", "image_bbox": {"x":120,"y":140,
-                                               "width":90,"height":180},
-             "space": "image", "fully_visible": true, "color": "#38bdf8"}],
-  "box_count": 1, "drawable": true,
-  "world_located": [], "without_bbox": [], "other_source": []
+  "image": {
+    "width": 640,
+    "height": 480,
+    "camera_id": "camera_front",
+    "backend": "RaspberryPiCamera",
+    "frame_id": 1245,
+    "timestamp": 1700000000.0,
+    "status": "LIVE"
+  },
+  "boxes": [
+    {
+      "kind": "PERSON",
+      "severity": "WARNING",
+      "confidence": 0.91,
+      "label": "PERSON",
+      "image_bbox": { "x": 120, "y": 140, "width": 90, "height": 180 },
+      "space": "image",
+      "fully_visible": true,
+      "color": "#38bdf8"
+    }
+  ],
+  "box_count": 1,
+  "drawable": true,
+  "world_located": [],
+  "without_bbox": [],
+  "other_source": []
 }
 ```
 
 ## Dashboard
 
 The camera card gained an SVG overlay layer positioned over the image, plus an
-`Overlays` count and a note explaining anything that could *not* be drawn
+`Overlays` count and a note explaining anything that could _not_ be drawn
 ("2 world-located: on the 2D map", "1 from another camera"). The overlay rides
 the **existing 1 Hz tick** — there is no second timer, and a test asserts it.
 
@@ -151,7 +170,7 @@ the **existing 1 Hz tick** — there is no second timer, and a test asserts it.
   `location`.
 - The legacy `CameraManager` path serves JPEG but exposes no `CameraFrame`
   metadata, so the overlay reports null dimensions there rather than guessing.
-- Overlays are drawn from the *latest* event snapshot; there is no per-frame
+- Overlays are drawn from the _latest_ event snapshot; there is no per-frame
   tracking or temporal smoothing.
 - Multi-camera support is modelled (source matching) but the runtime currently
   exposes a single camera.
@@ -162,7 +181,7 @@ the **existing 1 Hz tick** — there is no second timer, and a test asserts it.
 
 C15b adds **real camera acquisition** behind the existing `VisionDetector`
 protocol. It is the "Stage A" of vision: frames come from an actual camera;
-object-detection inference is deliberately *not* bundled.
+object-detection inference is deliberately _not_ bundled.
 
 ## Architecture
 
@@ -205,11 +224,11 @@ the setting was silently discarded and every camera opened at the 640x480
 fallback. `amr.main.parse_resolution()` accepts `"1280x720"`, `"1280X720"`,
 `"640*480"` and a bare number, and falls back safely on nonsense.
 
-| Key | Meaning |
-|---|---|
-| `camera.enabled` | when false, `build_frame_detector()` returns `None` |
-| `camera.resolution` | `"WIDTHxHEIGHT"`, applied to both backends |
-| `camera.camera_id` | source identity carried into detections (e.g. `camera_front`) |
+| Key                 | Meaning                                                       |
+| ------------------- | ------------------------------------------------------------- |
+| `camera.enabled`    | when false, `build_frame_detector()` returns `None`           |
+| `camera.resolution` | `"WIDTHxHEIGHT"`, applied to both backends                    |
+| `camera.camera_id`  | source identity carried into detections (e.g. `camera_front`) |
 
 ## Image space is still image space
 
@@ -228,7 +247,7 @@ frame may still be returned, but it is flagged `UNAVAILABLE` with null
 dimensions and can never masquerade as real imagery.
 
 A failing detector yields a `ROBOT_FAULT` / `WARNING` reading — deliberately
-*not* `ERROR`/`STOP`, because a camera problem must not by itself halt a robot
+_not_ `ERROR`/`STOP`, because a camera problem must not by itself halt a robot
 that is otherwise safe to drive.
 
 ## Hardware status
@@ -243,4 +262,3 @@ that is otherwise safe to drive.
 - No inference model is bundled, so no detection accuracy of any kind is
   claimed — the confidence figures in the tests are inputs to the pipeline,
   not measurements of model performance.
-

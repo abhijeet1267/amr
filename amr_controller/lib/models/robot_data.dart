@@ -327,3 +327,124 @@ class ConnectivityInfo {
         note: j['note'] as String?,
       );
 }
+
+// ---------------------------------------------------------------------------
+// Heat map (C19) — GET /heatmap
+// ---------------------------------------------------------------------------
+
+double _d(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
+
+/// One density grid, exactly as the backend bins it.
+///
+/// [cells] is flat and row-major, and **row 0 is [yMin] — the bottom row**.
+/// The backend publishes that in `row_order` precisely so a client does not
+/// have to guess: a vertically mirrored heat map looks entirely plausible and
+/// would never fail a "does it draw" check.
+class HeatGrid {
+  const HeatGrid({
+    required this.cols,
+    required this.rows,
+    required this.cellM,
+    required this.xMin,
+    required this.yMin,
+    required this.xMax,
+    required this.yMax,
+    required this.cells,
+    required this.maxValue,
+    required this.total,
+    required this.samples,
+    required this.clipped,
+    required this.unlocated,
+    required this.source,
+    required this.note,
+  });
+
+  final int cols;
+  final int rows;
+  final double cellM;
+  final double xMin;
+  final double yMin;
+  final double xMax;
+  final double yMax;
+  final List<double> cells;
+  final double maxValue;
+  final double total;
+  final int samples;
+  final int clipped;
+  final int unlocated;
+  final String source;
+  final String note;
+
+  /// Value at `(col, row)`; out-of-range reads are 0, never an exception.
+  double at(int col, int row) {
+    if (col < 0 || col >= cols || row < 0 || row >= rows) return 0.0;
+    final i = row * cols + col;
+    return i >= 0 && i < cells.length ? cells[i] : 0.0;
+  }
+
+  factory HeatGrid.fromJson(Map<String, dynamic> j) {
+    final extent = (j['extent'] as Map<String, dynamic>?) ?? const {};
+    return HeatGrid(
+      cols: (j['cols'] as num?)?.toInt() ?? 0,
+      rows: (j['rows'] as num?)?.toInt() ?? 0,
+      cellM: _d(j['cell_m']),
+      xMin: _d(extent['x_min']),
+      yMin: _d(extent['y_min']),
+      xMax: _d(extent['x_max']),
+      yMax: _d(extent['y_max']),
+      cells: (j['cells'] as List<dynamic>? ?? const [])
+          .map((e) => _d(e))
+          .toList(),
+      maxValue: _d(j['max_value']),
+      total: _d(j['total']),
+      samples: (j['samples'] as num?)?.toInt() ?? 0,
+      clipped: (j['clipped'] as num?)?.toInt() ?? 0,
+      unlocated: (j['unlocated'] as num?)?.toInt() ?? 0,
+      source: j['source'] as String? ?? 'UNAVAILABLE',
+      note: j['note'] as String? ?? '',
+    );
+  }
+}
+
+/// The whole `GET /heatmap` document: two densities over one shared extent.
+///
+/// `hazard` and `traffic` are null together when the backend has no configured
+/// warehouse geometry — it reports that rather than inventing a floor plan.
+class HeatmapState {
+  const HeatmapState({
+    required this.source,
+    required this.hazard,
+    required this.traffic,
+    required this.notes,
+    required this.severityWeights,
+  });
+
+  final String source;
+  final HeatGrid? hazard;
+  final HeatGrid? traffic;
+  final List<String> notes;
+
+  /// Published by the backend so a client never has to guess the convention.
+  final Map<String, double> severityWeights;
+
+  bool get hasAny => hazard != null || traffic != null;
+
+  factory HeatmapState.fromJson(Map<String, dynamic> j) {
+    final weights = (j['severity_weights'] as Map<String, dynamic>?) ?? const {};
+    return HeatmapState(
+      source: j['source'] as String? ?? 'UNAVAILABLE',
+      hazard: j['hazard'] == null
+          ? null
+          : HeatGrid.fromJson(j['hazard'] as Map<String, dynamic>),
+      traffic: j['traffic'] == null
+          ? null
+          : HeatGrid.fromJson(j['traffic'] as Map<String, dynamic>),
+      notes: (j['notes'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      severityWeights: {
+        for (final e in weights.entries) e.key: _d(e.value),
+      },
+    );
+  }
+}

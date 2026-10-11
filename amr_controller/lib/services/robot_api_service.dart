@@ -10,6 +10,8 @@
 //   GET  /telemetry            -> full telemetry snapshot
 //   GET  /health               -> liveness + reachability
 //   GET  /status               -> raw robot snapshot (mode/speeds/ultrasonic)
+//   GET  /map                  -> map snapshot (world metres, y-up)
+//   GET  /heatmap              -> hazard + traffic density grids (C19)
 //   POST /command {cmd, ...}   -> {ok, ...} (motion, stop, estop, mode)
 library;
 
@@ -105,7 +107,6 @@ class RobotApiService {
 
   Future<Map<String, dynamic>> fetchApplications(String origin) =>
       _getJson(origin, '/applications/state');
-
   Future<Map<String, dynamic>> fetchTelemetry(String origin) =>
       _getJson(origin, '/telemetry');
 
@@ -117,6 +118,10 @@ class RobotApiService {
 
   Future<Map<String, dynamic>> fetchMap(String origin) =>
       _getJson(origin, '/map');
+
+  /// C19: hazard density + traffic density over one shared extent.
+  Future<Map<String, dynamic>> fetchHeatmap(String origin) =>
+      _getJson(origin, '/heatmap');
 
   Future<Map<String, dynamic>> fetchConnectivity(String origin) =>
       _getJson(origin, '/connectivity');
@@ -154,6 +159,15 @@ class RobotApiService {
       client.close();
     }
   }
+
+  /// A raw GET used by the setup wizard's per-endpoint diagnostics.
+  ///
+  /// The wizard must probe each endpoint *independently* — the normal `ping()`
+  /// is a single all-or-nothing `Future.wait`, which is right for the polling
+  /// loop but cannot tell an operator *which* part of the robot answered.
+  /// Returns the decoded JSON, or throws [RobotApiException].
+  Future<Map<String, dynamic>> getJson(String origin, String path) =>
+      _getJson(origin, path);
 
   /// Motion and safety commands. Returns the robot's `{ok, ...}` body on
   /// success and throws [RobotApiException] on refusal.

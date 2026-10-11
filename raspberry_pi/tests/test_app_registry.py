@@ -535,10 +535,19 @@ def test_showcase_and_app_share_one_palette():
     #0b0f16, accent #4da3ff against #22d3ee, and --ok/--err that matched nothing
     in the app at all. Someone who read the showcase and then opened the
     console saw a change of brand. Compared value by value, not by eye.
+
+    The showcase is a white page, so it is now held to the console's **light**
+    palette (``body.light``) rather than the dark ``:root`` block it used to
+    mirror. The invariant is unchanged — the two must not drift — only the half
+    of the palette it is anchored to, because the project is light-first.
     """
     html = SHOWCASE_HTML.read_text(encoding="utf-8")
     css = (Path(__file__).resolve().parents[1] / "amr" / "web" / "static"
            / "command_center.css").read_text(encoding="utf-8")
+
+    m = re.search(r"body\.light\s*\{(.*?)\}", css, re.S)
+    assert m, "no body.light block in command_center.css"
+    light_block = m.group(1)
 
     def token(text: str, name: str) -> str:
         m = re.search(re.escape(name) + r"\s*:\s*(#[0-9a-fA-F]{3,6})", text)
@@ -550,9 +559,9 @@ def test_showcase_and_app_share_one_palette():
         ("--muted", "--muted"), ("--dim", "--dim"),
         ("--acc", "--accent"), ("--ok", "--ok"), ("--crit", "--crit"),
     ):
-        assert token(html, sc_name) == token(css, app_name), (
+        assert token(html, sc_name) == token(light_block, app_name), (
             f"{sc_name} is {token(html, sc_name)} in the showcase but "
-            f"{token(css, app_name)} in the app"
+            f"{token(light_block, app_name)} in the console's light palette"
         )
 
 
@@ -710,14 +719,23 @@ def test_embedded_pages_light_theme_matches_the_console():
         "would sit on white"
     )
 
-    # (3) Same storage key, same OS fallback as the console.
+    # (3) Same storage key, same default, on every surface.
     console_js = (STATIC_DIR / "command_center.js").read_text(encoding="utf-8")
     boot = _server._THEME_BOOT_JS
     assert "amr-theme" in boot and "amr-theme" in console_js, (
         "the embedded pages and the console must share the theme storage key"
     )
-    assert "prefers-color-scheme" in boot, "the bootstrap ignores the OS setting"
     assert "localStorage.getItem" in boot, "the bootstrap ignores a stored choice"
+    # C19: all four surfaces now OPEN LIGHT rather than following the OS, so a
+    # dark desktop setting cannot silently override the white console on first
+    # run. Pinned here because "which theme does a fresh operator see" is
+    # exactly the decision that drifts without anyone noticing.
+    assert 'pref = "light"' in boot, "the bootstrap no longer opens light"
+    assert 'return "light"' in console_js, "the console no longer opens light"
+    assert "prefers-color-scheme" not in boot, (
+        "the bootstrap follows the OS again: a dark desktop setting would "
+        "override the white console on first run"
+    )
 
     # ...and both pages actually ship it. Substitution happens at import time, so
     # a page that lost its placeholder would ship neither the palette nor the
@@ -872,7 +890,13 @@ def test_current_status_application_counts_are_not_stale(registry):
     """
     text = README_MD.parent.joinpath("AI_CONTEXT", "CURRENT_STATUS.md").read_text(
         encoding="utf-8")
-    row = re.search(r"^\| Applications Hub \|.*$", text, re.M)
+    # Padding-tolerant on purpose: the table is aligned for reading, so the
+    # cell may be followed by any run of spaces before the closing pipe. An
+    # exact "| Applications Hub |" match made a cosmetic realignment look like
+    # a missing row, which is a false alarm in the one file whose job is to be
+    # the verified state of the repository. The count checks below are what
+    # this guard actually measures.
+    row = re.search(r"^\|\s*Applications Hub\s*\|.*$", text, re.M)
     assert row, "CURRENT_STATUS.md has no Applications Hub row"
     row = row.group(0)
 

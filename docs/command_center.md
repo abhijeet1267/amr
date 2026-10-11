@@ -49,7 +49,7 @@ Command Center (read-only)
       └── event log    DOM
 ```
 
-The console adds **no** backend state. `history` is a *projection*: it is filled
+The console adds **no** backend state. `history` is a _projection_: it is filled
 inside the existing control loop from the very same telemetry snapshot the rest
 of the dashboard already reads, so charts and the rest of the page cannot
 disagree.
@@ -59,7 +59,7 @@ disagree.
 Only two things genuinely did not exist before:
 
 1. **`amr/telemetry/series.py`** — a bounded time-series buffer and an event
-   stream. Every earlier dashboard showed *current* values only; an operator
+   stream. Every earlier dashboard showed _current_ values only; an operator
    needs to see how something is moving and one ordered feed of what happened.
 2. **`amr/web/static/command_center.{html,css,js}`** — the console itself, kept
    as real files rather than embedded Python strings.
@@ -81,26 +81,26 @@ so the UI's filter buttons cannot drift from the server.
 
 ## Honesty rules (enforced by tests, not just convention)
 
-| Rule | How it is enforced |
-|---|---|
-| A missing value is never `0` | `extract_metrics` keeps `None`; a test asserts `0` never appears |
-| `None` is not a number | booleans, `NaN` and `inf` are rejected by `_is_num` |
-| No timestamp, no sample | skipped rather than backdated (same rule as C14) |
-| No image-to-world conversion | only `MapSnapshot.hazards` reaches map/twin; the panel says "image-space only" |
-| No invented warehouse | the map draws the data extent and labels it as such |
-| `SIMULATION` is never shown as `LIVE` | a banner appears whenever the backend is mock-backed |
-| Replay never overwrites live | replay status is a separate field; `/telemetry` keeps serving live |
-| A missing camera is not a detection | `has_frame: false` shows "camera unavailable" and no detections |
+| Rule                                  | How it is enforced                                                             |
+| ------------------------------------- | ------------------------------------------------------------------------------ |
+| A missing value is never `0`          | `extract_metrics` keeps `None`; a test asserts `0` never appears               |
+| `None` is not a number                | booleans, `NaN` and `inf` are rejected by `_is_num`                            |
+| No timestamp, no sample               | skipped rather than backdated (same rule as C14)                               |
+| No image-to-world conversion          | only `MapSnapshot.hazards` reaches map/twin; the panel says "image-space only" |
+| No invented warehouse                 | the map draws the data extent and labels it as such                            |
+| `SIMULATION` is never shown as `LIVE` | a banner appears whenever the backend is mock-backed                           |
+| Replay never overwrites live          | replay status is a separate field; `/telemetry` keeps serving live             |
+| A missing camera is not a detection   | `has_frame: false` shows "camera unavailable" and no detections                |
 
 ## Safety
 
-* The console **never** calls `POST /command`. Its only write is
+- The console **never** calls `POST /command`. Its only write is
   `POST /replay/control`, which is display-only on the server.
-* `amr/telemetry/series.py` imports no hardware module and is checked at the
+- `amr/telemetry/series.py` imports no hardware module and is checked at the
   source level for `gpio` / `RPi` / `serial` / `estop`.
-* Every console read is exercised inside the existing `NoActuation` guard, which
+- Every console read is exercised inside the existing `NoActuation` guard, which
   fails the test if an actuator verb reaches the transport.
-* `command_center.js` is source-checked for `estop(`, `forward(`,
+- `command_center.js` is source-checked for `estop(`, `forward(`,
   `rotate_left(`, `.dispatch(` and `"/command"`.
 
 ## Static asset safety
@@ -143,13 +143,13 @@ unchanged; the Command Center is an additional view, not a replacement.
 ## C5d — visual verification, and two defects it caught
 
 A route returning 200 proves the server responded. It does not prove the page
-shows anything useful. C5d verified the console by *watching* it, which found
+shows anything useful. C5d verified the console by _watching_ it, which found
 two defects that no existing test could see.
 
 ### 1. The camera panel could never light up
 
 The panel requested `/camera/frame` only when telemetry reported
-`has_frame` — but `has_frame` only becomes true *after* something reads a
+`has_frame` — but `has_frame` only becomes true _after_ something reads a
 frame. Nothing read one, so nothing ever lit up: a self-blocked panel.
 
 The frame is now requested whenever the camera is not
@@ -184,34 +184,32 @@ been set and never read — a dead flag, which is why `--mission-demo` did
 nothing inside the server — and is now backed by a real `self._warehouse`
 reference.
 
-| | before | after |
-|---|---|---|
-| in-leg direction reversals | 3 | **0** |
-| steady-state step | erratic 0.06–0.45 m | **0.50 m** |
-| total path length | — | 7.12 m |
-| final pose | oscillating | (−0.008, 0.048) ≈ dock, phase `COMPLETED` |
+|                            | before              | after                                     |
+| -------------------------- | ------------------- | ----------------------------------------- |
+| in-leg direction reversals | 3                   | **0**                                     |
+| steady-state step          | erratic 0.06–0.45 m | **0.50 m**                                |
+| total path length          | —                   | 7.12 m                                    |
+| final pose                 | oscillating         | (−0.008, 0.048) ≈ dock, phase `COMPLETED` |
 
 ### Verification actually performed
 
-* All eleven endpoints over real HTTP — `/command-center`, both static assets,
+- All eleven endpoints over real HTTP — `/command-center`, both static assets,
   `/dashboard/state`, `/replay/status`, `/map`, `/digital-twin`, `/telemetry`,
   `/health`, `/camera/status`, `/camera/frame` (→ `image/png`).
-* Every render function executed against a **real** `/dashboard/state` payload
+- Every render function executed against a **real** `/dashboard/state` payload
   through a small DOM shim: 15 render paths OK, no `TypeError`.
-* Confirmed in the rendered output: `hw-text = SIMULATION` (never claims
+- Confirmed in the rendered output: `hw-text = SIMULATION` (never claims
   hardware), `r-batt = n/a` (no fabricated value), map SVG carrying real
   geometry, a 4-wheel twin model with camera and sensor, the camera overlay
   labelled `1 (image-space)`, and 12 event-log rows.
 
 ### Two measurement traps worth recording
 
-* **"Sign of `dx`" is not an oscillation test.** The AMR drives diagonally, so
+- **"Sign of `dx`" is not an oscillation test.** The AMR drives diagonally, so
   its x-component legitimately changes sign as the heading arc curves. The
   first version of this check reported `OSCILLATING` on a perfectly smooth run.
-  A valid test measures per-step *speed* consistency and backtracking, not the
+  A valid test measures per-step _speed_ consistency and backtracking, not the
   sign of a single axis.
-* **A static grep cannot confirm a runtime-filled badge.** The
+- **A static grep cannot confirm a runtime-filled badge.** The
   `SIMULATION` badge is populated by JavaScript from live state, so it does
   not appear in the served HTML. It has to be checked after render.
-
-

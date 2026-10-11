@@ -334,6 +334,49 @@ class MockRobot {
           'navigation': {'state': 'IDLE'},
         });
 
+      case '/heatmap':
+        // C19: the double must mirror server.py's routes, or a client that
+        // polls the real endpoint fails here for the wrong reason.
+        return (200, {
+          'schema_version': '1.0',
+          'source': 'SIMULATION',
+          'units': 'metres',
+          'frame': 'warehouse',
+          'y_axis': 'up',
+          'severity_weights': {'INFO': 1.0, 'WARNING': 2.0, 'CRITICAL': 4.0},
+          'hazard': {
+            'cols': 2,
+            'rows': 2,
+            'cell_m': 0.5,
+            'extent': {'x_min': 0.0, 'x_max': 1.0, 'y_min': 0.0, 'y_max': 1.0},
+            'cells': [0.0, 4.0, 0.0, 0.0],
+            'row_order': 'row 0 is y_min (bottom); index = row * cols + col',
+            'max_value': 4.0,
+            'total': 4.0,
+            'samples': 1,
+            'clipped': 0,
+            'unlocated': 1,
+            'source': 'SIMULATION',
+            'note': 'severity-weighted hazard events',
+          },
+          'traffic': {
+            'cols': 2,
+            'rows': 2,
+            'cell_m': 0.5,
+            'extent': {'x_min': 0.0, 'x_max': 1.0, 'y_min': 0.0, 'y_max': 1.0},
+            'cells': [0.0, 0.0, 3.0, 0.0],
+            'row_order': 'row 0 is y_min (bottom); index = row * cols + col',
+            'max_value': 3.0,
+            'total': 3.0,
+            'samples': 3,
+            'clipped': 0,
+            'unlocated': 0,
+            'source': 'SIMULATION',
+            'note': 'one sample per recorded path point',
+          },
+          'notes': <Object>[],
+        });
+
       case '/connectivity':
         return (200, {
           'version': 1,

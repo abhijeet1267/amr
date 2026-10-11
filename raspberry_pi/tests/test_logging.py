@@ -128,14 +128,19 @@ def test_log_dir_false_is_the_explicit_opt_out(tmp_path):
 
 
 def test_main_entry_point_configures_a_usable_logger(tmp_path, monkeypatch):
-    """Run the real argparse path from main.py, not a hand-made call."""
+    """Run the real argparse path from main.py, not a hand-made call.
+
+    ``--mock --demo`` rather than ``--help``: argparse raises ``SystemExit`` on
+    ``--help`` *before* ``main()`` reaches ``setup_logging``, so that invocation
+    never ran the code this test names. It passed only while handlers from an
+    earlier test were still attached to the shared logger — it was asserting
+    the leak, not the entry point. The demo path runs ``setup_logging``, builds
+    the mock stack and finishes without touching hardware.
+    """
     monkeypatch.setenv("AMR_LOG_DIR", str(tmp_path / "logs"))
     from amr import main as main_mod
 
-    try:
-        main_mod.main(["--help"])
-    except SystemExit:
-        pass
+    assert main_mod.main(["--mock", "--demo"]) == 0
     assert get_logger("amr").handlers, "main.py left the logger with no handlers"
 
 
@@ -167,10 +172,19 @@ def test_log_event_uppercases_tag_and_uses_info():
     lg = get_logger("events")
     cap = _Capture()
     lg.addHandler(cap)
+    # The level is set here on purpose. ``amr.events`` defaults to NOTSET, so
+    # whether an INFO record is emitted depends on the *ancestor* ``amr`` level.
+    # This test used to pass only because an earlier test in the module had
+    # leaked ``amr`` at INFO onto the shared logger — a dependency on test
+    # order, not on the behaviour under test. conftest now restores the logger
+    # per test, so the level has to be explicit.
+    prev_level = lg.level
+    lg.setLevel(logging.INFO)
     try:
         log_event(lg, "move", "L=1 R=2")
     finally:
         lg.removeHandler(cap)
+        lg.setLevel(prev_level)
     assert len(cap.records) == 1
     assert cap.records[0].levelno == logging.INFO
     assert cap.records[0].getMessage() == "MOVE L=1 R=2"
@@ -180,9 +194,12 @@ def test_log_event_none_logger_falls_back_to_events():
     lg = get_logger("events")
     cap = _Capture()
     lg.addHandler(cap)
+    prev_level = lg.level          # same reason as the test above
+    lg.setLevel(logging.INFO)
     try:
         log_event(None, "safety", "stop")
     finally:
         lg.removeHandler(cap)
+        lg.setLevel(prev_level)
     assert len(cap.records) == 1
     assert cap.records[0].getMessage() == "SAFETY stop"

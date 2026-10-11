@@ -28,8 +28,8 @@ warehouse:
 
   # The map. Every name used by a task must appear here.
   locations:
-    dock:    {x: 0.0,  y: 0.0, theta: 0.0}
-    shelf_a: {x: 2.0,  y: 0.0, theta: 0.0}
-    shelf_b: {x: 2.0,  y: 1.5, theta: 0.0}
-    shelf_c: {x: 4.0,  y: 1.5, theta: 0.0}
-    station: {x: 0.0,  y: 3.0, theta: 0.0}
+    dock: { x: 0.0, y: 0.0, theta: 0.0 }
+    shelf_a: { x: 2.0, y: 0.0, theta: 0.0 }
+    shelf_b: { x: 2.0, y: 1.5, theta: 0.0 }
+    shelf_c: { x: 4.0, y: 1.5, theta: 0.0 }
+    station: { x: 0.0, y: 3.0, theta: 0.0 }

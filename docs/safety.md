@@ -5,7 +5,7 @@ Safety **always takes priority over navigation and control.** The system uses a
 able to stop the robot. Nothing may bypass safety to make a test pass.
 
 > **Status of the thresholds:** `config/safety.yaml` is `status: NOT_VERIFIED`.
-> Every distance is a configurable *test value* until it is physically measured
+> Every distance is a configurable _test value_ until it is physically measured
 > and confirmed on the real robot. Do not trust the robot at speed until
 > `status: VERIFIED`.
 
@@ -17,14 +17,14 @@ Runs **on the Arduino**, independent of the Pi. Two independent triggers:
 
 1. **Communication watchdog** (Phase 2). If no valid command arrives for
    `watchdog_timeout_ms` (default **1000 ms**), all motors stop and
-   `WATCHDOG TRIGGERED` is sent. The robot can therefore *never* keep driving
+   `WATCHDOG TRIGGERED` is sent. The robot can therefore _never_ keep driving
    indefinitely because the Pi crashed, rebooted, or the cable was pulled.
-2. **Proximity stop.** When a *valid* ultrasonic reading is closer than its
+2. **Proximity stop.** When a _valid_ ultrasonic reading is closer than its
    stop threshold, the Arduino stops the motors immediately:
-   * `FRONT < front_stop_distance_cm` (default 20 cm)
-   * `REAR  < rear_stop_distance_cm`  (default 20 cm)
-   * `LEFT  < left_stop_distance_cm`  (default 15 cm)
-   * `RIGHT < right_stop_distance_cm` (default 15 cm)
+   - `FRONT < front_stop_distance_cm` (default 20 cm)
+   - `REAR  < rear_stop_distance_cm` (default 20 cm)
+   - `LEFT  < left_stop_distance_cm` (default 15 cm)
+   - `RIGHT < right_stop_distance_cm` (default 15 cm)
 
 A reading of `-1` (no echo / clear) is **not** an obstacle and does **not**
 stop the robot (otherwise a clear path would falsely halt it).
@@ -49,7 +49,7 @@ The Pi-side **safety manager** (`amr/safety/safety_manager.py`) decides, based o
 and must act on a `STOP` immediately.
 
 > **Scope note (updated by C6):** immediate, deterministic safety stops have
-> always been the priority. C6 now *additionally* activates `TURN`/`REPLAN` for
+> always been the priority. C6 now _additionally_ activates `TURN`/`REPLAN` for
 > **non-blocking** obstacles. It never applies to a critical/emergency
 > condition, and it cannot turn a `STOP` or `WAIT` into motion — see
 > [C6 obstacle avoidance](#c6--obstacle-avoidance) below.
@@ -118,7 +118,7 @@ The ordering above is the whole safety argument, and it is enforced in code:
 
 ### Turning
 
-A turn is only proposed when the *target* side is **known clear** — its measured
+A turn is only proposed when the _target_ side is **known clear** — its measured
 clearance must exceed `open_clearance_m`. The roomier side wins for a front
 obstacle. With no clearance feed, an unknown side, or a `NaN` reading, the
 policy **replans instead of guessing a heading**. An obstacle on the left
@@ -126,7 +126,7 @@ steers right, and vice versa.
 
 ### Loop guard
 
-`max_replans` bounds the attempts spent on a *single* obstacle episode. When it
+`max_replans` bounds the attempts spent on a _single_ obstacle episode. When it
 is exhausted the navigator sets `NavStatus.FAILED` and commands zero, rather
 than manoeuvring forever. The budget resets when the obstacle clears, so a new
 obstacle gets a fresh allowance while one persistent obstacle cannot loop.
@@ -136,11 +136,11 @@ obstacle gets a fresh allowance while one persistent obstacle cannot loop.
 ```yaml
 safety:
   avoidance:
-    enabled: false          # off by default; pre-C6 behaviour when false
-    max_replans: 3          # per-episode budget, then FAILED
-    turn_speed_scale: 0.5   # NOT_VERIFIED software default
-    turn_duration_s: 0.6    # NOT_VERIFIED software default
-    open_clearance_m: 1.0   # NOT_VERIFIED software default
+    enabled: false # off by default; pre-C6 behaviour when false
+    max_replans: 3 # per-episode budget, then FAILED
+    turn_speed_scale: 0.5 # NOT_VERIFIED software default
+    turn_duration_s: 0.6 # NOT_VERIFIED software default
+    open_clearance_m: 1.0 # NOT_VERIFIED software default
 ```
 
 ### Wiring
@@ -153,14 +153,13 @@ vision tests are unaffected.
 
 ### Known limitations
 
-* Turn geometry is a fixed timed arc, not a closed-loop controller; it does not
+- Turn geometry is a fixed timed arc, not a closed-loop controller; it does not
   re-plan from feedback as a real localiser would.
-* No map, no global path planner and no cost map: `REPLAN` retries the existing
+- No map, no global path planner and no cost map: `REPLAN` retries the existing
   straight-line approach, it does not compute a different route.
-* Clearance comes from a provider that is not yet wired to the ultrasonic
+- Clearance comes from a provider that is not yet wired to the ultrasonic
   manager, so in the default configuration avoidance always replans.
-* Nothing here has been run on hardware.
-
+- Nothing here has been run on hardware.
 
 ---
 
@@ -187,10 +186,10 @@ vision tests are unaffected.
                    IDLE
 ```
 
-* Transitions **into** `SAFETY_STOP` are **deterministic**: any safety trigger
+- Transitions **into** `SAFETY_STOP` are **deterministic**: any safety trigger
   (watchdog, proximity, connection loss, invalid critical sensor) forces it.
-* Leaving `SAFETY_STOP` requires an explicit operator action (acknowledge).
-* `ERROR` is used for non-safety faults (bad config, repeated comms failure)
+- Leaving `SAFETY_STOP` requires an explicit operator action (acknowledge).
+- `ERROR` is used for non-safety faults (bad config, repeated comms failure)
   and also requires operator attention.
 
 See `amr/robot/robot_state.py` for the concrete implementation.
@@ -198,12 +197,14 @@ See `amr/robot/robot_state.py` for the concrete implementation.
 ---
 
 ## Emergency stop (always available)
-* **Software E-stop** (web UI / API) → sends `STOP` and sets `SAFETY_STOP`.
-* **Watchdog** → automatic on loss of commands.
-* **Physical** → the robot must always be powered from the external supply so it
+
+- **Software E-stop** (web UI / API) → sends `STOP` and sets `SAFETY_STOP`.
+- **Watchdog** → automatic on loss of commands.
+- **Physical** → the robot must always be powered from the external supply so it
   can be disconnected. **Never** power the motors from the Pi 5V or the Arduino
   5V rail.
 
 ## Physical power rule
+
 Motors are powered by the **L298N external supply**, never by the Raspberry Pi
 5V or Arduino 5V. This is a hardware requirement, not a software one.

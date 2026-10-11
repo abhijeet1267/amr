@@ -36,49 +36,49 @@ translation logic is here, where it can be unit tested without ROS.
 
 ## API (`ros2/bridge.py`)
 
-| Function | Direction | Payload |
-|---|---|---|
-| `pose_stamped_from_snapshot(snapshot)` | outbound | `{"header": {"frame_id": "map", ...}, "pose": {"position": {...}, "orientation": {...quaternion...}}}` |
-| `hazard_to_diagnostic(status)` | outbound | `{"name": "amr_hazard", "level": 0..3, "message": ..., "values": [...]}` (diagnostic_msgs shape) |
-| `goal_from_pose_stamped(msg, name="ros_goal")` | inbound | `PoseStamped`-shaped dict → `amr.navigation.Goal`; raises `ValueError` when there is no usable position |
-| `pose_stamped_to_goal(msg, name)` | inbound | backwards-compatible alias |
+| Function                                       | Direction | Payload                                                                                                 |
+| ---------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
+| `pose_stamped_from_snapshot(snapshot)`         | outbound  | `{"header": {"frame_id": "map", ...}, "pose": {"position": {...}, "orientation": {...quaternion...}}}`  |
+| `hazard_to_diagnostic(status)`                 | outbound  | `{"name": "amr_hazard", "level": 0..3, "message": ..., "values": [...]}` (diagnostic_msgs shape)        |
+| `goal_from_pose_stamped(msg, name="ros_goal")` | inbound   | `PoseStamped`-shaped dict → `amr.navigation.Goal`; raises `ValueError` when there is no usable position |
+| `pose_stamped_to_goal(msg, name)`              | inbound   | backwards-compatible alias                                                                              |
 
 Constants: `MAP_FRAME = "map"`, `BASE_FRAME = "base_link"`,
 `BRIDGE_SCHEMA_VERSION = "1.0"`, and `DIAGNOSTIC_OK/WARN/ERROR/STALE`.
 
 ### Honesty rules preserved by the translators
 
-* A position that no sensor produced stays `None` in the outbound message —
+- A position that no sensor produced stays `None` in the outbound message —
   the same never-fabricate-a-number rule as the telemetry contract (NaN/inf
   are coerced to `None` too).
-* An unreadable quaternion on an inbound goal degrades to yaw `0.0` with a
+- An unreadable quaternion on an inbound goal degrades to yaw `0.0` with a
   note appended to the goal's name; a missing/non-finite **position** raises,
   because navigating to a fabricated coordinate is never acceptable.
-* An unknown hazard state maps to `DIAGNOSTIC_STALE`, never to `OK`.
-* `HazardState` STOP/EMERGENCY map to `DIAGNOSTIC_ERROR` with
+- An unknown hazard state maps to `DIAGNOSTIC_STALE`, never to `OK`.
+- `HazardState` STOP/EMERGENCY map to `DIAGNOSTIC_ERROR` with
   `blocks_motion=true`, mirroring `HazardState.blocks_motion` (the mapping is
   asserted against the real enum in the tests).
 
 ## What is deliberately missing
 
-* **No node, no topics, no `ros2/amr_bringup` package.** Building it requires
+- **No node, no topics, no `ros2/amr_bringup` package.** Building it requires
   a ROS installation this repository does not have; pretending otherwise
   would be a claim, not a delivery.
-* No `nav_msgs/Path`, no `tf2` broadcaster, no `sensor_msgs` — the bridge
+- No `nav_msgs/Path`, no `tf2` broadcaster, no `sensor_msgs` — the bridge
   publishes/absorbs only what the existing stack can honestly supply.
-* Goals are not subscribed anywhere yet; `goal_from_pose_stamped` is the
+- Goals are not subscribed anywhere yet; `goal_from_pose_stamped` is the
   tested seam a future subscriber will call.
 
 ## Tests
 
 `raspberry_pi/tests/test_ros_bridge.py` (25 tests), all with no ROS:
 
-* outbound PoseStamped translation (missing coords stay `None`, NaN/inf
+- outbound PoseStamped translation (missing coords stay `None`, NaN/inf
   degrade, quaternion round-trip),
-* outbound diagnostic mapping for every `HazardState`,
-* inbound goal parsing (valid, rejected, degraded cases),
-* the optionality contract (no ROS import in `ros2/` or `amr/`),
-* the no-control-path rule (bridge sources reference no motor/serial/command
+- outbound diagnostic mapping for every `HazardState`,
+- inbound goal parsing (valid, rejected, degraded cases),
+- the optionality contract (no ROS import in `ros2/` or `amr/`),
+- the no-control-path rule (bridge sources reference no motor/serial/command
   API).
 
 ## Reproduce

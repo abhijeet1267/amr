@@ -90,24 +90,24 @@ Every response republishes the rule:
 Read-only, 200, JSON. GET only — there is no POST route, so no browser command
 can reach the twin, let alone the robot through it.
 
-| Key | Meaning |
-|---|---|
-| `schema_version` | `"1.0"` |
-| `source` | `LIVE` / `SIMULATION` / `UNAVAILABLE` (from the map, unchanged) |
-| `coordinate_system` | the published conversion above |
-| `geometry_disclaimer` | why the scene is schematic |
-| `floor` | data-extent floor + `source: "data-extent"` |
-| `waypoints` | real named waypoints, with a display role |
-| `zones` | real `HazardZone` rectangles, extruded |
-| `hazards` | **placed hazards only** (real world location) |
-| `unlocated` | hazards with no world location, carried verbatim |
-| `route` | the existing planned route, converted |
-| `path` | the bounded C9 trail — the browser keeps no history |
-| `robot` | `position`, `rotation_z_deg`, `yaw_rad`, `source`, `model` |
-| `goal` | the active navigation goal, converted |
-| `safety` | the existing `MapSafety` — displayed, never acted on |
-| `mission` | surfaced from the C7 telemetry mission section |
-| `renderer` | backend declaration |
+| Key                   | Meaning                                                         |
+| --------------------- | --------------------------------------------------------------- |
+| `schema_version`      | `"1.0"`                                                         |
+| `source`              | `LIVE` / `SIMULATION` / `UNAVAILABLE` (from the map, unchanged) |
+| `coordinate_system`   | the published conversion above                                  |
+| `geometry_disclaimer` | why the scene is schematic                                      |
+| `floor`               | data-extent floor + `source: "data-extent"`                     |
+| `waypoints`           | real named waypoints, with a display role                       |
+| `zones`               | real `HazardZone` rectangles, extruded                          |
+| `hazards`             | **placed hazards only** (real world location)                   |
+| `unlocated`           | hazards with no world location, carried verbatim                |
+| `route`               | the existing planned route, converted                           |
+| `path`                | the bounded C9 trail — the browser keeps no history             |
+| `robot`               | `position`, `rotation_z_deg`, `yaw_rad`, `source`, `model`      |
+| `goal`                | the active navigation goal, converted                           |
+| `safety`              | the existing `MapSafety` — displayed, never acted on            |
+| `mission`             | surfaced from the C7 telemetry mission section                  |
+| `renderer`            | backend declaration                                             |
 
 ## 5. The AMR model
 
@@ -115,7 +115,7 @@ A **procedural** model — no CAD asset, no external file:
 
 - chassis box + deck
 - four wheels at the chassis corners
-- camera module on the front face (a *model* of the C8 sensor, never live imagery)
+- camera module on the front face (a _model_ of the C8 sensor, never live imagery)
 - ultrasonic mast
 - a manipulator **mount**, marked `"implemented": false` — no manipulator exists yet
 - a white forward indicator, so heading is visible even from directly above
@@ -127,11 +127,11 @@ buffer per frame.
 ## 6. Hazards: the C5/C9 rule holds
 
 A hazard marker is drawn **only** for entries in `MapSnapshot.hazards`, which
-C9 populates *only* for events carrying a real world location. A detection that
+C9 populates _only_ for events carrying a real world location. A detection that
 exists solely as an image-space bounding box is passed through in `unlocated`
 with a reason and **no coordinates**, so it can never be placed in 3D.
 
-A genuine hazard at world `(0, 0)` *is* placed. Confidence is carried through
+A genuine hazard at world `(0, 0)` _is_ placed. Confidence is carried through
 unchanged and shown as a label.
 
 ## 7. Safety
@@ -188,4 +188,3 @@ served JavaScript is syntax-checked with `node --check`.
 was not exercised in a real browser here.
 
 **Firmware tested: NO.** Firmware was not touched.
-

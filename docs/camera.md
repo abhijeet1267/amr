@@ -39,16 +39,16 @@ safety, navigation, or hazards.
 `amr.camera.frame.CameraFrame` is a frozen dataclass — immutable and hashable,
 so it can be shared across threads without defensive copying.
 
-| Field | Type | Notes |
-|---|---|---|
-| `timestamp` | `float \| None` | Capture time; `None` when unknown |
-| `source` | `str` | e.g. `SimulatedCamera`, `RaspberryPiCamera` |
-| `width` / `height` | `int \| None` | `None` unless genuinely known |
-| `format` | `str \| None` | `png`, `jpeg`, … |
-| `frame_id` | `int` | Monotonic per source; `0` = none yet |
-| `data` | `bytes \| None` | Encoded bytes, or `None` for status-only frames |
-| `status` | `CameraStatus` | `LIVE` / `SIMULATION` / `UNAVAILABLE` / `ERROR` |
-| `metadata` | `dict` | Backend name, reason, device, free-form extras |
+| Field              | Type            | Notes                                           |
+| ------------------ | --------------- | ----------------------------------------------- |
+| `timestamp`        | `float \| None` | Capture time; `None` when unknown               |
+| `source`           | `str`           | e.g. `SimulatedCamera`, `RaspberryPiCamera`     |
+| `width` / `height` | `int \| None`   | `None` unless genuinely known                   |
+| `format`           | `str \| None`   | `png`, `jpeg`, …                                |
+| `frame_id`         | `int`           | Monotonic per source; `0` = none yet            |
+| `data`             | `bytes \| None` | Encoded bytes, or `None` for status-only frames |
+| `status`           | `CameraStatus`  | `LIVE` / `SIMULATION` / `UNAVAILABLE` / `ERROR` |
+| `metadata`         | `dict`          | Backend name, reason, device, free-form extras  |
 
 Validation is defensive: non-positive dimensions, malformed timestamps, and
 unknown formats are normalised to `None` rather than raising or being clamped
@@ -60,12 +60,12 @@ serialised into telemetry.
 
 ## 3. `CameraStatus` and honesty rules
 
-| Status | Meaning |
-|---|---|
-| `LIVE` | Real hardware is producing frames |
-| `SIMULATION` | A simulated / mock source is configured |
+| Status        | Meaning                                       |
+| ------------- | --------------------------------------------- |
+| `LIVE`        | Real hardware is producing frames             |
+| `SIMULATION`  | A simulated / mock source is configured       |
 | `UNAVAILABLE` | No camera, not started, or no backend present |
-| `ERROR` | A configured camera failed |
+| `ERROR`       | A configured camera failed                    |
 
 The rule the whole layer exists to enforce: **a simulated frame is never
 reported as a live Raspberry Pi frame.** A deliberately-configured simulated
@@ -80,13 +80,13 @@ fact that simulation was chosen. `ERROR` is reserved for genuine failures.
 
 Every source implements `start()` / `read()` / `stop()`.
 
-* **Idempotent** — repeated `start()` or `stop()` is safe and does nothing.
-* **Lazy** — no camera package is imported at module import. Verified:
+- **Idempotent** — repeated `start()` or `stop()` is safe and does nothing.
+- **Lazy** — no camera package is imported at module import. Verified:
   importing `amr.camera`, `amr.telemetry`, `amr.web`, and `amr.main` pulls in
   **no** `picamera2`, `cv2`, `numpy`, or `RPi`.
-* **Non-blocking** — a background thread is never started. `read()` is a
+- **Non-blocking** — a background thread is never started. `read()` is a
   bounded, on-demand call, so the camera cannot stall the control loop.
-* **Fail-safe** — a missing library, missing device, or init error yields
+- **Fail-safe** — a missing library, missing device, or init error yields
   `UNAVAILABLE`/`ERROR` with a reason in `metadata`; the runtime keeps running.
 
 ## 5. Simulation
@@ -94,11 +94,10 @@ Every source implements `start()` / `read()` / `stop()`.
 `SimulatedCameraSource` generates a real, correctly-sized PNG using only the
 standard library (`zlib` + `struct`) — no OpenCV, no NumPy, no Pillow.
 
-* Deterministic: the same configuration always produces byte-identical output,
+- Deterministic: the same configuration always produces byte-identical output,
   so tests never flake.
-* Advertised dimensions are real. A `640x480` source produces a genuine
+- Advertised dimensions are real. A `640x480` source produces a genuine
   `640x480` image, not a 1×1 upscaled placeholder.
-
 
 ## 6. Raspberry Pi backend
 
@@ -114,12 +113,12 @@ to the next candidate and records the reason. Nothing is initialised until
 
 ## 7. HTTP surface (read-only)
 
-| Route | Returns |
-|---|---|
-| `GET /camera/status` | JSON status/metadata — never pixels |
-| `GET /camera/frame` | The latest encoded frame, `503` when unavailable |
-| `GET /telemetry` | The C7 snapshot including a `camera` section |
-| `GET /dashboard` | The dashboard with the camera panel |
+| Route                | Returns                                          |
+| -------------------- | ------------------------------------------------ |
+| `GET /camera/status` | JSON status/metadata — never pixels              |
+| `GET /camera/frame`  | The latest encoded frame, `503` when unavailable |
+| `GET /telemetry`     | The C7 snapshot including a `camera` section     |
+| `GET /dashboard`     | The dashboard with the camera panel              |
 
 These are `GET`-only. There is no `POST` path from the browser to camera
 hardware, GPIO, or motors. A missing or broken camera yields `503` or an
@@ -127,24 +126,24 @@ hardware, GPIO, or motors. A missing or broken camera yields `503` or an
 
 ## 8. Performance
 
-* **Latest frame only.** No history buffer, so repeated polling cannot grow
+- **Latest frame only.** No history buffer, so repeated polling cannot grow
   memory.
-* **Small telemetry.** A snapshot carries status and dimensions, never encoded
+- **Small telemetry.** A snapshot carries status and dimensions, never encoded
   pixels.
-* **No capture in the collector.** Telemetry reads *status*; it never triggers
+- **No capture in the collector.** Telemetry reads _status_; it never triggers
   a capture, so a slow camera cannot delay the control loop.
-* Streaming (MJPEG) is intentionally deferred — a polling dashboard plus the
+- Streaming (MJPEG) is intentionally deferred — a polling dashboard plus the
   single-frame endpoint meets the current need without a background thread or
   a media server.
 
 ## 9. Known limitations
 
-* **No real hardware validation.** The Pi backend is written against the
+- **No real hardware validation.** The Pi backend is written against the
   documented APIs but has never been run on a Pi.
-* No continuous video stream; single-frame retrieval only.
-* No C5 `VisionDetector` is attached to real frames yet — that integration
+- No continuous video stream; single-frame retrieval only.
+- No C5 `VisionDetector` is attached to real frames yet — that integration
   (and any ML model) is a later milestone.
-* Bounding-box overlays are supported by the metadata shape but not rendered;
+- Bounding-box overlays are supported by the metadata shape but not rendered;
   that is C13.
 
 ---

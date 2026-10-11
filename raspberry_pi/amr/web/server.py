@@ -83,7 +83,7 @@ from ..camera import CameraManager, build_camera_overlay
 from ..camera.frame import CameraFrame, CameraStatus
 from ..hazard import HazardSeverity, HazardState
 from ..logging import get_logger
-from ..map import MapService, build_twin_state
+from ..map import MapService, build_heatmap_state, build_twin_state
 from ..net import connectivity
 from ..robot import RobotCommandError, RobotManager
 from ..robot.robot_state import RobotMode
@@ -178,10 +178,10 @@ _PALETTE_CSS = """  :root {
     /* Ambience. The page is one flat --bg everywhere else; these three washes
        give it depth without tinting any text, so they are decoration and are
        deliberately theme-independent in *meaning* (depth), not in value. */
-    --sheen:rgba(255,255,255,.05);
-    --glow-1:rgba(34,211,238,.13); --glow-2:rgba(61,139,253,.11);
-    --glow-3:rgba(220,179,93,.07);
-    --shadow:0 1px 3px rgba(0,0,0,.2); --shadow-lift:0 4px 12px rgba(0,0,0,.3);
+    --sheen:rgba(255, 255, 255, 0.05);
+    --glow-1:rgba(34, 211, 238, 0.13); --glow-2:rgba(61, 139, 253, 0.11);
+    --glow-3:rgba(220, 179, 93, 0.07);
+    --shadow:0 1px 3px rgba(0, 0, 0, 0.2); --shadow-lift:0 4px 12px rgba(0, 0, 0, 0.3);
     /* Stages are data, not chrome: the map/twin/camera views stay dark in both
        themes so sensor imagery reads the same way everywhere. Same values as
        the console, so a camera panel is the same dark in all four pages. */
@@ -231,11 +231,11 @@ _PALETTE_CSS = """  :root {
     --plum-bg:#f3ebfd; --plum-line:#cbb2ec;
     /* Light-mode ambience: ink-tinted, not white-tinted -- a white wash on a
        near-white page is invisible, which is how "depth" becomes a no-op. */
-    --sheen:rgba(15,23,42,.03);
-    --glow-1:rgba(14,116,144,.10); --glow-2:rgba(26,95,196,.08);
-    --glow-3:rgba(122,82,16,.07);
+    --sheen:rgba(15, 23, 42, 0.03);
+    --glow-1:rgba(14, 116, 144, 0.1); --glow-2:rgba(26, 95, 196, 0.08);
+    --glow-3:rgba(122, 82, 16, 0.07);
     /* Tinted, not black: shallow black shadows read as smudges on white. */
-    --shadow:0 1px 3px rgba(15,23,42,.10); --shadow-lift:0 6px 18px rgba(15,23,42,.14);
+    --shadow:0 1px 3px rgba(15, 23, 42, 0.1); --shadow-lift:0 6px 18px rgba(15, 23, 42, 0.14);
     /* Light counterparts of the legacy component surfaces. --btn-warn is
        paired with --warn text by button.ack, so it has to stay pale here. */
     --btn:#eef2f8; --btn-hover:#dde5f0; --well:#eef2f8;
@@ -251,9 +251,13 @@ _PALETTE_CSS = """  :root {
 #: ``amr-theme``; these two pages read and write the same key, so the choice
 #: follows the operator between all four surfaces. Running the apply step in
 #: ``<head>`` rather than on DOMContentLoaded is the point: the class lands
-#: before first paint, so a light-mode operator never sees a dark flash. No
-#: stored preference means follow the OS, which is exactly what
-#: ``preferredTheme()`` does in ``command_center.js``.
+#: before first paint, so a light-mode operator never sees a dark flash.
+#:
+#: With no stored preference these pages open **light**, matching
+#: ``preferredTheme()`` in ``command_center.js``. They deliberately do *not*
+#: follow ``prefers-color-scheme``: the console is specified as a white control
+#: room, and a dark desktop setting would silently override that on first run.
+#: An explicit operator choice still wins and is remembered.
 _THEME_BOOT_JS = """
 (function () {
   var KEY = "amr-theme";
@@ -270,12 +274,9 @@ _THEME_BOOT_JS = """
   var pref = null;
   try { pref = localStorage.getItem(KEY); } catch (e) { }
   if (pref !== "light" && pref !== "dark") {
-    pref = "dark";
-    try {
-      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
-        pref = "light";
-      }
-    } catch (e) { }
+    // Open light. See the note above: the OS preference is intentionally not
+    // consulted here.
+    pref = "light";
   }
   // Applied now, before the body exists, so there is no flash of the other
   // theme. The icon lives in the body, so it is synced again once that parses.
@@ -972,6 +973,43 @@ class AMRWebApp:
             return build_twin_state(
                 snap, telemetry=self.telemetry, camera=self._camera).to_dict()
 
+    def heatmap(self) -> dict:
+        """Spatial heat map for ``GET /heatmap`` (pure read, no evaluate).
+
+        Two density grids over one shared extent: **hazard** density, built from
+        the hazard layer's recorded event history weighted by severity, and
+        **traffic** density, built from the same bounded travelled path the C9
+        map draws.
+
+        Like every other handler here it only *reads*: it does not call
+        ``tick()``, does not evaluate the hazard layer, and cannot touch an
+        actuator. It is also the one view whose input is *history* rather than
+        an instantaneous snapshot, so it deliberately reuses
+        :meth:`HazardEventLog.history` instead of the active-event list.
+        """
+        with self._lock:
+            return self._heatmap_payload()
+
+    def _heatmap_payload(self, snapshot=None) -> dict:
+        """Build the ``GET /heatmap`` body (caller must hold the lock).
+
+        ``snapshot`` lets the console pass the *same* :class:`MapSnapshot` it
+        already sampled for the map and twin, so all three sections of one
+        response describe the same instant — and so one request records one
+        travelled-path point instead of three. Passing ``None`` (the standalone
+        endpoint) samples here instead.
+
+        A missing hazard layer is not an error: the hazard grid is then built
+        from an empty history, which renders as "no hazards recorded" rather
+        than as a failure. The traffic grid is unaffected — it comes from the
+        map snapshot, which exists whenever the map does.
+        """
+        if snapshot is None:
+            snapshot = self.map.snapshot()
+        hazard = getattr(self._mgr, "hazard", None)
+        events = hazard.events.history() if hazard is not None else ()
+        return build_heatmap_state(snapshot, events).to_dict()
+
     # ------------------------------------------------------------------ #
     # C7 — read-only telemetry projection (no motor path whatsoever)
     # ------------------------------------------------------------------ #
@@ -1000,18 +1038,27 @@ class AMRWebApp:
         with self._lock:
             snapshot = self.telemetry.snapshot()
             health = self.telemetry.health()
+            # Sampled once and shared by the map, the twin and the heat map:
+            # sampling per section would record several travelled-path points
+            # per request and could let the three sections describe slightly
+            # different instants.
+            map_snap = self.map.snapshot()
             state = build_console_state(
                 snapshot,
                 health=health,
-                map_snapshot=self.map.snapshot().to_dict(),
+                map_snapshot=map_snap.to_dict(),
                 twin=build_twin_state(
-                    self.map.snapshot(),
+                    map_snap,
                     telemetry=self.telemetry,
                     camera=self._camera).to_dict(),
             )
             # C15c: charts, the event log and the replay indicator travel with
             # the same payload so the Command Center polls once. The history was
             # filled from these very snapshots by the control loop.
+            # C19: the heat map rides along too, for the same reason — it is a
+            # third projection of the same MapSnapshot, so adding it here keeps
+            # the console at one request per tick.
+            state["heatmap"] = self._heatmap_payload(map_snap)
             state["history"] = self._history.to_dict()
             state["recording"] = self._auto.status()
             state["replay"] = self._replay.status()
@@ -1477,6 +1524,11 @@ class _Handler(BaseHTTPRequestHandler):
         elif path == "/digital-twin":
             # C10: the 3D twin, derived from that same MapSnapshot.
             self._send_json(self.app.digital_twin())
+        elif path == "/heatmap":
+            # C19: hazard density + traffic density, over one shared extent.
+            # Another read-only projection of the same MapSnapshot, plus the
+            # hazard layer's recorded event history.
+            self._send_json(self.app.heatmap())
         elif path == "/command-center":
             # C15c: the Command Center console. Same backend, same payloads —
             # this is a different *presentation* of /dashboard/state, not a

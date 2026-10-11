@@ -43,6 +43,11 @@ ThemeData buildAppTheme() {
   final base = ThemeData(
     brightness: Brightness.light,
     useMaterial3: true,
+    // Roboto is bundled in `assets/fonts/` (see pubspec.yaml). Naming it here
+    // makes Flutter web use the local font instead of downloading it from
+    // Google Fonts at runtime — which is what leaves a blank, text-less UI on
+    // a network where Google is blocked.
+    fontFamily: 'Roboto',
     colorScheme: const ColorScheme.light(
       primary: AppPalette.accent,
       onPrimary: AppPalette.onAccent,

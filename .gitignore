@@ -25,6 +25,14 @@ envs/
 # Agent tooling; may contain nested git worktrees (never commit these).
 .kilo/
 
+# --- Agent / assistant state (local only) ---
+# WorkBuddy AI's per-project data (memory notes, cached context). Local by
+# nature, same reasoning as .codebuddy/ above.
+.workbuddy-ai/
+# Claude Code's local overrides. `settings.local.json` is local by name;
+# `launch.json` is left alone in case it is meant to be shared.
+.claude/settings.local.json
+
 # --- macOS ---
 .DS_Store
 

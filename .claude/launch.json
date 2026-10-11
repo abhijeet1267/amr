@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "AMR Controller V2",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8195",
+        "--directory",
+        "/Users/abhijeetmiskin/AppData/Projects/IDP/amr_controller/build/web"
+      ],
+      "port": 8195
+    }
+  ]
+}

@@ -486,23 +486,18 @@ function load() {
    presentation preference, never a backend change. */
 function applyTheme() {
   var light = false;
+  var stored = null;
   try {
-    light = localStorage.getItem("amr-theme") === "light";
+    stored = localStorage.getItem("amr-theme");
   } catch (e) {}
+  light = stored === "light";
   if (!light) {
-    // No explicit choice stored yet: defer to the OS, matching
-    // preferredTheme() in command_center.js. Without this the two pages
-    // disagreed -- a phone set to light mode opened a dark hub. An explicit
-    // stored "dark" is left alone, because defaulting to light for someone who
-    // deliberately picked dark is worse than the reverse mistake.
-    try {
-      light =
-        !localStorage.getItem("amr-theme") &&
-        !!(
-          window.matchMedia &&
-          window.matchMedia("(prefers-color-scheme: light)").matches
-        );
-    } catch (e) {}
+    // C19: the hub opens light, matching the console and the two embedded
+    // pages. An explicit stored "dark" is still honoured — defaulting to light
+    // for someone who deliberately picked dark would be worse than the reverse
+    // mistake. prefers-color-scheme is deliberately NOT consulted: a dark
+    // desktop setting must not override the white console on first run.
+    light = stored !== "dark";
   }
   light = !!light;
   document.body.classList.toggle("light", light);

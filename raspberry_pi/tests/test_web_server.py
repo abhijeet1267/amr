@@ -1381,6 +1381,178 @@ class TestDigitalTwinApi:
 # --------------------------------------------------------------------------- #
 # C11 — consolidated read-only console state
 # --------------------------------------------------------------------------- #
+class TestHeatmapApi:
+    """``GET /heatmap`` — hazard density + traffic density, read-only.
+
+    The two grids must be directly comparable (one shared extent), the payload
+    must publish the orientation a client needs, and the endpoint must be
+    incapable of commanding the robot — the same guarantees the map and twin
+    endpoints carry.
+
+    These tests need the warehouse wired in, because the extent is derived from
+    the *configured* geometry (the ``web`` fixture has none, and the module
+    correctly refuses to invent a floor plan — that case has its own test).
+    """
+
+    @pytest.fixture
+    def mapped(self, config_dir):
+        """A running web app wired exactly as ``amr.main --mock --web`` wires it."""
+        from amr.main import build_navigator, build_warehouse
+        from amr.robot import RobotManager
+        from amr.utils.config import load_config
+        from amr.web import AMRWebApp
+
+        config = load_config(config_dir)
+        mgr, transport = RobotManager.create_mock(config)
+        mgr.test_transport = transport
+        nav = build_navigator(mgr, config)
+        wh = build_warehouse(mgr, config, nav, mission_id="heatmap-test")
+        app = AMRWebApp(mgr, tick_hz=10.0, navigator=nav, warehouse=wh,
+                        simulated=True)
+        port = app.start(host="127.0.0.1", port=0)
+        mgr.start()
+        try:
+            yield app, port, mgr
+        finally:
+            app.stop()
+            mgr.shutdown()
+
+    def test_endpoint_returns_both_grids(self, mapped):
+        _app, port, _mgr = mapped
+        status, ctype, raw = _get(port, "/heatmap")
+        assert status == 200
+        assert "application/json" in ctype
+        body = json.loads(raw.decode("utf-8"))
+        for key in ("schema_version", "source", "units", "y_axis",
+                    "severity_weights", "hazard", "traffic", "notes"):
+            assert key in body, f"missing heat-map key {key}"
+        assert body["hazard"] is not None and body["traffic"] is not None
+
+    def test_the_two_grids_share_one_extent(self, mapped):
+        """They are read side by side, so they must be comparable."""
+        _app, port, _mgr = mapped
+        _s, _c, raw = _get(port, "/heatmap")
+        body = json.loads(raw.decode("utf-8"))
+        h, t = body["hazard"], body["traffic"]
+        assert h["extent"] == t["extent"]
+        assert (h["cols"], h["rows"], h["cell_m"]) == (
+            t["cols"], t["rows"], t["cell_m"])
+
+    def test_the_extent_covers_the_configured_waypoints(self, mapped):
+        """The grid must be derived from warehouse.yaml, not from nothing."""
+        _app, port, _mgr = mapped
+        body = json.loads(_get(port, "/heatmap")[2].decode("utf-8"))
+        extent = body["hazard"]["extent"]
+        assert extent["x_max"] > extent["x_min"]
+        assert extent["y_max"] > extent["y_min"]
+        assert body["source"] == "SIMULATION"
+
+    def test_payload_publishes_the_cell_contract(self, mapped):
+        """A client must not have to guess the index convention or the weights."""
+        _app, port, _mgr = mapped
+        _s, _c, raw = _get(port, "/heatmap")
+        body = json.loads(raw.decode("utf-8"))
+        grid = body["hazard"]
+        assert "y_min" in grid["row_order"]
+        assert len(grid["cells"]) == grid["cols"] * grid["rows"]
+        for key in ("max_value", "total", "samples", "clipped", "source", "note"):
+            assert key in grid, f"missing grid key {key}"
+        assert set(body["severity_weights"]) == {"INFO", "WARNING", "CRITICAL"}
+
+    def test_is_read_only_and_commands_nothing(self, mapped):
+        """A view must never reach an actuator, proven on a real transport."""
+        _app, port, mgr = mapped
+        with NoActuation(mgr.test_transport):
+            assert _get(port, "/heatmap")[0] == 200
+
+    def test_no_configured_geometry_reports_no_grid_rather_than_inventing_one(
+            self, web):
+        """The bare fixture has no warehouse wired, so there is no extent."""
+        _app, port, mgr = web
+        assert mgr.hazard is None
+        body = json.loads(_get(port, "/heatmap")[2].decode("utf-8"))
+        assert body["hazard"] is None and body["traffic"] is None
+        assert body["source"] == "UNAVAILABLE"
+        assert body["notes"], "the absence of a grid must be explained"
+
+    def test_works_without_a_hazard_layer(self, mapped):
+        """The default stack attaches no hazard layer; that is not an error."""
+        _app, port, mgr = mapped
+        assert mgr.hazard is None
+        body = json.loads(_get(port, "/heatmap")[2].decode("utf-8"))
+        assert body["hazard"]["samples"] == 0
+        assert all(v == 0.0 for v in body["hazard"]["cells"])
+
+    def test_a_recorded_hazard_with_a_location_lands_on_the_grid(
+            self, mapped, config_dir):
+        """End to end: a real event, through the real layer, onto the grid."""
+        from amr.hazard import (
+            HazardKind,
+            HazardLocation,
+            HazardManager,
+            HazardReading,
+            HazardSeverity,
+        )
+        from amr.utils.config import load_config
+
+        _app, port, mgr = mapped
+        layer = HazardManager.from_config(load_config(config_dir).hazard)
+        mgr.attach_hazard(layer)
+        layer.evaluate(extra=(HazardReading(
+            kind=HazardKind.GAS,
+            severity=HazardSeverity.CRITICAL,
+            source="test",
+            message="injected",
+            location=HazardLocation(x=1.0, y=1.0),
+        ),))
+
+        body = json.loads(_get(port, "/heatmap")[2].decode("utf-8"))
+        assert body["hazard"]["samples"] == 1
+        # CRITICAL carries the heaviest published weight.
+        assert body["hazard"]["total"] == pytest.approx(
+            body["severity_weights"]["CRITICAL"])
+
+    def test_a_hazard_without_a_location_is_counted_but_not_placed(
+            self, mapped, config_dir):
+        """The C5 rule holds at this boundary too."""
+        from amr.hazard import (
+            HazardKind,
+            HazardManager,
+            HazardReading,
+            HazardSeverity,
+        )
+        from amr.utils.config import load_config
+
+        _app, port, mgr = mapped
+        layer = HazardManager.from_config(load_config(config_dir).hazard)
+        mgr.attach_hazard(layer)
+        layer.evaluate(extra=(HazardReading(
+            kind=HazardKind.VISION,
+            severity=HazardSeverity.CRITICAL,
+            source="test",
+            message="image-space only",
+        ),))
+
+        body = json.loads(_get(port, "/heatmap")[2].decode("utf-8"))
+        assert body["hazard"]["samples"] == 0
+        assert body["hazard"]["unlocated"] >= 1
+
+    def test_console_embeds_the_untouched_heatmap_payload(self, mapped):
+        """No second heat-map state: the console embeds the same document."""
+        _app, port, _mgr = mapped
+        _s, _c, a = _get(port, "/heatmap")
+        _s, _c, b = _get(port, "/dashboard/state")
+        console = json.loads(b.decode("utf-8"))
+        assert "heatmap" in console
+        assert console["heatmap"] == json.loads(a.decode("utf-8"))
+
+    def test_all_other_routes_still_answer(self, mapped):
+        _app, port, _mgr = mapped
+        for path in ("/map", "/digital-twin", "/telemetry", "/dashboard/state",
+                     "/heatmap", "/health"):
+            assert _get(port, path)[0] == 200, path
+
+
 class TestDashboardStateApi:
     """``GET /dashboard/state`` is one read-only fetch over existing state."""
 

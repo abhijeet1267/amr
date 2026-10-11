@@ -24,12 +24,12 @@ is a projection of the objects the robot already owns, and it is read-only.
 
 The repository's own warehouse frame, unchanged:
 
-| Property | Convention | Source |
-|---|---|---|
-| `x`, `y` | metres | `amr/navigation/types.py` `Pose` |
-| y axis | **up** (positive north) | `config/warehouse.yaml` |
-| `theta` | radians | `WarehouseMap` |
-| origin | the map's `dock` is `(0, 0)` | `_DEFAULT_LOCATIONS` |
+| Property | Convention                   | Source                           |
+| -------- | ---------------------------- | -------------------------------- |
+| `x`, `y` | metres                       | `amr/navigation/types.py` `Pose` |
+| y axis   | **up** (positive north)      | `config/warehouse.yaml`          |
+| `theta`  | radians                      | `WarehouseMap`                   |
+| origin   | the map's `dock` is `(0, 0)` | `_DEFAULT_LOCATIONS`             |
 
 The map publishes these facts in every response (`units`, `frame`, `y_axis`,
 `yaw_units`) so a consumer never has to guess.
@@ -49,7 +49,7 @@ One uniform `scale` for both axes preserves the aspect ratio, and that single
 deterministic: the same snapshot always renders byte-identically.
 
 The browser repeats this formula in `DASHBOARD_JS` for interactive zoom/pan, but
-only after the server has resolved *what* is real — the client never decides map
+only after the server has resolved _what_ is real — the client never decides map
 semantics.
 
 ## Map schema (`GET /map`)
@@ -58,26 +58,44 @@ semantics.
 {
   "schema_version": "1.0",
   "source": "SIMULATION",
-  "units": "metres", "frame": "warehouse",
-  "y_axis": "up", "yaw_units": "radians",
+  "units": "metres",
+  "frame": "warehouse",
+  "y_axis": "up",
+  "yaw_units": "radians",
   "warehouse": {
-    "waypoints": [{"name": "dock", "x": 0.0, "y": 0.0, "theta": 0.0,
-                   "source": "SIMULATION"}],
-    "shelves": [], "racks": [], "obstacles": [],
+    "waypoints": [
+      {
+        "name": "dock",
+        "x": 0.0,
+        "y": 0.0,
+        "theta": 0.0,
+        "source": "SIMULATION"
+      }
+    ],
+    "shelves": [],
+    "racks": [],
+    "obstacles": [],
     "boundary": null,
-    "bounds": {"x_min": -1.0, "x_max": 5.0, "y_min": -1.0, "y_max": 4.0},
+    "bounds": { "x_min": -1.0, "x_max": 5.0, "y_min": -1.0, "y_max": 4.0 },
     "source": "SIMULATION",
     "note": "not modelled: ..."
   },
-  "robot": {"x": 0.0, "y": 0.0, "yaw": 0.0, "source": "SIMULATION"},
+  "robot": { "x": 0.0, "y": 0.0, "yaw": 0.0, "source": "SIMULATION" },
   "goal": null,
-  "route": [], "path": [{"x": 0.0, "y": 0.0}],
-  "hazards": [], "unlocated": [],
+  "route": [],
+  "path": [{ "x": 0.0, "y": 0.0 }],
+  "hazards": [],
+  "unlocated": [],
   "zones": [],
-  "safety": {"state": "IDLE", "action": "PROCEED",
-             "emergency_stop": false, "hazard_state": null,
-             "latched": false, "source": "SIMULATION"},
-  "navigation": {"state": "IDLE"}
+  "safety": {
+    "state": "IDLE",
+    "action": "PROCEED",
+    "emergency_stop": false,
+    "hazard_state": null,
+    "latched": false,
+    "source": "SIMULATION"
+  },
+  "navigation": { "state": "IDLE" }
 }
 ```
 
@@ -96,21 +114,21 @@ the same note.
 
 A hazard is drawn **only** when its event carries a real world `location`.
 
-* Located → appears in `hazards` with `x`/`y`.
-* No location → appears in `unlocated` with a `reason`, and **no coordinates**.
-* An image-space detection (`metadata.bbox`) → listed as
+- Located → appears in `hazards` with `x`/`y`.
+- No location → appears in `unlocated` with a `reason`, and **no coordinates**.
+- An image-space detection (`metadata.bbox`) → listed as
   `"image-space evidence only; no calibrated world location"`, never placed.
 
-A `(0, 0)` hazard *is* placed, because `(0, 0)` is a real place (the dock).
+A `(0, 0)` hazard _is_ placed, because `(0, 0)` is a real place (the dock).
 
 ## Travelled path
 
 `PathHistory` keeps a **bounded, de-duplicated** trail (default 600 points ≈ 10
 minutes at the 1 Hz dashboard poll):
 
-* a pose is appended only if it moved > 1 cm, or the yaw changed — a stationary
+- a pose is appended only if it moved > 1 cm, or the yaw changed — a stationary
   robot cannot fill the buffer;
-* the buffer is a fixed-size deque, so the **oldest** point is dropped at the
+- the buffer is a fixed-size deque, so the **oldest** point is dropped at the
   limit; memory is bounded no matter how long the dashboard runs.
 
 ## Dashboard panel
@@ -119,35 +137,35 @@ minutes at the 1 Hz dashboard poll):
 safety badge, and a robot/goal/route/hazard summary. Interaction is read-only
 and purely visual:
 
-* scroll = zoom, drag = pan
-* **Follow** re-centres on the robot each tick
-* **Reset view** returns to fit-to-data
-* **Labels** toggles waypoint/zone text
+- scroll = zoom, drag = pan
+- **Follow** re-centres on the robot each tick
+- **Reset view** returns to fit-to-data
+- **Labels** toggles waypoint/zone text
 
 The map rides the existing 1 Hz telemetry poll — no second timer. There is no
 movement control anywhere in the panel.
 
 ## Safety
 
-* `amr/map/` imports no motor, PWM, serial, GPIO or robot-control module (a test
+- `amr/map/` imports no motor, PWM, serial, GPIO or robot-control module (a test
   asserts this by scanning its imports).
-* The service only *reads*: never `tick`, `step`, `go_to` or `dispatch`.
-* The navigator handed to the dashboard is the runtime's own; the web layer never
+- The service only _reads_: never `tick`, `step`, `go_to` or `dispatch`.
+- The navigator handed to the dashboard is the runtime's own; the web layer never
   steps it, so it cannot move the robot.
-* A test spies on the mock serial transport and proves that repeated map reads
+- A test spies on the mock serial transport and proves that repeated map reads
   write nothing to the controller.
-* `GET /map` and `GET /map.svg` are GET-only; POSTing to them is 404/405.
+- `GET /map` and `GET /map.svg` are GET-only; POSTing to them is 404/405.
 
 ## Limitations
 
-* No shelf/rack/obstacle geometry — see above.
-* Pose comes from `LocalNavigator` odometry, which is still **unvalidated** on
+- No shelf/rack/obstacle geometry — see above.
+- Pose comes from `LocalNavigator` odometry, which is still **unvalidated** on
   hardware (`robot.wheel_track_m` / `wheel_diameter_m` are `null` in
   `config/robot.yaml`).
-* Viewport is data-fitted, not surveyed.
-* Dynamic ultrasonic obstacles are not yet mapped (the C6 `ObstacleProvider` is
+- Viewport is data-fitted, not surveyed.
+- Dynamic ultrasonic obstacles are not yet mapped (the C6 `ObstacleProvider` is
   not wired to the map).
-* Polling is 1 Hz; no WebSocket.
+- Polling is 1 Hz; no WebSocket.
 
 ## Hardware status
 

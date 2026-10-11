@@ -75,6 +75,67 @@ void main() {
     });
   });
 
+  group('HeatmapState parsing', () {
+    test('parses the real /heatmap payload shape', () {
+      final h = HeatmapState.fromJson({
+        'schema_version': '1.0',
+        'source': 'SIMULATION',
+        'units': 'metres',
+        'severity_weights': {'INFO': 1.0, 'WARNING': 2.0, 'CRITICAL': 4.0},
+        'hazard': {
+          'cols': 2,
+          'rows': 2,
+          'cell_m': 0.5,
+          'extent': {'x_min': 0.0, 'x_max': 1.0, 'y_min': 0.0, 'y_max': 1.0},
+          'cells': [0.0, 4.0, 0.0, 0.0],
+          'max_value': 4.0,
+          'total': 4.0,
+          'samples': 1,
+          'clipped': 0,
+          'unlocated': 2,
+          'source': 'SIMULATION',
+          'note': 'weighted',
+        },
+        'traffic': null,
+        'notes': ['2 recorded hazard event(s) carried no world location'],
+      });
+
+      expect(h.source, 'SIMULATION');
+      expect(h.hasAny, isTrue);
+      expect(h.severityWeights['CRITICAL'], 4.0);
+      expect(h.traffic, isNull);
+      expect(h.notes, hasLength(1));
+
+      final g = h.hazard!;
+      expect(g.cols, 2);
+      expect(g.rows, 2);
+      expect(g.maxValue, 4.0);
+      expect(g.unlocated, 2);
+      // Row-major with row 0 at y_min (the BOTTOM row): index 1 is column 1 of
+      // that bottom row. Getting this backwards mirrors the picture silently.
+      expect(g.at(1, 0), 4.0);
+      expect(g.at(0, 0), 0.0);
+      expect(g.at(1, 1), 0.0);
+      // Out-of-range reads are zero, never an exception.
+      expect(g.at(-1, 0), 0.0);
+      expect(g.at(9, 9), 0.0);
+    });
+
+    test('no configured geometry means no grid, not an invented one', () {
+      final h = HeatmapState.fromJson({
+        'source': 'UNAVAILABLE',
+        'hazard': null,
+        'traffic': null,
+        'notes': ['no configured warehouse geometry'],
+      });
+      expect(h.hasAny, isFalse);
+      expect(h.hazard, isNull);
+      expect(h.traffic, isNull);
+      expect(h.severityWeights, isEmpty);
+      expect(h.notes, hasLength(1));
+    });
+  });
+
   group('Simulation mode', () {
     test('entering simulation marks connected with simulated telemetry', () async {
       final p = RobotProvider();

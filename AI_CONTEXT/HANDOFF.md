@@ -5,7 +5,7 @@
 
 ---
 
-## Session: C16 real manipulator — the gripper *driver*, no gripper
+## Session: C16 real manipulator — the gripper _driver_, no gripper
 
 **Date:** 2026-10-01 · **Branch:** `main` · **Tests: 1538 passed, 2 skipped,
 0 failed** (1513 at C18 + 25 new)
@@ -48,7 +48,7 @@ for it.
 **Date:** 2026-10-01 · **Branch:** `main` · **Tests: 1513 passed, 2 skipped,
 0 failed** (1488 at C17 + 25 new)
 
-Delivered the *seam*, not the node: `ros2/bridge.py` translates a telemetry
+Delivered the _seam_, not the node: `ros2/bridge.py` translates a telemetry
 snapshot into a `PoseStamped`-shaped dict, a `HazardStatus` into a
 `diagnostic_msgs`-shaped dict, and an inbound `PoseStamped`-shaped dict into an
 `amr.navigation.Goal`. Everything is a plain dict shaped like its ROS message,
@@ -63,15 +63,15 @@ so at the top and spells out what the future node must obey (import only
 `ros2.bridge`, hand goals to `submit_move`, keep `import amr` ROS-free).
 
 Also corrected two navigation docstrings that claimed the ROS implementation
-"lives in `ros2/amr_bringup`" — it does not exist; they now say *planned*.
+"lives in `ros2/amr_bringup`" — it does not exist; they now say _planned_.
 
 Surfaces synced to the measured run: README badge/table + prose (1513, 38
 files), showcase badge/table, CURRENT_STATUS header/table/per-file counts +
 module row, TASK_BOARD C18 `[x]`. The stale-count guards in
 `test_app_registry.py` went red mid-session (as designed) and are green again.
 
-*(Note: the C17 RFID session's handoff was never written — its details live in
-TASK_BOARD C17 and the commit `353abba`.)*
+_(Note: the C17 RFID session's handoff was never written — its details live in
+TASK_BOARD C17 and the commit `353abba`.)_
 
 **Next from the board:** C16 (real manipulator) was taken by a later session —
 see the C16 handoff above. C4 gas/smoke sensor remains blocked on hardware.
@@ -88,7 +88,7 @@ actually true?" — and the second one is the more serious.
 
 ### 1. Measured the palette's contrast for the first time
 
-Light mode uses a *different* set of status colours from dark mode, and the only
+Light mode uses a _different_ set of status colours from dark mode, and the only
 reason is the claim that the dark ones are unreadable as text on white. Nothing
 measured that claim: not here, not in the Command Center. The new
 `test_the_shared_palette_keeps_its_text_readable` does, by reading the colour
@@ -98,22 +98,22 @@ relative-luminance arithmetic over them.
 
 It found two real defects on the tree it was written for:
 
-* **`button.ack:hover` was 3.32:1** in dark mode. This is not new — `git show
-  3a324d9` shows the identical literals (`#5a3a12` / `#7a4e18`) before the
+- **`button.ack:hover` was 3.32:1** in dark mode. This is not new — `git show
+3a324d9` shows the identical literals (`#5a3a12` / `#7a4e18`) before the
   palette round, which converted them to tokens without changing them. The
   resting state was 4.75:1, so only the hover was under AA, which is why it
-  survived. Every hover on both pages is *lighter* than its resting surface in
+  survived. Every hover on both pages is _lighter_ than its resting surface in
   dark mode (that is the console's own rule: `--card-2` over `--card`), and that
   is what bounds the fix — `--warn` on anything past `#5a3a12` is below 4.5:1. So
   the resting surface moved a shade deeper and the hover took the old resting
   value: **5.71:1 at rest, 4.75:1 on hover.**
-* **The previous session's `--acc` hover text was 4.22:1.** That round replaced
+- **The previous session's `--acc` hover text was 4.22:1.** That round replaced
   `--on-crit` with `--acc` on `.navlink:hover` / `.theme-btn:hover` because white
   was invisible on the light hover surface (it is: 1.27:1). But 4.22:1 is still
   under AA for 12px text, so both rules now change only the surface and keep
   `--text` — the same thing the console's `.tabs button:hover` does — measuring
   **14.06:1 light / 9.29:1 dark**. The comment that justified the old choice also
-  cited 15.89:1 / 11.04:1, which are the figures for the *resting* `--btn`, not
+  cited 15.89:1 / 11.04:1, which are the figures for the _resting_ `--btn`, not
   the `--btn-hover` the rule uses; both are now stated, with the hover pair named
   as the one that governs.
 
@@ -121,7 +121,7 @@ Dark mode keeps three pairs below AA, all inherited from the console's dark
 palette rather than introduced here, and all above the 3:1 large-text floor:
 `--on-crit`/`--err`, `--dim`/`--card` (3.64:1), `--dim`/`--bg` (4.12:1). They are
 listed in `_DARK_BELOW_AA` with a reason each, and the guard asserts the list
-stays *exact* — a pair that gets fixed must be removed from it rather than
+stays _exact_ — a pair that gets fixed must be removed from it rather than
 excused forever.
 
 ### 2. The commands that were supposed to prove all this printed no result
@@ -134,13 +134,13 @@ flags, so the build log had no count in it either, which is why nobody noticed.
 The count in CURRENT_STATUS was correct only because that file happened to
 document the bare command.
 
-* README (badge reproduce step + the Testing block), `showcase.html`, and the CI
+- README (badge reproduce step + the Testing block), `showcase.html`, and the CI
   job no longer pass `-q`; README now explains why not.
-* `test_documented_test_commands_can_still_show_their_result` fails if any
+- `test_documented_test_commands_can_still_show_their_result` fails if any
   pytest line in README / CURRENT_STATUS / showcase / `ci.yml` adds its own `-q`,
   with `--collect-only` exempt (it runs no tests, so there is no summary to
   lose).
-* Confirmed against a deliberately failing test: at `-qq` the traceback and the
+- Confirmed against a deliberately failing test: at `-qq` the traceback and the
   `FAILED ...` line still print, and only the final tally disappears — the
   dangerous-looking failure mode is not the one that happens.
 
@@ -149,7 +149,7 @@ document the bare command.
 `CURRENT_STATUS.md` read "**16** applications; 13 openable deep links". The
 registry serves **24**, of which **16** are openable and **12** deep-link into a
 Command Center view. Nothing failed, because the hub's own tests assert the count
-is *consistent with the payload* and never that it is a particular number — a
+is _consistent with the payload_ and never that it is a particular number — a
 relative assertion cannot catch absolute drift. README's file-count claim was
 stale too ("34 test files" against 36). Both corrected, and
 `test_current_status_application_counts_are_not_stale` now checks the sentence
@@ -157,13 +157,13 @@ against the registry.
 
 ### Guarded — and the guards were mutation-tested, not assumed
 
-| Mutation | Result |
-|---|---|
-| restore the old dark hover `#7a4e18` | contrast guard fails |
-| light `--dim` paled to `#c9d2de` | contrast guard fails |
+| Mutation                                                                  | Result                                                                                                 |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| restore the old dark hover `#7a4e18`                                      | contrast guard fails                                                                                   |
+| light `--dim` paled to `#c9d2de`                                          | contrast guard fails                                                                                   |
 | **new** rule `color:var(--dim); background:var(--card-2)` on `INDEX_HTML` | fails with exactly `{('--dim', '--card-2')}` — proves the pairs are read from the pages, not hardcoded |
-| CURRENT_STATUS says 16 applications again | count guard fails |
-| README's testing block regains `-q` | doc-flags guard fails |
+| CURRENT_STATUS says 16 applications again                                 | count guard fails                                                                                      |
+| README's testing block regains `-q`                                       | doc-flags guard fails                                                                                  |
 
 All five were run and reverted. Three guards added; full suite **1425 passed,
 2 skipped** via `python -m pytest` (bare, so it prints the tally).
@@ -177,8 +177,6 @@ Everything here is arithmetic over CSS and mock-stack tests.
 
 ---
 
-
-
 **Date:** 2026-09-27 · **Branch:** `main` · **Tests: 1354 passed, 2 skipped,
 0 failed** (1333 at Phase B + 21 hub tests)
 
@@ -188,75 +186,75 @@ and put it in front of an operator — without adding a second command path.
 
 ### What was built
 
-| Piece | Where |
-|---|---|
-| `GET /applications` (4th HTML page) | `amr/web/server.py` route + `amr/web/static/applications.html` |
-| `GET /applications/state` (registry payload) | `amr/web/server.py` route + `AMRWebApp.applications_state()` |
-| Hub stylesheet / script | `amr/web/static/applications.css`, `applications.js` (whitelisted static, read once at import) |
-| Runtime context from *this* process | `AMRWebApp.runtime_context()` → `RuntimeContext` |
-| Console links | `amr/web/static/command_center.html` (topbar icon + sidebar link), `command_center.css` |
-| Registry entry for the hub itself | `config/applications.yaml` → `applications_hub` (`reference`, `AVAILABLE`) |
-| Tests | `tests/test_applications_hub.py` (21) |
+| Piece                                        | Where                                                                                          |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `GET /applications` (4th HTML page)          | `amr/web/server.py` route + `amr/web/static/applications.html`                                 |
+| `GET /applications/state` (registry payload) | `amr/web/server.py` route + `AMRWebApp.applications_state()`                                   |
+| Hub stylesheet / script                      | `amr/web/static/applications.css`, `applications.js` (whitelisted static, read once at import) |
+| Runtime context from _this_ process          | `AMRWebApp.runtime_context()` → `RuntimeContext`                                               |
+| Console links                                | `amr/web/static/command_center.html` (topbar icon + sidebar link), `command_center.css`        |
+| Registry entry for the hub itself            | `config/applications.yaml` → `applications_hub` (`reference`, `AVAILABLE`)                     |
+| Tests                                        | `tests/test_applications_hub.py` (21)                                                          |
 
 ### Design decisions worth keeping
 
-* **`runtime_context()` is deliberately conservative.** `mock_mode` comes from
+- **`runtime_context()` is deliberately conservative.** `mock_mode` comes from
   the existing C7 `simulated` flag (the one that already tags readings
   `SIMULATION`); `camera_available` is one `is_available()` probe wrapped so a
-  camera that *raises* answers "unavailable" instead of 500-ing the page. Every
+  camera that _raises_ answers "unavailable" instead of 500-ing the page. Every
   uncertain answer is the worse one, which is what makes the registry's
   never-upgrade rule hold in practice.
-* **The registry is injected, not global.** `AMRWebApp(applications=...)`,
+- **The registry is injected, not global.** `AMRWebApp(applications=...)`,
   loaded once at construction. Injection is what makes the hub testable, and it
   is asserted (`test_an_injected_registry_is_the_one_served`).
-* **The hub is a document, not a dashboard.** It borrows the console's design
+- **The hub is a document, not a dashboard.** It borrows the console's design
   tokens by linking `command_center.css` first and adds only its own layout in
   `applications.css`, so the two pages cannot disagree about what "warning"
   looks like. Its poll is 30 s — it is not a 1 Hz instrument and does not
   pretend to be.
-* **A failed read is shown as a failed read.** If `/applications/state` cannot
+- **A failed read is shown as a failed read.** If `/applications/state` cannot
   be fetched, the freshness chip reads `STALE` (with the time of the last good
   read) or `UNREACHABLE` when there is none, and the banner says the cards are
   not current. An old status presented as current would be the exact lie this
   subsystem exists to prevent.
-* **No dead links.** `url: null` renders “API — no interface”; the mobile and
+- **No dead links.** `url: null` renders “API — no interface”; the mobile and
   desktop clients stay `NOT INSTALLED` / `BUILD NOT AVAILABLE` with no download
   link.
 
 ### Verification actually performed (live HTTP, mock stack)
 
-| Observation | Result |
-|---|---|
-| `GET /applications` | 200 `text/html; charset=utf-8`, 4108 B, `Applications Hub` present |
-| `GET /applications/state` | 200 `application/json`, `count: 16`, 8 categories |
-| `/static/applications.css` · `.js` | 200 `text/css` 6156 B · `application/javascript` 12347 B |
-| `/command-center` | 200, **2** links to `/applications` |
-| No camera | `camera_monitor → HARDWARE REQUIRED`, reason `no-camera` |
-| **Mock camera attached** | `camera_monitor` still **HARDWARE REQUIRED** (reason `declared`) — never promoted to AVAILABLE |
-| Mock robot | `command_center → MOCK`, `reason: mock-robot` (declared `AVAILABLE`) |
-| Direct call before `start()` | `server_running: false` → pages read `OFFLINE` / `server-unreachable` |
+| Observation                        | Result                                                                                         |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `GET /applications`                | 200 `text/html; charset=utf-8`, 4108 B, `Applications Hub` present                             |
+| `GET /applications/state`          | 200 `application/json`, `count: 16`, 8 categories                                              |
+| `/static/applications.css` · `.js` | 200 `text/css` 6156 B · `application/javascript` 12347 B                                       |
+| `/command-center`                  | 200, **2** links to `/applications`                                                            |
+| No camera                          | `camera_monitor → HARDWARE REQUIRED`, reason `no-camera`                                       |
+| **Mock camera attached**           | `camera_monitor` still **HARDWARE REQUIRED** (reason `declared`) — never promoted to AVAILABLE |
+| Mock robot                         | `command_center → MOCK`, `reason: mock-robot` (declared `AVAILABLE`)                           |
+| Direct call before `start()`       | `server_running: false` → pages read `OFFLINE` / `server-unreachable`                          |
 
 ### Regression tests added (21)
 
-* **Serves:** page + assets 200, `/applications/nope` and
+- **Serves:** page + assets 200, `/applications/nope` and
   `/applications/state/extra` still 404 (the route table was not widened), the
   console really links to the hub (≥2 anchors).
-* **Payload honesty:** shape, ids identical to `load_applications()`, status
+- **Payload honesty:** shape, ids identical to `load_applications()`, status
   ranked ≥ declared for every entry, `MOCK` in a mock run, camera card never
   promoted, `no-camera` reason without a camera, `url: null` handled.
-* **Read-only:** no actuator line on the mock transport for either route; no
+- **Read-only:** no actuator line on the mock transport for either route; no
   `POST` / `method:` / `<form>` / `/command` in the page source (comments
   stripped first — the file's own comment names `POST`); exactly one `fetch`,
   and every `href` is a read-only destination; the only non-read-only card in
   the whole registry is still `control_panel`.
-* **Degradation:** empty registry still serves; an injected registry is the one
+- **Degradation:** empty registry still serves; an injected registry is the one
   served; a camera whose `is_available()` raises does not break the page; a
   direct call before `start()` reports the server as down.
 
 ### Safety
 
 Unchanged and re-proven. `POST /command` is still the only actuator path; the
-hub issues GETs only; the registry is a *description* of interfaces and has no
+hub issues GETs only; the registry is a _description_ of interfaces and has no
 method that touches the robot. `read_only: true` for every card except the
 legacy control panel, asserted by test.
 
@@ -269,21 +267,21 @@ simulated data; the camera card stays `HARDWARE REQUIRED` on purpose.
 
 **Resolved 2026-09-28 (health pass).** Previously listed here as unfixed:
 
-* ~~`CURRENT_STATUS.md` is stale~~ — **now refreshed** against a fresh
+- ~~`CURRENT_STATUS.md` is stale~~ — **now refreshed** against a fresh
   `pytest --collect-only`: 1371 passed / 2 skipped, 35 test files, per-file counts
   regenerated, the 592 figure in section 1 removed, and the "no live dashboard"
   line in section 5 deleted (it was false — `/dashboard`, `/command-center` and
   `/applications` all exist and were exercised live). Section 5 was also
   re-verified by grep rather than trusted: ROS 2 has **no imports** (the 6 hits
-  are docstrings), and `RaspberryPiCameraSource` *is* wired at `main.py:134`, so
+  are docstrings), and `RaspberryPiCameraSource` _is_ wired at `main.py:134`, so
   the old "no hardware camera backend" wording was corrected rather than copied.
-* ~~README roadmap lists avoidance/hazard as "next"~~ — checked, no stale rows found.
+- ~~README roadmap lists avoidance/hazard as "next"~~ — checked, no stale rows found.
 
 ### Next
 
-* Phase D of the ecosystem audit (mobile/desktop clients) — the registry and hub
+- Phase D of the ecosystem audit (mobile/desktop clients) — the registry and hub
   are the seam they consume; nothing else is required to start it.
-* `cargo`/`rustc` and `adb` are not installed locally, so the Tauri and Android
+- `cargo`/`rustc` and `adb` are not installed locally, so the Tauri and Android
   clients cannot be built or verified here. That is the one prerequisite for D.
 
 ---
@@ -295,12 +293,12 @@ simulated data; the camera card stays `HARDWARE REQUIRED` on purpose.
 
 ### What this session found and fixed
 
-Two defects, both discovered by *watching* the demo rather than trusting a
+Two defects, both discovered by _watching_ the demo rather than trusting a
 passing suite. Neither was visible to any existing test.
 
 **1. A camera-panel deadlock (functional).** The panel only requested
 `/camera/frame` when telemetry said `has_frame`, but `has_frame` only becomes
-true *after* something reads a frame — so the panel could never light up. The
+true _after_ something reads a frame — so the panel could never light up. The
 frame is now requested whenever the camera is not `UNAVAILABLE`/`ERROR`, with
 `onerror` collapsing back to the notice. The panel is now a real visual area
 with a genuine empty state, not a text card.
@@ -321,12 +319,12 @@ flag — so it is now backed by a real `self._warehouse` reference.
 
 Measured after the fix (24 s live run, mock mission):
 
-| | before | after |
-|---|---|---|
-| in-leg direction reversals | 3 | **0** |
-| steady-state step | erratic 0.06–0.45 m | **0.50 m** |
-| total path length | — | 7.12 m |
-| final pose | oscillating | (−0.008, 0.048) ≈ dock, `COMPLETED` |
+|                            | before              | after                               |
+| -------------------------- | ------------------- | ----------------------------------- |
+| in-leg direction reversals | 3                   | **0**                               |
+| steady-state step          | erratic 0.06–0.45 m | **0.50 m**                          |
+| total path length          | —                   | 7.12 m                              |
+| final pose                 | oscillating         | (−0.008, 0.048) ≈ dock, `COMPLETED` |
 
 `docs/command_center.md` records the full method, including the two measurement
 mistakes worth avoiding: a naive "sign of dx" test flags legitimate diagonal
@@ -351,15 +349,15 @@ shim — all 15 render paths OK, no `TypeError`. Confirmed visually:
 
 ### Files changed
 
-| File | Change |
-|---|---|
-| `raspberry_pi/amr/web/server.py` | mission stepped by `_tick_once`; real `_warehouse` ref |
-| `raspberry_pi/amr/main.py` | removed the competing tick loop; passes `run_warehouse` |
-| `raspberry_pi/amr/web/static/command_center.js` | camera frame fix, robot shapes, overlay, nav/views |
-| `raspberry_pi/amr/web/static/command_center.html` | nav, badges, camera frame area, view sections |
-| `raspberry_pi/amr/web/static/command_center.css` | layout for the above |
-| `raspberry_pi/tests/test_command_center.py` | +4 regression tests (57 total) |
-| `docs/command_center.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+| File                                                  | Change                                                  |
+| ----------------------------------------------------- | ------------------------------------------------------- |
+| `raspberry_pi/amr/web/server.py`                      | mission stepped by `_tick_once`; real `_warehouse` ref  |
+| `raspberry_pi/amr/main.py`                            | removed the competing tick loop; passes `run_warehouse` |
+| `raspberry_pi/amr/web/static/command_center.js`       | camera frame fix, robot shapes, overlay, nav/views      |
+| `raspberry_pi/amr/web/static/command_center.html`     | nav, badges, camera frame area, view sections           |
+| `raspberry_pi/amr/web/static/command_center.css`      | layout for the above                                    |
+| `raspberry_pi/tests/test_command_center.py`           | +4 regression tests (57 total)                          |
+| `docs/command_center.md`, `README.md`, `AI_CONTEXT/*` | documentation                                           |
 
 ### Regression tests added
 
@@ -421,17 +419,17 @@ Everything else is C7–C15b, consumed rather than reimplemented.
 
 ### Files
 
-| Path | Change |
-|---|---|
-| `raspberry_pi/amr/telemetry/series.py` | **new** — `TelemetrySeries`, `EventStream`, `CommandCenterHistory` |
-| `raspberry_pi/amr/web/static/command_center.html` | **new** — console markup |
-| `raspberry_pi/amr/web/static/command_center.css` | **new** — operator-console styling |
-| `raspberry_pi/amr/web/static/command_center.js` | **new** — renderer + 1 Hz poll |
-| `raspberry_pi/amr/web/server.py` | `/command-center`, whitelisted `/static/*`, history in `console_state()` |
-| `raspberry_pi/tests/test_command_center.py` | **new** — 53 tests |
-| `raspberry_pi/tests/conftest.py` | `web` / `web_no_camera` fixtures moved here |
-| `raspberry_pi/tests/test_web_server.py` | local fixtures removed (now shared) |
-| `docs/command_center.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+| Path                                                  | Change                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| `raspberry_pi/amr/telemetry/series.py`                | **new** — `TelemetrySeries`, `EventStream`, `CommandCenterHistory`       |
+| `raspberry_pi/amr/web/static/command_center.html`     | **new** — console markup                                                 |
+| `raspberry_pi/amr/web/static/command_center.css`      | **new** — operator-console styling                                       |
+| `raspberry_pi/amr/web/static/command_center.js`       | **new** — renderer + 1 Hz poll                                           |
+| `raspberry_pi/amr/web/server.py`                      | `/command-center`, whitelisted `/static/*`, history in `console_state()` |
+| `raspberry_pi/tests/test_command_center.py`           | **new** — 53 tests                                                       |
+| `raspberry_pi/tests/conftest.py`                      | `web` / `web_no_camera` fixtures moved here                              |
+| `raspberry_pi/tests/test_web_server.py`               | local fixtures removed (now shared)                                      |
+| `docs/command_center.md`, `README.md`, `AI_CONTEXT/*` | documentation                                                            |
 
 ### Two real bugs found and fixed
 
@@ -443,34 +441,34 @@ Everything else is C7–C15b, consumed rather than reimplemented.
 2. **Fixture duplication.** The C15c tests initially could not see the `web`
    fixtures because they lived in `test_web_server.py`. Rather than build a
    second server, the fixtures were moved to `conftest.py` so both suites drive
-   the *same* running app.
+   the _same_ running app.
 
 ### Tests
 
-| Check | Result |
-|---|---|
-| `python -m pytest` | **1257 passed, 2 skipped, 0 failed** (1204 before, +53) |
-| `tests/test_command_center.py` | 53 passed |
-| `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` / `amr.demo` | all exit 0 |
+| Check                                                                                          | Result                                                  |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `python -m pytest`                                                                             | **1257 passed, 2 skipped, 0 failed** (1204 before, +53) |
+| `tests/test_command_center.py`                                                                 | 53 passed                                               |
+| `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` / `amr.demo` | all exit 0                                              |
 
 Live HTTP smoke: every route 200, four path-traversal attempts 404, history
 growing 29 → 52 samples, `read_only: true`.
 
 ### Safety
 
-* The console **never** calls `POST /command`; its only write is the existing
+- The console **never** calls `POST /command`; its only write is the existing
   display-only `POST /replay/control`. Asserted in tests and by source check.
-* `series.py` imports no hardware; checked for `gpio` / `RPi` / `serial` /
+- `series.py` imports no hardware; checked for `gpio` / `RPi` / `serial` /
   `estop` at source level.
-* Every console read runs inside the existing `NoActuation` guard — zero
+- Every console read runs inside the existing `NoActuation` guard — zero
   actuator writes over real HTTP.
-* `/static/*` is a **whitelist**, not a directory join, so traversal 404s.
+- `/static/*` is a **whitelist**, not a directory join, so traversal 404s.
 
 ### Honesty, enforced by tests
 
 A missing value is never `0`; `NaN` / `inf` / bool are not numbers; a snapshot
 without a timestamp is skipped rather than backdated; a camera bbox stays
-image-space and the UI *says so*; a missing camera yields no detections;
+image-space and the UI _says so_; a missing camera yields no detections;
 `SIMULATION` is never shown as `LIVE`; replay never overwrites live telemetry.
 
 ### Dependencies added: **none**
@@ -487,13 +485,13 @@ V2 needs a 15-pin to 22-pin adapter for the Raspberry Pi 5.
 
 ### Known limitations
 
-* Charts cover speed and battery only — those are the metrics that exist. More
+- Charts cover speed and battery only — those are the metrics that exist. More
   need real sources first, and the panel shows `NOT AVAILABLE` rather than
   inventing a line.
-* No screenshots are committed; the brief asked not to add a browser-automation
+- No screenshots are committed; the brief asked not to add a browser-automation
   stack just for images. The documented way to capture them is to open the URL
   and use the OS screenshot tool.
-* The legacy `/dashboard` page is untouched and still embeds its own copy of the
+- The legacy `/dashboard` page is untouched and still embeds its own copy of the
   twin/map renderers. Consolidating it onto the static files is a worthwhile
   follow-up, but it was deliberately left alone to avoid regressing C9–C15b.
 
@@ -515,15 +513,15 @@ remove the duplicated renderers and shrink `server.py` substantially.
 Real **camera acquisition** behind the existing `VisionDetector` protocol, with
 object-detection inference deliberately left unwired ("Stage A").
 
-* `raspberry_pi/amr/camera/detector.py` (new) — `CameraFrameDetector`: pulls a
+- `raspberry_pi/amr/camera/detector.py` (new) — `CameraFrameDetector`: pulls a
   `CameraFrame` from any `CameraSource` and maps an optional
   `inference(frame)` callable onto the existing C5 `VisionDetection` contract.
-* `VisionHazardSource` extended with `frame_provider=...`; it now accepts a
+- `VisionHazardSource` extended with `frame_provider=...`; it now accepts a
   frame-based detector as well as the pre-existing zero-arg callback and
   pre-materialised sequence forms. No second class was created.
-* `amr/main.py` — `build_camera()` and `build_frame_detector()`; resolution now
+- `amr/main.py` — `build_camera()` and `build_frame_detector()`; resolution now
   parsed from `camera.resolution`.
-* `amr/camera/__init__.py` — exports the detector.
+- `amr/camera/__init__.py` — exports the detector.
 
 ```
 camera -> CameraFrame -> CameraFrameDetector -> VisionDetection
@@ -556,26 +554,26 @@ added, and a subprocess test asserts `import amr.camera` pulls in none of
 
 ### Files changed
 
-| Path | Change |
-|---|---|
-| `raspberry_pi/amr/camera/detector.py` | **new** — `CameraFrameDetector` |
-| `raspberry_pi/amr/camera/frame.py` | `describe()` probes for a reason |
-| `raspberry_pi/amr/camera/__init__.py` | export the detector |
-| `raspberry_pi/amr/hazard/sources.py` | `frame_provider`; object-detector support |
-| `raspberry_pi/amr/hazard/vision.py` | contract support for frame-based detection |
-| `raspberry_pi/amr/main.py` | `build_frame_detector`, `parse_resolution` |
-| `raspberry_pi/tests/test_camera_backend.py` | **new** — 47 tests |
-| `docs/camera_overlay.md` | C15b section |
-| `AI_CONTEXT/{TASK_BOARD,CURRENT_STATUS}.md`, `README.md` | record |
+| Path                                                     | Change                                     |
+| -------------------------------------------------------- | ------------------------------------------ |
+| `raspberry_pi/amr/camera/detector.py`                    | **new** — `CameraFrameDetector`            |
+| `raspberry_pi/amr/camera/frame.py`                       | `describe()` probes for a reason           |
+| `raspberry_pi/amr/camera/__init__.py`                    | export the detector                        |
+| `raspberry_pi/amr/hazard/sources.py`                     | `frame_provider`; object-detector support  |
+| `raspberry_pi/amr/hazard/vision.py`                      | contract support for frame-based detection |
+| `raspberry_pi/amr/main.py`                               | `build_frame_detector`, `parse_resolution` |
+| `raspberry_pi/tests/test_camera_backend.py`              | **new** — 47 tests                         |
+| `docs/camera_overlay.md`                                 | C15b section                               |
+| `AI_CONTEXT/{TASK_BOARD,CURRENT_STATUS}.md`, `README.md` | record                                     |
 
 ### Tests
 
-| Check | Result |
-|---|---|
-| `python -m pytest` | **1204 passed, 2 skipped, 0 failed** |
-| baseline before C15b | 1157 passed, 2 skipped |
-| new C15b tests | **47** (`tests/test_camera_backend.py`) |
-| `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` | all exit 0 |
+| Check                                                                             | Result                                  |
+| --------------------------------------------------------------------------------- | --------------------------------------- |
+| `python -m pytest`                                                                | **1204 passed, 2 skipped, 0 failed**    |
+| baseline before C15b                                                              | 1157 passed, 2 skipped                  |
+| new C15b tests                                                                    | **47** (`tests/test_camera_backend.py`) |
+| `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` | all exit 0                              |
 
 Coverage: camera abstraction lifecycle, mock determinism and dimensions, real
 backend degradation, bbox validation and image-space safety, malformed/garbage
@@ -586,33 +584,33 @@ correctly does not).
 
 ### Safety
 
-* `/command` remains the only actuator path; unchanged.
-* A runtime test drives the full camera→hazard chain inside `NoActuation` and
+- `/command` remains the only actuator path; unchanged.
+- A runtime test drives the full camera→hazard chain inside `NoActuation` and
   asserts **zero** transport writes.
-* `amr/camera/detector.py` is source-level checked to contain no `/command`,
+- `amr/camera/detector.py` is source-level checked to contain no `/command`,
   `gpio`, `RPi`, `robot`, `control`, `web` or `estop` reference.
-* A failing detector produces `ROBOT_FAULT` / `WARNING`, deliberately **not**
+- A failing detector produces `ROBOT_FAULT` / `WARNING`, deliberately **not**
   `ERROR`/`STOP` — a camera problem must not by itself halt a safe robot.
 
 ### Hardware status
 
 **Camera hardware: NOT TESTED. Firmware: NOT TESTED.**
 
-* No `picamera2` on the development machine; the Pi backend was verified only in
+- No `picamera2` on the development machine; the Pi backend was verified only in
   its unavailable state (`picamera2 unavailable: No module named 'picamera2'`).
-* The Pi Camera V2 8MP needs a **15-pin → 22-pin adapter** for the Raspberry
+- The Pi Camera V2 8MP needs a **15-pin → 22-pin adapter** for the Raspberry
   Pi 5's smaller connector. Not fitted; no frame has been captured from the
   physical sensor.
-* No inference model is bundled or benchmarked, so **no detection accuracy is
+- No inference model is bundled or benchmarked, so **no detection accuracy is
   claimed**. Confidence values in tests are pipeline inputs, not measurements.
 
 ### Known limitations
 
-* Acquisition only — no object detection is wired in.
-* No camera calibration, so bbox stays image-space (the C13 rule).
-* The legacy `CameraManager` JPEG path is untouched and exposes no
+- Acquisition only — no object detection is wired in.
+- No camera calibration, so bbox stays image-space (the C13 rule).
+- The legacy `CameraManager` JPEG path is untouched and exposes no
   `CameraFrame` metadata.
-* Frame latency / FPS were not measured; no hardware was available.
+- Frame latency / FPS were not measured; no hardware was available.
 
 ### Next milestone
 
@@ -654,12 +652,12 @@ The demo does **not** call `app.start()`: that also spawns the background
 control-loop thread, which would tick the robot concurrently and make the run
 non-deterministic (the first version did exactly that, and frame counts varied
 between runs). Instead the loop body was extracted into `AMRWebApp._tick_once`,
-which the background thread *and* the demo both call. There is still exactly one
+which the background thread _and_ the demo both call. There is still exactly one
 `_control_loop` and one `self._stop_evt.wait(interval)`, pinned by a source-level
 test.
 
 `build_navigator` gained an optional `hazard=` argument that wires the existing C6
-gate (opt-in, default off), so the navigator asks the *hazard layer* for evidence
+gate (opt-in, default off), so the navigator asks the _hazard layer_ for evidence
 and `mgr.decision` for the Layer-3 verdict. `RobotManager` gained a read-only
 `decision` property for that: it exposes the existing verdict and never
 recomputes one.
@@ -669,22 +667,22 @@ recomputes one.
 1. **Hazard telemetry was silently always `UNAVAILABLE`.**
    `TelemetryCollector._hazard()` gated on `snap.get("attached")`, but
    `HazardManager.snapshot()` has never emitted an `attached` key — that is a C2
-   *web payload* field. The condition was always false, so the hazard section of
+   _web payload_ field. The condition was always false, so the hazard section of
    every telemetry snapshot **and every recording** was UNAVAILABLE: hazards were
    invisible in `/telemetry` and in replay. Same class of mistake as the C12
    mission-section defects. No existing test pinned it.
-2. **`build_navigator` called `hazard.status()`**, but `status` is a *property*,
+2. **`build_navigator` called `hazard.status()`**, but `status` is a _property_,
    so the C6 obstacle provider raised `TypeError` on every call.
 3. **A C14b source test needed updating** — see Tests below.
 
 ### Tests
 
-| Command | Result |
-|---|---|
-| `python -m pytest` (full) | **1157 passed, 2 skipped, 0 failed** (1127 → +30) |
-| `python -m pytest tests/test_unified_demo.py` | 30 passed |
-| `python -m amr.demo` (x6) | `Result: PASS`, 479 frames each run, reports byte-identical |
-| `amr.hazard` / `.vision` / `amr.warehouse` / `.visualisation` / `main --mock --demo` | all exit 0 |
+| Command                                                                              | Result                                                      |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `python -m pytest` (full)                                                            | **1157 passed, 2 skipped, 0 failed** (1127 → +30)           |
+| `python -m pytest tests/test_unified_demo.py`                                        | 30 passed                                                   |
+| `python -m amr.demo` (x6)                                                            | `Result: PASS`, 479 frames each run, reports byte-identical |
+| `amr.hazard` / `.vision` / `amr.warehouse` / `.visualisation` / `main --mock --demo` | all exit 0                                                  |
 
 The flagship test (`TestUnifiedDemoEndToEnd::test_the_whole_chain_passes`) drives
 the real components end to end and asserts each transition — no stubbing, no
@@ -694,7 +692,7 @@ than hand-written.
 **One existing test was modified, with justification.**
 `test_web_app_advances_replay_in_the_existing_loop` asserted the literal
 `"self._replay.tick(interval)"` inside `_control_loop`'s source; the C15 refactor
-moved that line into `_tick_once`. The *invariant* it protects — replay is
+moved that line into `_tick_once`. The _invariant_ it protects — replay is
 advanced once per iteration of the one existing loop, with no new thread — is
 unchanged, so the test now follows the call path: it still asserts one loop, one
 wait and no `Thread(`, and additionally that `_control_loop` delegates to
@@ -705,7 +703,7 @@ rides the same iteration. Net coverage is higher.
 
 Step counter, fixed `dt`, virtual clock, no randomness. Two runs produce identical
 timelines, hazard event ids, avoidance actions, frame counts and a byte-identical
-CLI report. Two things are run-unique *by design* and are excluded from
+CLI report. Two things are run-unique _by design_ and are excluded from
 comparison: the recording filename (wall clock) and `mission.current_task`, whose
 id comes from `Task`'s process-global counter.
 
@@ -714,7 +712,7 @@ id comes from `Task`'s process-global counter.
 - `POST /command` untouched and still the only actuator path.
 - **Physical hardware writes: 0** — the demo only ever builds a mock stack.
 - **Demo direct actuator calls: 0** — the scenario code never calls a motor API.
-- The mission *does* drive the mock robot (that is how a simulated mission
+- The mission _does_ drive the mock robot (that is how a simulated mission
   moves), so the report separates the numbers rather than making a misleading
   "0 actuator writes" claim: transport writes, wheel commands, and wheel commands
   via the manager gate are each reported, and a test asserts
@@ -748,11 +746,10 @@ demo currently relies on.
 
 ## Session: C14c — Automatic telemetry recording (the C15 brief)
 
-
 **Date:** 2026-09-25 · **Branch:** `main` · **Status:** complete, tested, committed
 
 > **Naming:** the brief for this session called the work "C15 — auto-recording",
-> but `C15` on `TASK_BOARD.md` is the *unified demo*, a different milestone. It
+> but `C15` on `TASK_BOARD.md` is the _unified demo_, a different milestone. It
 > is filed here as **C14c** because it completes the C14 recording chain. The
 > board entry records the same decision.
 
@@ -763,7 +760,7 @@ advanced C14b replay — now also feeds the authoritative C7 telemetry snapshot 
 a new `AutoRecorder`. That closes the loop: LIVE → RECORD → DISCOVER → LOAD →
 REPLAY.
 
-- **One snapshot, two consumers.** `self.telemetry.snapshot()` is the *same*
+- **One snapshot, two consumers.** `self.telemetry.snapshot()` is the _same_
   collector the dashboard reads. No second collection path, no second loop.
 - **Lifecycle.** `app.start()` opens `run-<YYYYmmdd-HHMMSS>.jsonl`;
   `app.stop()` finalises it. A test reads the file line-by-line after shutdown
@@ -796,26 +793,26 @@ and no `time.sleep`.
 
 ### Files
 
-| File | Change |
-|---|---|
-| `raspberry_pi/amr/telemetry/auto_record.py` | **New** — `AutoRecorder`, `recording_name` |
-| `raspberry_pi/amr/telemetry/recorder.py` | Small additive helpers only; C14 format unchanged |
-| `raspberry_pi/amr/telemetry/__init__.py` | Export `AutoRecorder` |
-| `raspberry_pi/amr/web/server.py` | `auto_record`/`recordings_dir` kwargs, `_auto`, 3 lines in the existing loop |
-| `raspberry_pi/amr/utils/config.py` | `auto_record` / `recordings_dir` on `ReplayConfig` |
-| `raspberry_pi/amr/main.py` | Pass the resolved recordings dir to the app |
-| `config/replay.yaml` | `auto_record: true`, `recordings_dir: null` |
-| `raspberry_pi/tests/test_auto_record.py` | **New** — 27 tests |
-| `docs/replay_dashboard.md`, `AI_CONTEXT/*`, `README.md` | Docs |
+| File                                                    | Change                                                                       |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `raspberry_pi/amr/telemetry/auto_record.py`             | **New** — `AutoRecorder`, `recording_name`                                   |
+| `raspberry_pi/amr/telemetry/recorder.py`                | Small additive helpers only; C14 format unchanged                            |
+| `raspberry_pi/amr/telemetry/__init__.py`                | Export `AutoRecorder`                                                        |
+| `raspberry_pi/amr/web/server.py`                        | `auto_record`/`recordings_dir` kwargs, `_auto`, 3 lines in the existing loop |
+| `raspberry_pi/amr/utils/config.py`                      | `auto_record` / `recordings_dir` on `ReplayConfig`                           |
+| `raspberry_pi/amr/main.py`                              | Pass the resolved recordings dir to the app                                  |
+| `config/replay.yaml`                                    | `auto_record: true`, `recordings_dir: null`                                  |
+| `raspberry_pi/tests/test_auto_record.py`                | **New** — 27 tests                                                           |
+| `docs/replay_dashboard.md`, `AI_CONTEXT/*`, `README.md` | Docs                                                                         |
 
 ### Tests
 
-| Command | Result |
-|---|---|
-| `python -m pytest` (full) | **1127 passed, 2 skipped, 0 failed** (1100 → +27) |
-| `python -m pytest tests/test_auto_record.py` | 27 passed |
-| `python -m amr.hazard` / `.vision` / `amr.warehouse` / `.visualisation` | all exit 0 |
-| `python -m amr.main --mock --demo` | exit 0 |
+| Command                                                                 | Result                                            |
+| ----------------------------------------------------------------------- | ------------------------------------------------- |
+| `python -m pytest` (full)                                               | **1127 passed, 2 skipped, 0 failed** (1100 → +27) |
+| `python -m pytest tests/test_auto_record.py`                            | 27 passed                                         |
+| `python -m amr.hazard` / `.vision` / `amr.warehouse` / `.visualisation` | all exit 0                                        |
+| `python -m amr.main --mock --demo`                                      | exit 0                                            |
 
 End-to-end proven by a real live run: with `replay.recordings_dir` set, the web
 runtime wrote `run-20260925-233203.jsonl` (2295 B) which
@@ -872,22 +869,22 @@ towards.
 
 ### Implementation
 
-* **Recording discovery** — `RecordingStore` lists `*.jsonl` in the configured
+- **Recording discovery** — `RecordingStore` lists `*.jsonl` in the configured
   directory (newest first, deterministic), skipping non-recordings, hidden files
   and unreadable entries. Fetched when the panel opens, **not** every tick.
-* **Load** — by `recording_id` only. Separators, `..`, absolute paths, hidden
+- **Load** — by `recording_id` only. Separators, `..`, absolute paths, hidden
   names, NUL, over-long names and non-strings are refused; the joined path must
   sit directly inside the directory.
-* **PLAY / PAUSE / RESTART / UNLOAD** — `ReplayController`, states
+- **PLAY / PAUSE / RESTART / UNLOAD** — `ReplayController`, states
   `NO_RECORDING / READY / PLAYING / PAUSED / FINISHED / ERROR`.
-* **0.5x / 1x / 2x** — delegated to the C14 player; `STANDARD_SPEEDS` reused,
+- **0.5x / 1x / 2x** — delegated to the C14 player; `STANDARD_SPEEDS` reused,
   not redefined (a test enforces that).
-* **Dashboard integration** — a *Historical Replay* card with a LIVE/REPLAY
+- **Dashboard integration** — a _Historical Replay_ card with a LIVE/REPLAY
   badge and honest `n/a` for anything the engine does not report.
-* **1 Hz integration** — replay is advanced by the **server's existing**
+- **1 Hz integration** — replay is advanced by the **server's existing**
   `_control_loop`; the browser only reads. The page still has exactly one
   `setInterval` (asserted).
-* **Live/replay separation** — `GET /replay/status` carries its own `frame`,
+- **Live/replay separation** — `GET /replay/status` carries its own `frame`,
   separate from live telemetry, so replay data is never written over live data.
 
 ### Architecture
@@ -913,37 +910,37 @@ the `/command` path and never calls `dispatch()`.
 
 ### Safety
 
-* **Actuator paths unchanged** — `/command` still reaches the robot (asserted).
-* **Transport writes from replay controls = 0**, verified end-to-end over HTTP.
-* **No background replay thread, no second timer** — asserted in both Python
+- **Actuator paths unchanged** — `/command` still reaches the robot (asserted).
+- **Transport writes from replay controls = 0**, verified end-to-end over HTTP.
+- **No background replay thread, no second timer** — asserted in both Python
   (source scan) and JS (`setInterval` count).
 
 ### A regression this milestone caught
 
 Two pre-existing C9 tests assert the dashboard HTML never mentions the actuator
 endpoint. My first draft broke both — not with a call, but with the words
-*"never reach /command"* in a comment. The tests were right; the prose was
+_"never reach /command"_ in a comment. The tests were right; the prose was
 reworded, and the invariant is now asserted a third time.
 
 ### Files changed
 
-| File | Change |
-|---|---|
-| `amr/telemetry/replay_control.py` | **new** — `RecordingStore`, `ReplayController` |
-| `amr/web/server.py` | controller wiring, control-loop tick, routes, replay card + JS |
-| `amr/utils/config.py` | `ReplayConfig`, `AppConfig.replay` |
-| `amr/main.py` | resolves `recordings_dir` |
-| `config/replay.yaml` | **new** — `recordings_dir: null` (off by default) |
-| `tests/test_replay_control.py` | **new** — 68 tests |
-| `docs/replay_dashboard.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+| File                                                    | Change                                                         |
+| ------------------------------------------------------- | -------------------------------------------------------------- |
+| `amr/telemetry/replay_control.py`                       | **new** — `RecordingStore`, `ReplayController`                 |
+| `amr/web/server.py`                                     | controller wiring, control-loop tick, routes, replay card + JS |
+| `amr/utils/config.py`                                   | `ReplayConfig`, `AppConfig.replay`                             |
+| `amr/main.py`                                           | resolves `recordings_dir`                                      |
+| `config/replay.yaml`                                    | **new** — `recordings_dir: null` (off by default)              |
+| `tests/test_replay_control.py`                          | **new** — 68 tests                                             |
+| `docs/replay_dashboard.md`, `README.md`, `AI_CONTEXT/*` | documentation                                                  |
 
 ### Tests
 
-| Command | Result |
-|---|---|
-| `python -m pytest tests/test_replay_control.py` | **68 passed** |
-| `python -m pytest` (full) | **1100 passed, 2 skipped, 0 failed** (1032 → +68) |
-| `node --check` (dashboard JS) | OK |
+| Command                                         | Result                                            |
+| ----------------------------------------------- | ------------------------------------------------- |
+| `python -m pytest tests/test_replay_control.py` | **68 passed**                                     |
+| `python -m pytest` (full)                       | **1100 passed, 2 skipped, 0 failed** (1032 → +68) |
+| `node --check` (dashboard JS)                   | OK                                                |
 
 **Hardware / firmware: NOT TESTED.** Software/mock only.
 
@@ -980,11 +977,11 @@ player and tests. The dashboard replay controls are a deliberate follow-up, so
 
 ### What was implemented
 
-* `amr/telemetry/recorder.py` — `TelemetryRecorder`, `ReplayFrame`,
+- `amr/telemetry/recorder.py` — `TelemetryRecorder`, `ReplayFrame`,
   `frame_from_snapshot()`, `read_recording()`
-* `amr/telemetry/replay.py` — `ReplayPlayer`, `ReplayState`,
+- `amr/telemetry/replay.py` — `ReplayPlayer`, `ReplayState`,
   `STANDARD_SPEEDS`
-* `amr/telemetry/__init__.py` — exports
+- `amr/telemetry/__init__.py` — exports
 
 The recorder mirrors the existing `HazardEventLog` conventions (bounded ring
 buffer, JSONL, best-effort persistence that warns rather than raises) so the
@@ -1000,10 +997,10 @@ can drive this directly instead of starting a second one.
 
 ### Honesty rules (tested)
 
-* A snapshot with **no usable timestamp is skipped**, not recorded at the wrong
+- A snapshot with **no usable timestamp is skipped**, not recorded at the wrong
   moment.
-* An **unknown pose stays `None`**, never smoothed to `0.0`.
-* Only replay-relevant fields are stored; the C3 hazard event log remains the
+- An **unknown pose stays `None`**, never smoothed to `0.0`.
+- Only replay-relevant fields are stored; the C3 hazard event log remains the
   audit record.
 
 ### Transport decisions (documented, tested)
@@ -1016,20 +1013,20 @@ at frame timestamps is exact, which is what makes playback reproducible.
 
 ### Files changed
 
-| File | Change |
-|---|---|
-| `amr/telemetry/recorder.py` | **new** — recorder, frame, JSONL reader |
-| `amr/telemetry/replay.py` | **new** — deterministic player |
-| `amr/telemetry/__init__.py` | exports |
-| `tests/test_replay.py` | **new** — 59 tests |
-| `docs/replay.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+| File                                          | Change                                  |
+| --------------------------------------------- | --------------------------------------- |
+| `amr/telemetry/recorder.py`                   | **new** — recorder, frame, JSONL reader |
+| `amr/telemetry/replay.py`                     | **new** — deterministic player          |
+| `amr/telemetry/__init__.py`                   | exports                                 |
+| `tests/test_replay.py`                        | **new** — 59 tests                      |
+| `docs/replay.md`, `README.md`, `AI_CONTEXT/*` | documentation                           |
 
 ### Tests
 
-| Command | Result |
-|---|---|
-| `python -m pytest tests/test_replay.py` | **59 passed** |
-| `python -m pytest` (full) | **1100 passed, 2 skipped, 0 failed** (973 → +59) |
+| Command                                 | Result                                           |
+| --------------------------------------- | ------------------------------------------------ |
+| `python -m pytest tests/test_replay.py` | **59 passed**                                    |
+| `python -m pytest` (full)               | **1100 passed, 2 skipped, 0 failed** (973 → +59) |
 
 **Hardware tested: NO. Firmware touched: NO.** No existing test was modified.
 
@@ -1090,7 +1087,7 @@ Events sort into four distinct buckets: drawable `boxes`, `world_located`
    (`person_bbox`, `bbox_multiple`, `bbox_partially_outside`,
    `bbox_world_and_image`) without altering the original twelve.
 2. **Pre-existing config bug:** `config/robot.yaml` places `camera:` as a
-   *sibling* of `robot:`, but the loader read only `robot.camera`. Every camera
+   _sibling_ of `robot:`, but the loader read only `robot.camera`. Every camera
    setting in the shipped config had always been silently ignored. Verified
    against the C7 baseline; fixed with a fallback that accepts both layouts,
    plus a regression test.
@@ -1105,28 +1102,28 @@ default `None`) and records a mismatch in `other_source` rather than drawing it.
 
 ### Files changed
 
-| File | Change |
-|---|---|
-| `amr/camera/overlay.py` | **new** — `OverlayBox`, `CameraOverlay`, `build_camera_overlay` (display-only) |
-| `amr/camera/__init__.py` | overlay exports |
-| `amr/hazard/vision.py` | +4 bbox scenarios (original 12 untouched) |
-| `amr/web/server.py` | `camera_overlay()` + `GET /camera/overlay` + dashboard SVG layer + JS |
-| `amr/utils/config.py` | `CameraConfig.camera_id`; **fixes the ignored-camera-config bug** |
-| `amr/main.py` | passes `camera_id` into `AMRWebApp` |
-| `tests/test_camera_overlay.py` | **new** — 40 tests |
-| `tests/test_web_server.py` | +13 overlay route / read-only tests |
-| `tests/test_vision.py` | scenario-set assertion (documented, see below) |
-| `tests/test_config.py` | +4 camera config tests |
-| `docs/camera_overlay.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+| File                                                  | Change                                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `amr/camera/overlay.py`                               | **new** — `OverlayBox`, `CameraOverlay`, `build_camera_overlay` (display-only) |
+| `amr/camera/__init__.py`                              | overlay exports                                                                |
+| `amr/hazard/vision.py`                                | +4 bbox scenarios (original 12 untouched)                                      |
+| `amr/web/server.py`                                   | `camera_overlay()` + `GET /camera/overlay` + dashboard SVG layer + JS          |
+| `amr/utils/config.py`                                 | `CameraConfig.camera_id`; **fixes the ignored-camera-config bug**              |
+| `amr/main.py`                                         | passes `camera_id` into `AMRWebApp`                                            |
+| `tests/test_camera_overlay.py`                        | **new** — 40 tests                                                             |
+| `tests/test_web_server.py`                            | +13 overlay route / read-only tests                                            |
+| `tests/test_vision.py`                                | scenario-set assertion (documented, see below)                                 |
+| `tests/test_config.py`                                | +4 camera config tests                                                         |
+| `docs/camera_overlay.md`, `README.md`, `AI_CONTEXT/*` | documentation                                                                  |
 
 ### Tests
 
-| Command | Result |
-|---|---|
-| `python -m pytest tests/test_camera_overlay.py` | **40 passed** |
-| `python -m pytest` (full) | **1100 passed, 2 skipped, 0 failed** (910 → +63) |
-| `node --check` (C11 guard) | OK |
-| Live HTTP smoke | 3 boxes drawn, confidences 0.90/0.88/0.77 preserved, `world_transform: null` |
+| Command                                         | Result                                                                       |
+| ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| `python -m pytest tests/test_camera_overlay.py` | **40 passed**                                                                |
+| `python -m pytest` (full)                       | **1100 passed, 2 skipped, 0 failed** (910 → +63)                             |
+| `node --check` (C11 guard)                      | OK                                                                           |
+| Live HTTP smoke                                 | 3 boxes drawn, confidences 0.90/0.88/0.77 preserved, `world_transform: null` |
 
 **Hardware tested: NO. Firmware touched: NO.**
 
@@ -1135,7 +1132,7 @@ default `None`) and records a mismatch in `other_source` rather than drawing it.
 `tests/test_vision.py::test_all_twelve_scenarios_are_available` asserted
 `len(SIMULATED_SCENARIOS) == 12`. C13 adds four scenarios, so it became three
 tests: every original C5 scenario is still present (the original semantic), the
-four C13 ones are present, and the set is *exactly* the documented union of 16.
+four C13 ones are present, and the set is _exactly_ the documented union of 16.
 The strictness is preserved — nothing can be silently removed.
 
 ### Safety
@@ -1205,28 +1202,28 @@ On top of the fix:
 
 ### Files changed
 
-| File | Change |
-|---|---|
-| `amr/telemetry/collector.py` | `_mission()` rewritten; `_mission_task_progress()`; `_as_int()` |
-| `amr/telemetry/types.py` | `MissionTelemetry` +4 additive fields |
-| `amr/telemetry/console.py` | `mission_phase()`, `_arrived()`, `AT_ARRIVAL`, richer mission panel |
-| `amr/telemetry/__init__.py` | exports |
-| `amr/warehouse/task_manager.py` | `ManagerStatus` +3 fields; `mission_id` ctor kwarg; `status()` populated |
-| `amr/web/server.py` | Mission panel rows + `renderMission()` |
-| `amr/main.py` | `build_warehouse(mission_id=...)`, `--mission-demo` flag + gate |
-| `tests/test_mission_monitoring.py` | **new**, 45 tests |
-| `tests/test_warehouse.py` | one assertion: exact key-set → subset + new-key asserts |
-| `docs/mission_monitoring.md`, `README.md`, `AI_CONTEXT/*` | documentation |
+| File                                                      | Change                                                                   |
+| --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `amr/telemetry/collector.py`                              | `_mission()` rewritten; `_mission_task_progress()`; `_as_int()`          |
+| `amr/telemetry/types.py`                                  | `MissionTelemetry` +4 additive fields                                    |
+| `amr/telemetry/console.py`                                | `mission_phase()`, `_arrived()`, `AT_ARRIVAL`, richer mission panel      |
+| `amr/telemetry/__init__.py`                               | exports                                                                  |
+| `amr/warehouse/task_manager.py`                           | `ManagerStatus` +3 fields; `mission_id` ctor kwarg; `status()` populated |
+| `amr/web/server.py`                                       | Mission panel rows + `renderMission()`                                   |
+| `amr/main.py`                                             | `build_warehouse(mission_id=...)`, `--mission-demo` flag + gate          |
+| `tests/test_mission_monitoring.py`                        | **new**, 45 tests                                                        |
+| `tests/test_warehouse.py`                                 | one assertion: exact key-set → subset + new-key asserts                  |
+| `docs/mission_monitoring.md`, `README.md`, `AI_CONTEXT/*` | documentation                                                            |
 
 ### Tests
 
-| Command | Result |
-|---|---|
-| `python -m pytest tests/test_mission_monitoring.py` | **45 passed** |
-| `python -m pytest` (full) | **1100 passed, 2 skipped, 0 failed** (865 → +45) |
-| `node --check` on both served scripts | **OK** (C11 guard re-run) |
-| `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` | all exit 0 |
-| Live `--mock --web --mission-demo` | `NAVIGATE` → `DROP`, dest `station`, 1/3, `mission_id:web-run`; mission no longer degraded; all endpoints 200 |
+| Command                                                                           | Result                                                                                                        |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `python -m pytest tests/test_mission_monitoring.py`                               | **45 passed**                                                                                                 |
+| `python -m pytest` (full)                                                         | **1100 passed, 2 skipped, 0 failed** (865 → +45)                                                              |
+| `node --check` on both served scripts                                             | **OK** (C11 guard re-run)                                                                                     |
+| `amr.hazard` / `amr.hazard.vision` / `amr.warehouse` / `amr.hazard.visualisation` | all exit 0                                                                                                    |
+| Live `--mock --web --mission-demo`                                                | `NAVIGATE` → `DROP`, dest `station`, 1/3, `mission_id:web-run`; mission no longer degraded; all endpoints 200 |
 
 **Hardware tested: NO. Firmware touched: NO.**
 
@@ -1269,14 +1266,14 @@ The dashboard is now an operations console: a global status strip plus robot,
 goal+route, mission, safety, hazard, battery, sensor, camera and system-health
 panels — all read-only, all assembled from **existing** state.
 
-* **New `raspberry_pi/amr/telemetry/console.py`** — a pure function
+- **New `raspberry_pi/amr/telemetry/console.py`** — a pure function
   (`build_console_state`) over the C7 telemetry + C9 map + C10 twin + C7
   health. No new schema, no second state engine, no hardware access.
-* **New read-only `GET /dashboard/state`.**
-* **Dashboard:** operations status bar + Mission, Goal & route, Battery,
+- **New read-only `GET /dashboard/state`.**
+- **Dashboard:** operations status bar + Mission, Goal & route, Battery,
   System health panels; Safety gained hazard/avoidance/reason rows.
-* **1 request per tick** instead of four, still on the existing 1 Hz poll.
-* **JavaScript syntax checking is now permanent** (see §5).
+- **1 request per tick** instead of four, still on the existing 1 Hz poll.
+- **JavaScript syntax checking is now permanent** (see §5).
 
 ### 2. Architecture
 
@@ -1293,31 +1290,31 @@ exactly, so the console can never become a second map or twin state.
 
 ### 3. Honesty contract (enforced by tests)
 
-* `UNAVAILABLE` is never coerced to `0` / "ok" / `100%`. Live smoke shows
+- `UNAVAILABLE` is never coerced to `0` / "ok" / `100%`. Live smoke shows
   battery `UNAVAILABLE`, `percentage: null`,
   `note: "no battery source in this build"`.
-* An unwired mission runtime reports **"Mission data unavailable"**, not a
+- An unwired mission runtime reports **"Mission data unavailable"**, not a
   blank-but-healthy mission.
-* Route progress is **reported, never recomputed**, and labelled
+- Route progress is **reported, never recomputed**, and labelled
   `straight-line distance to goal (not path-following)`.
-* Hazard placement still comes from the C9 map projection, so image-space
+- Hazard placement still comes from the C9 map projection, so image-space
   detections stay `unlocated` and are never drawn in the world.
-* Mission "state" is described from existing counters — not a new engine.
+- Mission "state" is described from existing counters — not a new engine.
 
 ### 4. Tests
 
-* **New `tests/test_console.py` — 35 tests**: console state, absence/honesty,
+- **New `tests/test_console.py` — 35 tests**: console state, absence/honesty,
   all four mission states, hazard placement vs unlocated, route progress
   (incl. clamping and NaN), system health, plus the JavaScript guard.
-* **+10 `TestDashboardStateApi`** in `test_web_server.py`: schema, read-only
+- **+10 `TestDashboardStateApi`** in `test_web_server.py`: schema, read-only
   flag, embedded map/twin equality, agreement with `/telemetry`, GET-only,
   no actuation, and all prior endpoints still 200.
-* **Full suite: 865 passed, 2 skipped, 0 failed** (two consecutive clean runs,
+- **Full suite: 865 passed, 2 skipped, 0 failed** (two consecutive clean runs,
   ~52 s).
-* **Live smoke** (`--mock --web`): `/dashboard/state` 200 `read_only:true`,
+- **Live smoke** (`--mock --web`): `/dashboard/state` 200 `read_only:true`,
   `map`/`twin` byte-identical to their endpoints, `degraded:[hazards, battery,
-  mission]`, all 8 endpoints 200.
-* **Smokes:** `amr.hazard`, `amr.hazard.vision`, `amr.warehouse`,
+mission]`, all 8 endpoints 200.
+- **Smokes:** `amr.hazard`, `amr.hazard.vision`, `amr.warehouse`,
   `amr.hazard.visualisation`, `amr.main --mock --demo` — all exit 0.
 
 ### 5. JavaScript validation (C11 §24 — mandatory)
@@ -1365,13 +1362,13 @@ Modified: `amr/telemetry/__init__.py`, `amr/web/server.py`,
 
 ### 9. Known limitations
 
-* Battery, real sensors, a real mission runtime and a real camera are all
+- Battery, real sensors, a real mission runtime and a real camera are all
   **unavailable in this build**; the console reports that rather than filling
   gaps.
-* The mission runtime is not wired into the mock dashboard, so the panel
+- The mission runtime is not wired into the mock dashboard, so the panel
   normally shows "Mission data unavailable".
-* Mission state is derived from counters, not a state machine.
-* No replay, analytics, cloud backend or authentication (out of scope).
+- Mission state is derived from counters, not a state machine.
+- No replay, analytics, cloud backend or authentication (out of scope).
 
 ### 10. Remaining work
 
@@ -1402,16 +1399,16 @@ Implementation: `f4300c5` · context: this commit.
 A browser-based 3D digital twin of the AMR and warehouse, rendered from the
 **same C9 `MapSnapshot`** the 2D map uses. It is a view, not a second runtime.
 
-* **New `raspberry_pi/amr/map/twin.py`** — `DigitalTwinState`,
+- **New `raspberry_pi/amr/map/twin.py`** — `DigitalTwinState`,
   `build_twin_state()`, `world_to_three()`, `yaw_to_rotation_z()`,
   `robot_model()`.
-* **New route `GET /digital-twin`** (read-only) and a **3D Digital Twin** card on
+- **New route `GET /digital-twin`** (read-only) and a **3D Digital Twin** card on
   the existing `GET /dashboard`.
-* **Renderer: raw WebGL, no Three.js.** The repo has no npm, no `package.json`,
+- **Renderer: raw WebGL, no Three.js.** The repo has no npm, no `package.json`,
   no CDN and no build step; a vendored 3D library would break that. WebGL is in
   every browser, so a small hand-written renderer keeps it one self-contained
   Python process.
-* Exported from `amr.map` so the next milestone imports one package.
+- Exported from `amr.map` so the next milestone imports one package.
 
 ### 2. Architecture
 
@@ -1441,31 +1438,31 @@ determinism and NaN-refusal checks. The response republishes the rule in
 
 ### 4. Safety verification
 
-* `amr/map/twin.py` imports only `math`, `dataclasses`, `typing`, `.snapshot`.
+- `amr/map/twin.py` imports only `math`, `dataclasses`, `typing`, `.snapshot`.
   A test greps its source for `RobotManager`, `Navigator`, `SafetyManager`,
   `serial`, `gpio`, `pwm`, `dispatch(`, `MotorDriver`, `set_speed` and fails if
   any appears.
-* 10× `GET /digital-twin` + `GET /map` wrote **0 bytes** to the mock transport.
-* `POST /digital-twin` → 404/405. No actuation buttons exist in the markup.
-* `SafetyManager`, `Navigator`, `RobotManager` and all drivers are **unmodified**.
+- 10× `GET /digital-twin` + `GET /map` wrote **0 bytes** to the mock transport.
+- `POST /digital-twin` → 404/405. No actuation buttons exist in the markup.
+- `SafetyManager`, `Navigator`, `RobotManager` and all drivers are **unmodified**.
 
 ### 5. Tests
 
-* **New `tests/test_digital_twin.py` — 37 tests**: coordinate conversion (origin,
+- **New `tests/test_digital_twin.py` — 37 tests**: coordinate conversion (origin,
   ±, determinism, NaN), state conversion (full/empty/missing robot/goal/route/
   path/source), robot model, hazard placement incl. the image-space rule,
   safety pass-through, renderer declaration, schematic labelling.
-* **+14 `TestDigitalTwinApi` in `tests/test_web_server.py`**: schema, simulation
+- **+14 `TestDigitalTwinApi` in `tests/test_web_server.py`**: schema, simulation
   labelling, pose **consistency with `GET /map`**, waypoint equality, works
   without a camera, GET-only, zero serial writes, C9 endpoints unaffected,
   dashboard markup, single-poll wiring.
-* **Full suite: 820 passed, 2 skipped, 0 failed** (44.97s). C1–C9 all green.
-* **Live smoke** (`--mock --web`): `/digital-twin` 200 `SIMULATION`, pose equal
+- **Full suite: 820 passed, 2 skipped, 0 failed** (44.97s). C1–C9 all green.
+- **Live smoke** (`--mock --web`): `/digital-twin` 200 `SIMULATION`, pose equal
   to `/map`, 5 config waypoints, `renderer.library: null`; `/dashboard`,
   `/telemetry`, `/map.svg`, `/camera/status` all 200.
-* **Smokes:** `amr.hazard`, `amr.hazard.vision`, `amr.warehouse`,
+- **Smokes:** `amr.hazard`, `amr.hazard.vision`, `amr.warehouse`,
   `amr.hazard.visualisation`, `amr.main --mock --demo` — all exit 0.
-* Served JavaScript syntax-checked with `node --check` (see §7).
+- Served JavaScript syntax-checked with `node --check` (see §7).
 
 ### 6. Files
 
@@ -1478,7 +1475,7 @@ Modified: `amr/map/__init__.py`, `amr/web/server.py`,
 ### 7. Two real bugs caught during this session
 
 1. **Dashboard-wide JavaScript syntax error.** The GLSL sources were joined with
-   `"\n"` inside a *Python* string, so Python expanded it to a literal newline
+   `"\n"` inside a _Python_ string, so Python expanded it to a literal newline
    inside a JS string literal — which broke the **entire** dashboard script, not
    just the twin. Every pytest test would still have passed, because they assert
    on HTML text, not on executed JavaScript. Found by extracting the served
@@ -1488,7 +1485,7 @@ Modified: `amr/map/__init__.py`, `amr/web/server.py`,
 2. **Two wrong test assumptions of mine**, corrected against the real code
    rather than by weakening assertions: `MapStatic.bounds` is computed by C9's
    builder (my fixture omitted it), and the `web` fixture wires no navigator, so
-   `source` is correctly `UNAVAILABLE` rather than `SIMULATION` — a mock *runtime*
+   `source` is correctly `UNAVAILABLE` rather than `SIMULATION` — a mock _runtime_
    does not make absent map data into simulated map data.
 
 ### 8. Hardware / firmware status
@@ -1499,12 +1496,12 @@ exercised in a real browser in this session.
 
 ### 9. Known limitations
 
-* No text geometry in 3D; labels are an HTML legend.
-* Flat shading, no lighting/shadows/textures.
-* No shelf/rack/obstacle meshes — **none exist in the project**, and inventing
+- No text geometry in 3D; labels are an HTML legend.
+- Flat shading, no lighting/shadows/textures.
+- No shelf/rack/obstacle meshes — **none exist in the project**, and inventing
   them was explicitly out of scope. The scene is labelled schematic on its face.
-* The manipulator mount is drawn with `implemented: false`; no arm exists.
-* Robot dimensions are nominal and unmeasured.
+- The manipulator mount is drawn with `implemented: false`; no arm exists.
+- Robot dimensions are nominal and unmeasured.
 
 ### 10. Remaining work
 
@@ -1535,21 +1532,21 @@ Implementation: `577e6a7` · context: this commit.
 A live 2D warehouse map in the existing dashboard, drawn from the runtime the
 robot already uses. No second navigation engine, no second coordinate system.
 
-* **New `raspberry_pi/amr/map/`** (3 modules):
-  * `snapshot.py` — presentation-independent `MapSnapshot` + adapters from the
+- **New `raspberry_pi/amr/map/`** (3 modules):
+  - `snapshot.py` — presentation-independent `MapSnapshot` + adapters from the
     existing `WarehouseMap`/`HazardZone`/`Navigator`/`HazardManager`/telemetry.
-  * `transform.py` — the **single** world→screen conversion (`MapTransform`) and
+  - `transform.py` — the **single** world→screen conversion (`MapTransform`) and
     a bounded, de-duplicated `PathHistory`.
-  * `service.py` — `MapService` (sampling + path trail) and a deterministic SVG
+  - `service.py` — `MapService` (sampling + path trail) and a deterministic SVG
     renderer.
-* **New routes on the existing `AMRWebApp`:** `GET /map` (JSON) and
+- **New routes on the existing `AMRWebApp`:** `GET /map` (JSON) and
   `GET /map.svg` (server-rendered, `?width=&height=&zoom=` clamped).
-* **Dashboard:** a *Live 2D Warehouse Map* card with a source badge, safety
+- **Dashboard:** a _Live 2D Warehouse Map_ card with a source badge, safety
   badge, and robot/goal/route/hazard summary. Scroll-zoom, drag-pan,
   follow-robot, reset-view and label-toggle — all read-only, riding the existing
   1 Hz poll (no second timer).
-* **111 new tests** in `tests/test_map.py`.
-* **Docs:** new `docs/map.md`; updated `docs/web_control.md`, `README.md`,
+- **111 new tests** in `tests/test_map.py`.
+- **Docs:** new `docs/map.md`; updated `docs/web_control.md`, `README.md`,
   `AI_CONTEXT/` (architecture, status, task board).
 
 ### 2. Coordinate system (the repository's own, unchanged)
@@ -1566,14 +1563,14 @@ difference (world y-up, SVG y-down).
 
 ### 3. Honesty constraints encoded
 
-* **No fabricated geometry.** The repo models **no** shelf/rack/obstacle/
+- **No fabricated geometry.** The repo models **no** shelf/rack/obstacle/
   boundary geometry — only waypoints and hazard-zone rectangles. Those fields
   report empty/`null` with a visible `note`; the viewport is fitted to real data
-  and labelled as *not* a surveyed boundary.
-* **C5 placement rule preserved.** A hazard is placed only with a real world
+  and labelled as _not_ a surveyed boundary.
+- **C5 placement rule preserved.** A hazard is placed only with a real world
   `location`; image-space bboxes go to `unlocated` with a reason and **no** x/y.
-  A genuine `(0, 0)` hazard *is* placed.
-* **Source tags everywhere:** `LIVE` / `SIMULATION` / `UNAVAILABLE`.
+  A genuine `(0, 0)` hazard _is_ placed.
+- **Source tags everywhere:** `LIVE` / `SIMULATION` / `UNAVAILABLE`.
 
 ### 4. Bugs found and fixed while building C9
 
@@ -1596,29 +1593,29 @@ transform being anchored at the world origin) rather than by weakening tests.
 
 ### 5. Safety / read-only
 
-* `amr/map/` imports **no** motor/PWM/serial/GPIO/robot-control module (a test
+- `amr/map/` imports **no** motor/PWM/serial/GPIO/robot-control module (a test
   scans the package's imports).
-* The service never calls `tick`/`step`/`go_to`/`dispatch`; a test drives it 20×
+- The service never calls `tick`/`step`/`go_to`/`dispatch`; a test drives it 20×
   and asserts the navigator recorded zero movement calls.
-* The dashboard gets the runtime's own navigator and never steps it, so the map
+- The dashboard gets the runtime's own navigator and never steps it, so the map
   cannot move the robot.
-* A test reads `/map` and `/map.svg` 10× and asserts the mock serial transport
+- A test reads `/map` and `/map.svg` 10× and asserts the mock serial transport
   recorded **zero** writes.
-* Both routes are GET-only; POST returns 404/405.
+- Both routes are GET-only; POST returns 404/405.
 
 ### 6. Verification
 
-| Check | Result |
-|---|---|
-| `python -m pytest` | **771 passed, 2 skipped, 0 failed** (3 consecutive clean runs) |
-| `tests/test_hazard.py` (C5) | 48 passed, unchanged |
-| `tests/test_web_server.py` | 45 passed, unchanged |
-| `python -m amr.hazard` | exit 0, `steps=4 failures=0` |
-| `python -m amr.hazard.vision` | exit 0 |
-| `python -m amr.warehouse` | exit 0, `completed=3 failed=0` |
-| `python -m amr.hazard.visualisation` | exit 0, valid SVG |
-| `python -m amr.main --mock --demo` | exit 0 |
-| live CLI `/map`, `/map.svg` | 200; waypoints from real config; valid SVG; malformed params → 200 |
+| Check                                | Result                                                             |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| `python -m pytest`                   | **771 passed, 2 skipped, 0 failed** (3 consecutive clean runs)     |
+| `tests/test_hazard.py` (C5)          | 48 passed, unchanged                                               |
+| `tests/test_web_server.py`           | 45 passed, unchanged                                               |
+| `python -m amr.hazard`               | exit 0, `steps=4 failures=0`                                       |
+| `python -m amr.hazard.vision`        | exit 0                                                             |
+| `python -m amr.warehouse`            | exit 0, `completed=3 failed=0`                                     |
+| `python -m amr.hazard.visualisation` | exit 0, valid SVG                                                  |
+| `python -m amr.main --mock --demo`   | exit 0                                                             |
+| live CLI `/map`, `/map.svg`          | 200; waypoints from real config; valid SVG; malformed params → 200 |
 
 ### 7. Hardware / firmware
 
@@ -1628,12 +1625,12 @@ against mocks only.
 
 ### 8. Known limitations
 
-* No shelf/rack/obstacle/boundary geometry exists in the project (see above).
-* Pose is `LocalNavigator` odometry, still unvalidated on hardware
+- No shelf/rack/obstacle/boundary geometry exists in the project (see above).
+- Pose is `LocalNavigator` odometry, still unvalidated on hardware
   (`robot.wheel_track_m` / `wheel_diameter_m` are `null`).
-* Dynamic ultrasonic obstacles are not mapped (C6 `ObstacleProvider` not wired
+- Dynamic ultrasonic obstacles are not mapped (C6 `ObstacleProvider` not wired
   to the map).
-* 1 Hz polling; no WebSocket.
+- 1 Hz polling; no WebSocket.
 
 ### 9. Files changed
 
@@ -1645,9 +1642,9 @@ location-coercion fix), `docs/web_control.md`, `README.md`,
 
 ### 10. Commits
 
-| Commit | Contents |
-|---|---|
-| see §10 below | `feat(map): add live 2D warehouse map` |
+| Commit        | Contents                                  |
+| ------------- | ----------------------------------------- |
+| see §10 below | `feat(map): add live 2D warehouse map`    |
 | (this commit) | `docs(ai-context): record C9 commit hash` |
 
 ### 11. Next recommended task
@@ -1674,22 +1671,22 @@ The work **extends** the existing `amr/camera/camera_manager.py` rather than
 replacing it, and reuses the C7 telemetry snapshot and `AMRWebApp` — no second
 runtime, no second web server, no duplicate vision logic.
 
-* **New `raspberry_pi/amr/camera/frame.py` (626 lines)** — frozen `CameraFrame`
+- **New `raspberry_pi/amr/camera/frame.py` (626 lines)** — frozen `CameraFrame`
   contract, `CameraStatus` (`LIVE`/`SIMULATION`/`UNAVAILABLE`/`ERROR`), a
   `CameraSource` protocol, deterministic `SimulatedCameraSource`, and a
   lazy-import `RaspberryPiCameraSource`.
-* **Simulation** generates a real, correctly-sized PNG using only the standard
+- **Simulation** generates a real, correctly-sized PNG using only the standard
   library (`zlib` + `struct`) — no OpenCV, no NumPy, no Pillow. Deterministic:
   identical bytes every run, so tests never flake.
-* **Real backend** probes `picamera2` → `libcamera-still` → V4L2, each behind a
+- **Real backend** probes `picamera2` → `libcamera-still` → V4L2, each behind a
   guarded lazy import. Missing package, missing device, or init error degrades
   to `UNAVAILABLE`/`ERROR` with a reason; the runtime keeps running.
-* **Lifecycle** `start()` / `read()` / `stop()`, idempotent, no background
+- **Lifecycle** `start()` / `read()` / `stop()`, idempotent, no background
   thread, nothing initialised at import time.
-* **API:** `GET /camera/status` (metadata only, never pixels) and
+- **API:** `GET /camera/status` (metadata only, never pixels) and
   `GET /camera/frame` (latest encoded frame, `503` when unavailable), plus a
   camera panel on `GET /dashboard`.
-* **68 new tests**: 49 in `tests/test_camera_frame.py` (including runtime-wiring
+- **68 new tests**: 49 in `tests/test_camera_frame.py` (including runtime-wiring
   coverage for `amr.main.build_camera`), plus camera cases in `test_telemetry.py`
   and `test_web_server.py`.
 
@@ -1728,14 +1725,13 @@ the committed C7 baseline. `--mock --demo` exits 0.
 
 ### 1b. Commits
 
-| Commit | Contents |
-|---|---|
-| `e322227` | `feat(camera): add Raspberry Pi camera monitoring` — implementation, tests, and reference docs |
-| (this commit) | `docs(ai-context): record C8 commit hash` — the `AI_CONTEXT/` files |
+| Commit        | Contents                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| `e322227`     | `feat(camera): add Raspberry Pi camera monitoring` — implementation, tests, and reference docs |
+| (this commit) | `docs(ai-context): record C8 commit hash` — the `AI_CONTEXT/` files                            |
 
 Resolve the live hash with `git rev-parse HEAD` (also mirrored in
 `AI_CONTEXT/CURRENT_STATUS.md`). A file cannot contain its own hash.
-
 
 ## Session: C7 — dashboard foundation (read-only telemetry + monitoring API)
 
@@ -1746,7 +1742,7 @@ Resolve the live hash with `git rev-parse HEAD` (also mirrored in
 ### 1. What was completed
 
 **C7 — dashboard foundation.** A new **read-only** `amr/telemetry/` package, a
-schema-versioned telemetry snapshot, three new HTTP routes on the *existing*
+schema-versioned telemetry snapshot, three new HTTP routes on the _existing_
 web server, and a minimal self-contained dashboard page.
 
 ```
@@ -1754,16 +1750,16 @@ existing runtime → TelemetryCollector → TelemetrySnapshot → /telemetry /he
                   (reads only)                            (no motor path)
 ```
 
-* **New `raspberry_pi/amr/telemetry/types.py`** — frozen dataclasses: `DataSource`,
+- **New `raspberry_pi/amr/telemetry/types.py`** — frozen dataclasses: `DataSource`,
   `Vector3`, `Orientation`, `Velocity`, `NavigationTelemetry`, `SafetyTelemetry`,
   `HazardTelemetry`, `BatteryTelemetry`, `SensorTelemetry`, `MissionTelemetry`,
   `CameraTelemetry`, `SystemTelemetry`, `TelemetrySnapshot`, `HealthReport`.
-* **New `raspberry_pi/amr/telemetry/collector.py`** — `TelemetryCollector` +
+- **New `raspberry_pi/amr/telemetry/collector.py`** — `TelemetryCollector` +
   `snapshot()` / `health()`; **reads only** public state of the existing managers.
-* **New `GET /telemetry`, `GET /health`, `GET /dashboard`** on the existing
+- **New `GET /telemetry`, `GET /health`, `GET /dashboard`** on the existing
   `AMRWebApp` (C2) — **no second HTTP server**, no new port, no build step.
-* **55 new tests** (46 `test_telemetry.py` + 9 in `test_web_server.py`).
-* **Docs:** new `docs/telemetry.md`; updated `docs/web_control.md`, `README.md`,
+- **55 new tests** (46 `test_telemetry.py` + 9 in `test_web_server.py`).
+- **Docs:** new `docs/telemetry.md`; updated `docs/web_control.md`, `README.md`,
   `AI_CONTEXT/` (task board, architecture, status).
 
 ### 2. The two rules C7 had to honour
@@ -1796,11 +1792,11 @@ mismatches, all fixed (no existing test was changed to hide them):
 
 ### 4. Tests
 
-| Command | Result |
-|---|---|
-| `cd raspberry_pi && python -m pytest tests/test_telemetry.py` | 46 passed |
-| `cd raspberry_pi && python -m pytest tests/test_web_server.py` | 34 passed |
-| `cd raspberry_pi && python -m pytest` | **592 passed, 2 skipped, 0 failed** |
+| Command                                                        | Result                              |
+| -------------------------------------------------------------- | ----------------------------------- |
+| `cd raspberry_pi && python -m pytest tests/test_telemetry.py`  | 46 passed                           |
+| `cd raspberry_pi && python -m pytest tests/test_web_server.py` | 34 passed                           |
+| `cd raspberry_pi && python -m pytest`                          | **592 passed, 2 skipped, 0 failed** |
 
 The 2 skips are the pre-existing camera tests that need `opencv-python`/`numpy`.
 
@@ -1814,27 +1810,27 @@ keeping its own copy of robot state.
 
 ### 6. Files changed (6 new, 6 modified)
 
-| Path | Change |
-|---|---|
-| `raspberry_pi/amr/telemetry/types.py` | **New**: the frozen telemetry contract |
-| `raspberry_pi/amr/telemetry/collector.py` | **New**: read-only `TelemetryCollector` |
-| `raspberry_pi/amr/telemetry/__init__.py` | **New**: package exports |
-| `raspberry_pi/tests/test_telemetry.py` | **New**: 46 tests |
-| `docs/telemetry.md` | **New**: contract, API, safety boundary |
-| `raspberry_pi/amr/web/server.py` | Collector wiring + `/telemetry`, `/health`, `/dashboard` |
-| `raspberry_pi/amr/main.py` | Constructs the collector; passes `simulated=args.mock` |
-| `raspberry_pi/tests/test_web_server.py` | +9 tests for the new routes |
-| `docs/web_control.md` | C7 section + test list |
-| `README.md` | Badge/count 537→592, module + doc rows, API table |
-| `AI_CONTEXT/TASK_BOARD.md` | C7 marked `[x]`; monitoring roadmap C8–C15; legacy C8–C10 renumbered to C17–C19 |
-| `AI_CONTEXT/ARCHITECTURE.md` | §10 telemetry layer, API surface, extension point |
+| Path                                      | Change                                                                          |
+| ----------------------------------------- | ------------------------------------------------------------------------------- |
+| `raspberry_pi/amr/telemetry/types.py`     | **New**: the frozen telemetry contract                                          |
+| `raspberry_pi/amr/telemetry/collector.py` | **New**: read-only `TelemetryCollector`                                         |
+| `raspberry_pi/amr/telemetry/__init__.py`  | **New**: package exports                                                        |
+| `raspberry_pi/tests/test_telemetry.py`    | **New**: 46 tests                                                               |
+| `docs/telemetry.md`                       | **New**: contract, API, safety boundary                                         |
+| `raspberry_pi/amr/web/server.py`          | Collector wiring + `/telemetry`, `/health`, `/dashboard`                        |
+| `raspberry_pi/amr/main.py`                | Constructs the collector; passes `simulated=args.mock`                          |
+| `raspberry_pi/tests/test_web_server.py`   | +9 tests for the new routes                                                     |
+| `docs/web_control.md`                     | C7 section + test list                                                          |
+| `README.md`                               | Badge/count 537→592, module + doc rows, API table                               |
+| `AI_CONTEXT/TASK_BOARD.md`                | C7 marked `[x]`; monitoring roadmap C8–C15; legacy C8–C10 renumbered to C17–C19 |
+| `AI_CONTEXT/ARCHITECTURE.md`              | §10 telemetry layer, API surface, extension point                               |
 
 ### 7. Handoff integrity
 
-| Commit | Contents |
-|---|---|
-| (feature) | `feat(dashboard): add read-only telemetry foundation` — telemetry package, web routes, tests, docs |
-| (this commit) | `docs(ai-context): record C7 commit hash` — the `AI_CONTEXT/` files |
+| Commit        | Contents                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| (feature)     | `feat(dashboard): add read-only telemetry foundation` — telemetry package, web routes, tests, docs |
+| (this commit) | `docs(ai-context): record C7 commit hash` — the `AI_CONTEXT/` files                                |
 
 Resolve the live hash with `git rev-parse HEAD` (also mirrored in
 `AI_CONTEXT/CURRENT_STATUS.md`). **Verified at commit time:**
@@ -1851,7 +1847,7 @@ Resolve the live hash with `git rev-parse HEAD` (also mirrored in
 ### 1. What was completed
 
 **C6 is fully implemented, tested and documented.** The reserved
-`SafetyAction.TURN` / `REPLAN` are now *active* policy. Previously they were
+`SafetyAction.TURN` / `REPLAN` are now _active_ policy. Previously they were
 declared but never produced; now a non-blocking obstacle can produce them.
 
 The safety argument rests on **ordering, not on thresholds**:
@@ -1859,24 +1855,24 @@ The safety argument rests on **ordering, not on thresholds**:
 1. `SafetyManager.evaluate()` runs the original rules (now factored into
    `_check_base()`) **first**. A `STOP` or `WAIT` is returned unchanged and the
    avoidance policy is never even called.
-2. Only when the base verdict is `PROCEED` *and* an `AvoidancePolicy` is
+2. Only when the base verdict is `PROCEED` _and_ an `AvoidancePolicy` is
    supplied may an obstacle upgrade the action.
-3. A *critical* obstacle never reaches C6: the hazard layer raises `STOP` and
+3. A _critical_ obstacle never reaches C6: the hazard layer raises `STOP` and
    blocks motion through the pre-existing hazard → `RobotManager` path.
 4. So the only thing C6 ever acts on is a **non-blocking `WARNING` obstacle**.
 
-* **New `raspberry_pi/amr/safety/avoidance.py`** (357 lines) — pure, config-driven
+- **New `raspberry_pi/amr/safety/avoidance.py`** (357 lines) — pure, config-driven
   and side-effect free: `ObstacleSide`, `ObstacleReport`, `AvoidanceAction`
   (`NONE`/`TURN`/`REPLAN`/`STOP`), `AvoidancePolicy.decide()`, and
   `report_from_hazard()` (adapts a `HazardStatus` to obstacle evidence).
-* **`LocalNavigator`** gained an opt-in avoidance gate. Manoeuvre commands leave
+- **`LocalNavigator`** gained an opt-in avoidance gate. Manoeuvre commands leave
   through the **single existing `command()` callback** — no second motor path.
-* **`SafetyManager.evaluate()`** gained three keyword-only, all-`None` params
+- **`SafetyManager.evaluate()`** gained three keyword-only, all-`None` params
   (`avoidance`, `obstacle`, `clearance`). The old 2-arg call signature still works
   and returns a byte-identical result.
-* **Config:** `AvoidanceConfig` in `amr/utils/config.py` + `safety.avoidance`
+- **Config:** `AvoidanceConfig` in `amr/utils/config.py` + `safety.avoidance`
   block in `config/safety.yaml`, **`enabled: false` by default**.
-* **76 new tests** in `tests/test_avoidance.py` (738 lines, all offline).
+- **76 new tests** in `tests/test_avoidance.py` (738 lines, all offline).
 
 Explicitly **not** done: no sensor/hardware wiring, no ultrasonic clearance
 provider, no `RobotManager` auto-wiring of the policy, and **no pre-existing stop
@@ -1884,33 +1880,33 @@ test was modified** — the deterministic-stop suite is untouched and green.
 
 ### 2. Files changed (11, new + modified)
 
-| Path | Change |
-|---|---|
-| `raspberry_pi/amr/safety/avoidance.py` | **New**: policy, report, action types (357 lines) |
-| `raspberry_pi/tests/test_avoidance.py` | **New**: 76 tests (738 lines) |
-| `raspberry_pi/amr/navigation/navigator.py` | Opt-in avoidance gate; committed turn; replan budget |
-| `raspberry_pi/amr/safety/safety_manager.py` | `_check_base()` split; keyword-only avoidance params |
-| `raspberry_pi/amr/utils/config.py` | `AvoidanceConfig` + nested `load_config()` build |
-| `config/safety.yaml` | `safety.avoidance` block, `enabled: false` |
-| `docs/safety.md` | New C6 section: ordering guarantee, turn/replan rules, limits |
-| `README.md` | Test count 461 → 537 |
-| `AI_CONTEXT/CURRENT_STATUS.md` | Counts, module row, honest test-status rows |
-| `AI_CONTEXT/ARCHITECTURE.md` | Layer-3 row notes the C6 policy + gating order |
-| `AI_CONTEXT/TASK_BOARD.md` | C6 `[ ]` → `[x]` with the full safety argument |
+| Path                                        | Change                                                        |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `raspberry_pi/amr/safety/avoidance.py`      | **New**: policy, report, action types (357 lines)             |
+| `raspberry_pi/tests/test_avoidance.py`      | **New**: 76 tests (738 lines)                                 |
+| `raspberry_pi/amr/navigation/navigator.py`  | Opt-in avoidance gate; committed turn; replan budget          |
+| `raspberry_pi/amr/safety/safety_manager.py` | `_check_base()` split; keyword-only avoidance params          |
+| `raspberry_pi/amr/utils/config.py`          | `AvoidanceConfig` + nested `load_config()` build              |
+| `config/safety.yaml`                        | `safety.avoidance` block, `enabled: false`                    |
+| `docs/safety.md`                            | New C6 section: ordering guarantee, turn/replan rules, limits |
+| `README.md`                                 | Test count 461 → 537                                          |
+| `AI_CONTEXT/CURRENT_STATUS.md`              | Counts, module row, honest test-status rows                   |
+| `AI_CONTEXT/ARCHITECTURE.md`                | Layer-3 row notes the C6 policy + gating order                |
+| `AI_CONTEXT/TASK_BOARD.md`                  | C6 `[ ]` → `[x]` with the full safety argument                |
 
 ### 3. Tests
 
-| Command | Result | Status |
-|---|---|---|
-| `python -m pytest tests/test_avoidance.py` | **76 passed** | ✅ software |
-| `python -m pytest` (full suite) | **537 passed, 2 skipped, 0 failed** | ✅ software |
-| `python -m pytest tests/test_safety_manager.py` | 14 passed, unchanged | ✅ no regression |
-| `python -m pytest tests/test_navigation.py` | passed, unchanged | ✅ no regression |
-| `python -m amr.warehouse` | `completed=3 failed=0`, exit 0 | ✅ no regression |
-| `python -m amr.main --mock` | exit 0 | ✅ no regression |
-| `python -m py_compile` on all changed modules | clean | ✅ |
-| **Robot on floor / obstacle avoidance** | **not run** | ❌ **hardware-dependent** |
-| **Arduino firmware** | **untouched, not flashed** | ❌ **firmware-dependent** |
+| Command                                         | Result                              | Status                    |
+| ----------------------------------------------- | ----------------------------------- | ------------------------- |
+| `python -m pytest tests/test_avoidance.py`      | **76 passed**                       | ✅ software               |
+| `python -m pytest` (full suite)                 | **537 passed, 2 skipped, 0 failed** | ✅ software               |
+| `python -m pytest tests/test_safety_manager.py` | 14 passed, unchanged                | ✅ no regression          |
+| `python -m pytest tests/test_navigation.py`     | passed, unchanged                   | ✅ no regression          |
+| `python -m amr.warehouse`                       | `completed=3 failed=0`, exit 0      | ✅ no regression          |
+| `python -m amr.main --mock`                     | exit 0                              | ✅ no regression          |
+| `python -m py_compile` on all changed modules   | clean                               | ✅                        |
+| **Robot on floor / obstacle avoidance**         | **not run**                         | ❌ **hardware-dependent** |
+| **Arduino firmware**                            | **untouched, not flashed**          | ❌ **firmware-dependent** |
 
 The 2 skips are the pre-existing camera tests needing `opencv-python`/`numpy`.
 
@@ -1927,43 +1923,43 @@ Recorded rather than hidden; if it recurs, capture the full `FAILED` line.
 
 ### 4. Coverage of the 12 required areas
 
-| # | Area | Where |
-|---|---|---|
-| 1 | Evidence reaches the decision layer | `TestEvidenceReachesDecisionLayer` |
-| 2 | Obstacle triggers `TURN` | `TestTurn` |
-| 3 | Obstacle triggers `REPLAN` | `TestReplan` |
-| 4 | Normal navigation unchanged | `TestNormalNavigationUnchanged` |
-| 5 | E-stop overrides `TURN` | `TestStopPriority` |
-| 6 | E-stop overrides `REPLAN` | `TestStopPriority` |
-| 7 | Malformed evidence doesn't crash | `TestMalformedEvidence` |
-| 8 | Low-confidence policy | `TestLowConfidence` |
-| 9 | No uncontrolled command loops | `TestLoopGuard` |
-| 10 | C2 / C3 / C5 + warehouse compatibility | `TestCompatibility` |
-| 11 | Determinism (repeatable runs) | `TestDeterminism` |
-| 12 | Config / validation | `TestConfig` |
+| #   | Area                                   | Where                              |
+| --- | -------------------------------------- | ---------------------------------- |
+| 1   | Evidence reaches the decision layer    | `TestEvidenceReachesDecisionLayer` |
+| 2   | Obstacle triggers `TURN`               | `TestTurn`                         |
+| 3   | Obstacle triggers `REPLAN`             | `TestReplan`                       |
+| 4   | Normal navigation unchanged            | `TestNormalNavigationUnchanged`    |
+| 5   | E-stop overrides `TURN`                | `TestStopPriority`                 |
+| 6   | E-stop overrides `REPLAN`              | `TestStopPriority`                 |
+| 7   | Malformed evidence doesn't crash       | `TestMalformedEvidence`            |
+| 8   | Low-confidence policy                  | `TestLowConfidence`                |
+| 9   | No uncontrolled command loops          | `TestLoopGuard`                    |
+| 10  | C2 / C3 / C5 + warehouse compatibility | `TestCompatibility`                |
+| 11  | Determinism (repeatable runs)          | `TestDeterminism`                  |
+| 12  | Config / validation                    | `TestConfig`                       |
 
 ### 5. Documented policy decisions (deliberate, not accidental)
 
-* **A turn needs a *proven clear* side.** With no clearance data, or with both
+- **A turn needs a _proven clear_ side.** With no clearance data, or with both
   sides blocked, the policy returns `REPLAN` — it never guesses a heading.
   The roomier side wins when both are open.
-* **Confidence is never re-thresholded or rescaled by C6.** That gate belongs to
+- **Confidence is never re-thresholded or rescaled by C6.** That gate belongs to
   the hazard layer (C5). C6 honours whatever actionable reading reaches it.
-* **Loss of information degrades conservatively.** An obstacle provider that
+- **Loss of information degrades conservatively.** An obstacle provider that
   raises ⇒ no evidence. A clearance provider that raises ⇒ `REPLAN`, not a turn.
-* **`max_replans` is per obstacle *episode*.** When the obstacle clears the
+- **`max_replans` is per obstacle _episode_.** When the obstacle clears the
   budget resets; exhaustion reports `NavStatus.FAILED` with `"exhausted"`.
-* **A `STOP` arriving mid-turn preempts immediately** and commands `(0, 0)`.
+- **A `STOP` arriving mid-turn preempts immediately** and commands `(0, 0)`.
 
 ### 6. Known issues / limitations
 
-* `safety.avoidance.*` values are **NOT_VERIFIED** conservative software
+- `safety.avoidance.*` values are **NOT_VERIFIED** conservative software
   defaults. `turn_speed_scale`, `turn_duration_s` and `open_clearance_m` have
   **never been measured on a robot**.
-* Avoidance is **`enabled: false`** by default and **not yet wired** into
+- Avoidance is **`enabled: false`** by default and **not yet wired** into
   `RobotManager`/`main.py` — a caller must pass the policy explicitly.
-* No clearance provider ships with C6; `clearance` arrives as a plain dict.
-* No obstacles have been physically detected or avoided. No camera, ultrasonic
+- No clearance provider ships with C6; `clearance` arrives as a plain dict.
+- No obstacles have been physically detected or avoided. No camera, ultrasonic
   or Arduino hardware was exercised in this session.
 
 ### 7. Recommended next task
@@ -1975,13 +1971,13 @@ before `config/safety.yaml` is measured and flipped to `VERIFIED`.
 
 ### 8. Handoff integrity
 
-| Commit | Contents |
-|---|---|
-| `ed0497c` | `feat(safety): activate TURN/REPLAN obstacle avoidance` — code, config, tests, `docs/safety.md`, README count |
-| (this commit) | `docs(ai-context): record C6 commit hash` — the four `AI_CONTEXT/` files |
+| Commit        | Contents                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------- |
+| `ed0497c`     | `feat(safety): activate TURN/REPLAN obstacle avoidance` — code, config, tests, `docs/safety.md`, README count |
+| (this commit) | `docs(ai-context): record C6 commit hash` — the four `AI_CONTEXT/` files                                      |
 
 A file cannot contain the hash of the commit that creates it, so the second
-commit above is labelled *this commit*; resolve the live value with
+commit above is labelled _this commit_; resolve the live value with
 `git rev-parse HEAD` (also mirrored in `AI_CONTEXT/CURRENT_STATUS.md`).
 **Verified at commit time:** `python -m pytest` → 537 passed, 2 skipped,
 0 failed, on the tree committed as `ed0497c`.
@@ -2009,33 +2005,33 @@ VisionHazardSource  (existing class, extended — not duplicated)
 HazardManager → HazardEventLog → C3 render_map_svg() → C2 GET /hazard
 ```
 
-* **New `raspberry_pi/amr/hazard/vision.py`** (571 lines, stdlib only) —
+- **New `raspberry_pi/amr/hazard/vision.py`** (571 lines, stdlib only) —
   `VisionClass`, `VisionBoundingBox`, `VisionDetection` (frozen dataclass with
   strict validation + `from_any()` coercion), `CameraFrame`/`VisionDetector`
   protocols, `make_vision_reading(s)`, `SIMULATED_SCENARIOS` (12 named cases),
   `SimulatedVisionDetector`, and a `python -m amr.hazard.vision` demo.
-* **Extended the existing `VisionHazardSource`** in `sources.py` to accept a
+- **Extended the existing `VisionHazardSource`** in `sources.py` to accept a
   `VisionDetection` sequence, a detector, or raw dicts, and to emit a
   `HazardKind.VISION_FAULT` reading when the detector itself raises (existing
   tests pin the default to `ROBOT_FAULT`, so that default is unchanged).
-* **`HazardReading` / `HazardEvent` gained `metadata`** and `HazardReading`
+- **`HazardReading` / `HazardEvent` gained `metadata`** and `HazardReading`
   gained `location`; the manager now prefers a source-supplied hazard pose over
   the robot pose. Confidence is preserved verbatim (0..1) end-to-end and is
   exposed via `HazardEvent.confidence` and `HazardEvent.to_dict()`.
-* **Config:** a validated `vision:` block in `config/hazard.yaml`
+- **Config:** a validated `vision:` block in `config/hazard.yaml`
   (`enabled`, `warn_at`, `critical_at`, `classes`) parsed by `HazardConfig`,
   with safe defaults and `resolved_vision_thresholds()`.
-* **95 new tests** in `tests/test_vision.py` covering all 14 mandated areas plus
+- **95 new tests** in `tests/test_vision.py` covering all 14 mandated areas plus
   failure handling, C3 SVG, C2 snapshot and safety integration.
 
 ### 2. Hardware / firmware honesty
 
-| Area | Status |
-|---|---|
-| Software simulation | **PASS** (461 tests + 3 demos) |
-| Physical camera | **NOT TESTED** — no camera connected, none read |
-| ML model / accuracy | **NOT TESTED / NOT CLAIMED** — no weights, no YOLO/OpenCV |
-| Firmware | **NOT TESTED / UNTOUCHED** — no Arduino flashed or rebuilt |
+| Area                          | Status                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Software simulation           | **PASS** (461 tests + 3 demos)                                                                                            |
+| Physical camera               | **NOT TESTED** — no camera connected, none read                                                                           |
+| ML model / accuracy           | **NOT TESTED / NOT CLAIMED** — no weights, no YOLO/OpenCV                                                                 |
+| Firmware                      | **NOT TESTED / UNTOUCHED** — no Arduino flashed or rebuilt                                                                |
 | Robot motion caused by vision | **NOT TESTED** — the layer produces evidence only; the existing safety layer is authoritative and was exercised via mocks |
 
 The `SimulatedVisionDetector` is **simulated input**, not a camera result, and
@@ -2043,20 +2039,20 @@ carries no accuracy claim.
 
 ### 3. Files changed (12, 2 new)
 
-| Path | Change |
-|---|---|
-| `raspberry_pi/amr/hazard/vision.py` | **New**: detection contract, protocols, simulated detector, demo |
-| `raspberry_pi/tests/test_vision.py` | **New**: 95 tests |
-| `raspberry_pi/amr/hazard/types.py` | `HazardReading.location/metadata`, `HazardEvent.metadata`, `.confidence`, serialisation, `VISION_FAULT` / `kind_for_class` |
-| `raspberry_pi/amr/hazard/sources.py` | `VisionHazardSource` accepts detections/detector/dicts |
-| `raspberry_pi/amr/hazard/manager.py` | Event records source-supplied location + metadata |
-| `raspberry_pi/amr/hazard/__init__.py` | Lazy PEP 562 re-exports |
-| `raspberry_pi/amr/utils/config.py` | `HazardConfig` vision block + validation |
-| `config/hazard.yaml` | `vision:` block |
-| `docs/hazard.md` | New vision section; pipeline, limits |
-| `README.md` | Badge/table 366→461, demo step 6, roadmap item |
-| `AI_CONTEXT/CURRENT_STATUS.md` | Counts, module status, entry point |
-| `AI_CONTEXT/TASK_BOARD.md` | C5 `[x]` with outcome |
+| Path                                  | Change                                                                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `raspberry_pi/amr/hazard/vision.py`   | **New**: detection contract, protocols, simulated detector, demo                                                           |
+| `raspberry_pi/tests/test_vision.py`   | **New**: 95 tests                                                                                                          |
+| `raspberry_pi/amr/hazard/types.py`    | `HazardReading.location/metadata`, `HazardEvent.metadata`, `.confidence`, serialisation, `VISION_FAULT` / `kind_for_class` |
+| `raspberry_pi/amr/hazard/sources.py`  | `VisionHazardSource` accepts detections/detector/dicts                                                                     |
+| `raspberry_pi/amr/hazard/manager.py`  | Event records source-supplied location + metadata                                                                          |
+| `raspberry_pi/amr/hazard/__init__.py` | Lazy PEP 562 re-exports                                                                                                    |
+| `raspberry_pi/amr/utils/config.py`    | `HazardConfig` vision block + validation                                                                                   |
+| `config/hazard.yaml`                  | `vision:` block                                                                                                            |
+| `docs/hazard.md`                      | New vision section; pipeline, limits                                                                                       |
+| `README.md`                           | Badge/table 366→461, demo step 6, roadmap item                                                                             |
+| `AI_CONTEXT/CURRENT_STATUS.md`        | Counts, module status, entry point                                                                                         |
+| `AI_CONTEXT/TASK_BOARD.md`            | C5 `[x]` with outcome                                                                                                      |
 
 ### 4. Supported classes (canonical table, nothing invented)
 
@@ -2077,14 +2073,14 @@ before. No coordinates are fabricated.
 
 ### 6. Tests performed
 
-| Command | Result |
-|---|---|
-| `python -m pytest tests/test_vision.py` | **95 passed** |
-| `python -m pytest` (full) | **461 passed, 2 skipped, 0 failed** |
-| `python -m amr.hazard` | exit 0 — `steps=4 failures=0 events_recorded=3 final_hazard=NORMAL` |
-| `python -m amr.warehouse` | exit 0 — `completed=3 failed=0` |
-| `python -m amr.hazard.vision` | exit 0 — SIMULATION, `events_recorded=3`, prints `SIMULATION ONLY` |
-| `python -m amr.hazard.visualisation --out /tmp/c5_verify.svg` | exit 0, SVG well-formed (parsed with `ElementTree`) |
+| Command                                                       | Result                                                              |
+| ------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `python -m pytest tests/test_vision.py`                       | **95 passed**                                                       |
+| `python -m pytest` (full)                                     | **461 passed, 2 skipped, 0 failed**                                 |
+| `python -m amr.hazard`                                        | exit 0 — `steps=4 failures=0 events_recorded=3 final_hazard=NORMAL` |
+| `python -m amr.warehouse`                                     | exit 0 — `completed=3 failed=0`                                     |
+| `python -m amr.hazard.vision`                                 | exit 0 — SIMULATION, `events_recorded=3`, prints `SIMULATION ONLY`  |
+| `python -m amr.hazard.visualisation --out /tmp/c5_verify.svg` | exit 0, SVG well-formed (parsed with `ElementTree`)                 |
 
 The 2 skips are the pre-existing OpenCV/numpy camera tests.
 
@@ -2104,9 +2100,9 @@ SVG. Do not mark C6 done without keeping the deterministic stop tests green.
 
 ### 9. Commits / GitHub
 
-* Implementation: `24cdc72` — `feat(hazard): add vision hazard source`
-* Context: `docs(ai-context): record C5 commit hash` (this session's second commit)
-* Branch `main`. **Push SUCCEEDED**: `dfa70c6..24cdc72 main -> main` (fast-forward,
+- Implementation: `24cdc72` — `feat(hazard): add vision hazard source`
+- Context: `docs(ai-context): record C5 commit hash` (this session's second commit)
+- Branch `main`. **Push SUCCEEDED**: `dfa70c6..24cdc72 main -> main` (fast-forward,
   8 local commits published). No force-push was used.
 
 ### 10. Exact commit hashes
@@ -2129,37 +2125,37 @@ origin/main after push (verified): `24cdc72` — `HEAD == origin/main` confirmed
 onto the warehouse map as one self-contained SVG, styled like
 `assets/warehouse-map.svg`. Pure read-side: never touches the control loop.
 
-* **New `raspberry_pi/amr/hazard/visualisation.py`** — `render_map_svg()`
+- **New `raspberry_pi/amr/hazard/visualisation.py`** — `render_map_svg()`
   plus `events_from_snapshot()` plus CLI
   `python -m amr.hazard.visualisation --events X.jsonl --out map.svg|-`.
-* **Lazy re-exports** in `amr/hazard/__init__.py` via PEP 562 `__getattr__`.
-* **23 new tests** in `tests/test_hazard_visualisation.py` (offline).
-* **Docs:** `docs/hazard.md`, `README.md`, `AI_CONTEXT/` updates.
+- **Lazy re-exports** in `amr/hazard/__init__.py` via PEP 562 `__getattr__`.
+- **23 new tests** in `tests/test_hazard_visualisation.py` (offline).
+- **Docs:** `docs/hazard.md`, `README.md`, `AI_CONTEXT/` updates.
 
 Explicitly **not** done: no live dashboard, no web route, no warehouse
 wiring, no sensor sources (still no hardware).
 
 ### 2. Files changed (8, new + modified)
 
-| Path | Change |
-|---|---|
-| `raspberry_pi/amr/hazard/visualisation.py` | **New**: renderer + CLI, stdlib only |
-| `raspberry_pi/tests/test_hazard_visualisation.py` | **New**: 23 tests |
-| `raspberry_pi/amr/hazard/__init__.py` | Lazy PEP 562 re-exports (3 names) |
-| `docs/hazard.md` | New section; stale limitation removed |
-| `README.md` | Badge + table 343 to 366, demo step 5 |
-| `AI_CONTEXT/CURRENT_STATUS.md` | Counts 366, 16 files, new entry point |
-| `AI_CONTEXT/TASK_BOARD.md` | C3 `[ ]` to `[x]` with outcome |
-| `AI_CONTEXT/ARCHITECTURE.md` | Layer 3.5 row notes `render_map_svg` |
+| Path                                              | Change                                |
+| ------------------------------------------------- | ------------------------------------- |
+| `raspberry_pi/amr/hazard/visualisation.py`        | **New**: renderer + CLI, stdlib only  |
+| `raspberry_pi/tests/test_hazard_visualisation.py` | **New**: 23 tests                     |
+| `raspberry_pi/amr/hazard/__init__.py`             | Lazy PEP 562 re-exports (3 names)     |
+| `docs/hazard.md`                                  | New section; stale limitation removed |
+| `README.md`                                       | Badge + table 343 to 366, demo step 5 |
+| `AI_CONTEXT/CURRENT_STATUS.md`                    | Counts 366, 16 files, new entry point |
+| `AI_CONTEXT/TASK_BOARD.md`                        | C3 `[ ]` to `[x]` with outcome        |
+| `AI_CONTEXT/ARCHITECTURE.md`                      | Layer 3.5 row notes `render_map_svg`  |
 
 ### 3. Tests
 
-| Command | Result | Status |
-|---|---|---|
-| `python -m pytest` (full suite) | **366 passed, 2 skipped, 0 failed** in ~18 s | **software-tested** |
-| `python -m pytest tests/test_hazard_visualisation.py` | **23 passed** | **software-tested** |
-| `python -m amr.hazard` | exit 0 (no regression) | **software-tested** |
-| `python -m amr.hazard.visualisation --out /tmp/x.svg` | exit 0, valid SVG | **software-tested** |
+| Command                                               | Result                                       | Status              |
+| ----------------------------------------------------- | -------------------------------------------- | ------------------- |
+| `python -m pytest` (full suite)                       | **366 passed, 2 skipped, 0 failed** in ~18 s | **software-tested** |
+| `python -m pytest tests/test_hazard_visualisation.py` | **23 passed**                                | **software-tested** |
+| `python -m amr.hazard`                                | exit 0 (no regression)                       | **software-tested** |
+| `python -m amr.hazard.visualisation --out /tmp/x.svg` | exit 0, valid SVG                            | **software-tested** |
 
 The 2 skips are the conditional OpenCV camera tests.
 
@@ -2171,10 +2167,10 @@ CLI: `--events X.jsonl --out map.svg|- --title T --config-dir D`.
 
 ### 5. Safety behaviour
 
-* The renderer imports nothing from `amr.robot` / `amr.navigation` /
+- The renderer imports nothing from `amr.robot` / `amr.navigation` /
   `amr.warehouse`, issues no commands, and runs fully offline on a laptop
   that has only the JSONL export — it **cannot** affect the control loop.
-* No thresholds, latches, or acknowledgement semantics were touched; C2's
+- No thresholds, latches, or acknowledgement semantics were touched; C2's
   two-step release is unchanged.
 
 ### 6. Hardware status
@@ -2185,12 +2181,12 @@ tests on this machine. `config/hazard.yaml` remains `NOT_VERIFIED`, and
 
 ### 7. Known issues
 
-* The SVG is a **static offline render**, not a live dashboard — there is still
+- The SVG is a **static offline render**, not a live dashboard — there is still
   no web route serving it (a future task could add one as pure read-side).
-* `amr/warehouse` still ignores the hazard verdict (unchanged from C2).
-* No hazard sensor sources are wired (no hardware); thresholds still
+- `amr/warehouse` still ignores the hazard verdict (unchanged from C2).
+- No hazard sensor sources are wired (no hardware); thresholds still
   `NOT_VERIFIED`; no panel authentication (pre-existing).
-* `ruff check` on the new files reports only modern-typing suggestions
+- `ruff check` on the new files reports only modern-typing suggestions
   (`UP035/UP006/UP045`) that apply equally to the whole pre-existing `amr/`
   tree (273 findings on the clean tree) — the new code deliberately matches
   the repo's existing `typing.Dict/List/Optional` convention.
@@ -2205,22 +2201,22 @@ C7–C9 unstarted.
 
 ### 9. Integration notes
 
-* **No interface of `amr/hazard` was changed** — C3 only *reads*
+- **No interface of `amr/hazard` was changed** — C3 only _reads_
   `HazardEvent.to_dict()` / `read_events()` dicts / `snapshot()` dicts. No
   `INTEGRATION_REQUESTS.md` was needed.
-* Treat `render_map_svg()` / `events_from_snapshot()` / `STATE_COLORS` as the
+- Treat `render_map_svg()` / `events_from_snapshot()` / `STATE_COLORS` as the
   stable read-side contract — only additive changes are safe.
-* Re-read `TASK_BOARD.md` before starting — C5 is the likely next pick.
+- Re-read `TASK_BOARD.md` before starting — C5 is the likely next pick.
 
 ### 10. Commit
 
 Baseline history: `dfa70c6` → `eadf6a5` → `4eeb571` → `5a09791` →
 `a9bc358` (C2 feature) → `179f0e7` (C2 hash record). This session's commits:
 
-| # | Hash | Commit |
-|---|---|---|
-| 7 | `59269a4` | `feat(hazard): add spatial visualisation of recorded events` — C3 renderer, lazy re-exports, 23 tests, docs |
-| 8 | *this commit* | `docs(ai-context): record C3 commit hash` — this row's hash (a file cannot contain its own hash) |
+| #   | Hash          | Commit                                                                                                      |
+| --- | ------------- | ----------------------------------------------------------------------------------------------------------- |
+| 7   | `59269a4`     | `feat(hazard): add spatial visualisation of recorded events` — C3 renderer, lazy re-exports, 23 tests, docs |
+| 8   | _this commit_ | `docs(ai-context): record C3 commit hash` — this row's hash (a file cannot contain its own hash)            |
 
 For the live value run `git rev-parse HEAD`.
 
@@ -2241,21 +2237,21 @@ temporary files. Nothing was pushed.
 **C2 — wire `amr/hazard` into the web panel.** The latched `EMERGENCY` is now
 reachable by an operator through the browser instead of only a Python REPL.
 
-* **`GET /hazard`** — pure read of `HazardManager.snapshot()` plus derived
+- **`GET /hazard`** — pure read of `HazardManager.snapshot()` plus derived
   operator keys (`attached`, `severity`, `active`, `hazard` descriptor with
   `confidence` when the reading carries one, `latest_event`). When no layer is
   wired it returns an honest stable shape with `attached: false` and
   `state: null` (the `/camera` `available: false` convention — no layer means
-  *no assessment*, not `NORMAL`).
-* **`POST /hazard/acknowledge`** — **step 1 of the two-step release only.**
+  _no assessment_, not `NORMAL`).
+- **`POST /hazard/acknowledge`** — **step 1 of the two-step release only.**
   Calls exactly `HazardManager.acknowledge()` under the same lock as the
   control loop. Optional `{}`/empty body; `400` when no layer is attached or
   the payload is not a JSON object.
-* **Panel** — header badge `HAZARD <state>` (blinking red for
+- **Panel** — header badge `HAZARD <state>` (blinking red for
   `STOP`/`EMERGENCY`, respects `prefers-reduced-motion`), a hazard card
   (state, severity, active, kind, confidence, source, location, reason,
   timestamp) and an **Acknowledge** button that appears only while `latched`.
-* **`amr/main.py`** — `attach_hazard_layer(mgr, config)` runs after
+- **`amr/main.py`** — `attach_hazard_layer(mgr, config)` runs after
   `mgr.start()` and attaches `HazardManager.from_config(config.hazard)`
   **only when `config.hazard.enabled`** (default `false`, so default
   behaviour is byte-identical to before).
@@ -2266,28 +2262,28 @@ exposed over HTTP (it would drop the audit trail).
 
 ### 2. Files changed (10, +769/−21)
 
-| Path | Change |
-|---|---|
-| `raspberry_pi/amr/web/server.py` | `hazard_status()`, `acknowledge_hazard()`, `_hazard_payload()` (snapshot + derived keys, `_STATE_SEVERITY` floor); `GET /hazard` + `POST /hazard/acknowledge` routes; header badge, hazard card, `refreshHazard()` (1 s poll), ack button JS/CSS; endpoint + safety docstrings |
-| `raspberry_pi/amr/web/__init__.py` | Package docstring documents the hazard surface |
-| `raspberry_pi/amr/main.py` | `attach_hazard_layer()` gated on `config.hazard.enabled`, called after `mgr.start()`; imports `HazardManager` |
-| `raspberry_pi/tests/test_web_server.py` | `MutableHazardSource` + `web_hazard` fixture + `_tick`/`_hazard` helpers; **10 new tests** (25 total in file) |
-| `docs/web_control.md` | Endpoint rows, new "Hazard layer (C2)" section (payload keys, ack semantics, two-step diagram), test note |
-| `docs/hazard.md` | Two-step section documents the HTTP paths; limitations updated (wired into web, not warehouse; no sources auto-wired) |
-| `README.md` | API table rows, poll note, badge + counts `333 → 343` |
-| `AI_CONTEXT/ARCHITECTURE.md` | §9 web API surface lists both new routes |
-| `AI_CONTEXT/CURRENT_STATUS.md` | Counts `343`, `test_web_server.py 25`, live-smoke row, known-issues rewritten |
-| `AI_CONTEXT/TASK_BOARD.md` | C2 `[~]` → `[x]` with outcome; C10 badge note superseded |
+| Path                                    | Change                                                                                                                                                                                                                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `raspberry_pi/amr/web/server.py`        | `hazard_status()`, `acknowledge_hazard()`, `_hazard_payload()` (snapshot + derived keys, `_STATE_SEVERITY` floor); `GET /hazard` + `POST /hazard/acknowledge` routes; header badge, hazard card, `refreshHazard()` (1 s poll), ack button JS/CSS; endpoint + safety docstrings |
+| `raspberry_pi/amr/web/__init__.py`      | Package docstring documents the hazard surface                                                                                                                                                                                                                                 |
+| `raspberry_pi/amr/main.py`              | `attach_hazard_layer()` gated on `config.hazard.enabled`, called after `mgr.start()`; imports `HazardManager`                                                                                                                                                                  |
+| `raspberry_pi/tests/test_web_server.py` | `MutableHazardSource` + `web_hazard` fixture + `_tick`/`_hazard` helpers; **10 new tests** (25 total in file)                                                                                                                                                                  |
+| `docs/web_control.md`                   | Endpoint rows, new "Hazard layer (C2)" section (payload keys, ack semantics, two-step diagram), test note                                                                                                                                                                      |
+| `docs/hazard.md`                        | Two-step section documents the HTTP paths; limitations updated (wired into web, not warehouse; no sources auto-wired)                                                                                                                                                          |
+| `README.md`                             | API table rows, poll note, badge + counts `333 → 343`                                                                                                                                                                                                                          |
+| `AI_CONTEXT/ARCHITECTURE.md`            | §9 web API surface lists both new routes                                                                                                                                                                                                                                       |
+| `AI_CONTEXT/CURRENT_STATUS.md`          | Counts `343`, `test_web_server.py 25`, live-smoke row, known-issues rewritten                                                                                                                                                                                                  |
+| `AI_CONTEXT/TASK_BOARD.md`              | C2 `[~]` → `[x]` with outcome; C10 badge note superseded                                                                                                                                                                                                                       |
 
 ### 3. Tests
 
-| Command | Result | Status |
-|---|---|---|
-| `python -m pytest` (full suite) | **343 passed, 2 skipped, 0 failed** in ~17 s (baseline 333/2 → +10 legitimate new tests) | **software-tested** |
-| `python -m pytest tests/test_web_server.py` | **25 passed** | **software-tested** |
-| `python -m pytest tests/test_hazard.py` | **48 passed** (no regression) | **software-tested** |
-| `python -m amr.hazard` | exit 0 — `steps=4 failures=0 events_recorded=3 final_hazard=NORMAL` | **software-tested** |
-| `python -m amr.warehouse` | exit 0 — `completed=3 failed=0` | **software-tested** |
+| Command                                                    | Result                                                                                                    | Status              |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------- |
+| `python -m pytest` (full suite)                            | **343 passed, 2 skipped, 0 failed** in ~17 s (baseline 333/2 → +10 legitimate new tests)                  | **software-tested** |
+| `python -m pytest tests/test_web_server.py`                | **25 passed**                                                                                             | **software-tested** |
+| `python -m pytest tests/test_hazard.py`                    | **48 passed** (no regression)                                                                             | **software-tested** |
+| `python -m amr.hazard`                                     | exit 0 — `steps=4 failures=0 events_recorded=3 final_hazard=NORMAL`                                       | **software-tested** |
+| `python -m amr.warehouse`                                  | exit 0 — `completed=3 failed=0`                                                                           | **software-tested** |
 | Live smoke `--mock --web` + `hazard.enabled=true` + `curl` | `/hazard` → `attached:true, state:NORMAL, sources:["zones"]`; ack → `ok:true`; `/status` carries `hazard` | **software-tested** |
 
 The 2 skips remain the conditional OpenCV camera tests. New tests cover:
@@ -2318,17 +2314,17 @@ POST /hazard/acknowledge     body: {} or empty (JSON object enforced)
 
 ### 5. Safety behaviour — what acknowledge does and does not do
 
-* **Does:** clear the hazard `EMERGENCY` *latch* and re-evaluate the layer.
-* **Does NOT** bypass an active hazard: if evidence is still present the very
+- **Does:** clear the hazard `EMERGENCY` _latch_ and re-evaluate the layer.
+- **Does NOT** bypass an active hazard: if evidence is still present the very
   same call re-latches (`latched:true` in the response) — proven by
   `test_hazard_ack_cannot_clear_an_active_hazard`.
-* **Does NOT** touch the robot mode: `SAFETY_STOP` survives acknowledgement;
+- **Does NOT** touch the robot mode: `SAFETY_STOP` survives acknowledgement;
   motion stays `400` until the operator performs step 2 via the **existing**
   `POST /command {"cmd":"mode", …}` path — proven by
   `test_hazard_ack_is_step_one_of_a_two_step_release`.
-* **Does NOT** delete audit events: `HazardManager.reset()` remains
+- **Does NOT** delete audit events: `HazardManager.reset()` remains
   REPL/maintenance-only and is not routed in the web layer.
-* The web layer still reaches the motors **only** through `RobotManager`;
+- The web layer still reaches the motors **only** through `RobotManager`;
   both new endpoints run under the same lock as `tick()`/`dispatch()`.
 
 ### 6. Hardware status
@@ -2340,17 +2336,17 @@ this laptop. Firmware not rebuilt or flashed. `config/hazard.yaml` remains
 
 ### 7. Known issues
 
-* **No hazard sensor sources are wired** — `attach_hazard_layer` attaches the
+- **No hazard sensor sources are wired** — `attach_hazard_layer` attaches the
   layer with only the (silent-without-pose) zone source; `GET /hazard` on a
   real deployment reports `sources:["zones"]` until C4/C5 deliver drivers.
-* **`RobotStateSource` intentionally not auto-wired:** `RobotState.last_error`
+- **`RobotStateSource` intentionally not auto-wired:** `RobotState.last_error`
   is sticky (never cleared after E-STOP/`_enforce_stop`), so wiring it would
   pin the hazard layer at `WARNING` forever after the first safety stop.
   Wiring it needs a `last_error` lifecycle decision first.
-* `amr/warehouse` still ignores the hazard verdict (unchanged from before).
-* Hazard thresholds still `NOT_VERIFIED`; no authentication on the panel
+- `amr/warehouse` still ignores the hazard verdict (unchanged from before).
+- Hazard thresholds still `NOT_VERIFIED`; no authentication on the panel
   (pre-existing).
-* `HazardManager.reset()` has no web route by design — if an operator ever
+- `HazardManager.reset()` has no web route by design — if an operator ever
   needs it, that is a deliberate safety review, not an oversight.
 
 ### 8. Remaining work
@@ -2363,27 +2359,27 @@ high-risk Layer-3 behaviour change; C7–C9 unstarted.
 
 ### 9. Laptop 2 integration
 
-* **No interface of `amr/hazard` was changed** — C2 only *consumed*
+- **No interface of `amr/hazard` was changed** — C2 only _consumed_
   `snapshot()`, `status`, `acknowledge()` and the `RobotManager.hazard` /
   `hazard_snapshot()` seam. No `INTEGRATION_REQUESTS.md` was needed.
-* If Laptop 2 wires camera/gas/vision sources: attach the hazard manager
+- If Laptop 2 wires camera/gas/vision sources: attach the hazard manager
   **before** `attach_hazard_layer` runs, or attach after it —
   `attach_hazard_layer` no-ops when `mgr.hazard is not None`, so it will not
   fight an earlier attachment. Sources can also be added later via
   `hazard.add_source(...)` on the already-attached manager.
-* `GET /hazard` is the read contract for any dashboard work; treat the
+- `GET /hazard` is the read contract for any dashboard work; treat the
   snapshot keys as stable — only additive changes are safe.
-* Re-read `TASK_BOARD.md` before starting — C3/C5 are the likely next picks.
+- Re-read `TASK_BOARD.md` before starting — C3/C5 are the likely next picks.
 
 ### 10. Commit
 
 Baseline history (previous session): `dfa70c6` → `eadf6a5` → `4eeb571` →
 `5a09791`. This session's commits:
 
-| # | Hash | Commit |
-|---|---|---|
-| 5 | *this commit* | `feat(web): integrate hazard status and acknowledgement` — the C2 feature: both routes, panel UI, `main.py` wiring, 10 tests, docs |
-| 6 | filled in by the follow-up docs commit | `docs(ai-context): record C2 commit hash` — this row's hash (a file cannot contain its own hash) |
+| #   | Hash                                   | Commit                                                                                                                             |
+| --- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 5   | _this commit_                          | `feat(web): integrate hazard status and acknowledgement` — the C2 feature: both routes, panel UI, `main.py` wiring, 10 tests, docs |
+| 6   | filled in by the follow-up docs commit | `docs(ai-context): record C2 commit hash` — this row's hash (a file cannot contain its own hash)                                   |
 
 **Exact hash of commit 5: `a9bc358`** (filled in by follow-up commit 6).
 For the live value run `git rev-parse HEAD`.
@@ -2398,7 +2394,7 @@ temporary files. Nothing was pushed (`origin/main` still at `dfa70c6`).
 **Agent:** cline · **Branch:** `main` · **Feature commit:** see §7
 **Baseline when started:** `dfa70c6` (`Initial commit: AMR autonomous mobile robot project`)
 
-> *Superseded by the C2 session above; kept for baseline history.*
+> _Superseded by the C2 session above; kept for baseline history._
 
 ---
 
@@ -2409,11 +2405,11 @@ temporary files. Nothing was pushed (`origin/main` still at `dfa70c6`).
 Before writing code I verified the actual repository state. Two findings shaped
 this session:
 
-* **`AI_CONTEXT/` did not exist.** None of the five mandated documents existed,
+- **`AI_CONTEXT/` did not exist.** None of the five mandated documents existed,
   so the required "read PROJECT_CONTEXT / CURRENT_STATUS / ARCHITECTURE /
   TASK_BOARD / HANDOFF first" step was impossible. I created all five, derived
   strictly from inspection of the existing code (no invention).
-* **The remote was missing most of the project's documentation.** `README.md`,
+- **The remote was missing most of the project's documentation.** `README.md`,
   `CONTRIBUTING.md`, `LICENSE`, `assets/*.svg`, `.github/workflows/ci.yml` and
   `showcase.html` were all **untracked** on `main` — a fresh clone of
   `origin/main` had none of them, and CI could not run. Tracked separately in
@@ -2441,43 +2437,45 @@ tagging for future spatial hazard visualisation.
 
 ### 1.3 Explicitly NOT done
 
-* No real sensor hardware, no pins, no drivers — the layer provides the
-  aggregation and the *seam* only.
-* Not wired into `amr/web` or `amr/warehouse` yet.
-* No spatial visualisation renderer.
-* No ROS 2, RFID, vision model, or real manipulator work.
+- No real sensor hardware, no pins, no drivers — the layer provides the
+  aggregation and the _seam_ only.
+- Not wired into `amr/web` or `amr/warehouse` yet.
+- No spatial visualisation renderer.
+- No ROS 2, RFID, vision model, or real manipulator work.
 
 ---
 
 ## 2. Files changed
 
 ### Created
-| Path | What |
-|---|---|
-| `AI_CONTEXT/PROJECT_CONTEXT.md` | Project, conventions, ground rules, working agreement |
-| `AI_CONTEXT/CURRENT_STATUS.md` | Verified test counts, per-module status, honest gaps |
-| `AI_CONTEXT/ARCHITECTURE.md` | Layers, gate, safety layers, config, extension points |
-| `AI_CONTEXT/TASK_BOARD.md` | Shared queue with `[ ]/[~]/[x]/[!]` legend |
-| `AI_CONTEXT/HANDOFF.md` | This file |
-| `raspberry_pi/amr/hazard/types.py` | `HazardKind/Severity/State`, `HazardReading`, `HazardEvent`, `HazardStatus`, `HazardLocation` |
-| `raspberry_pi/amr/hazard/sources.py` | `HazardSource` protocol, `GasSensorSource`, `VisionHazardSource`, `RobotStateSource`, `RestrictedZoneSource`, `HazardZone`, `severity_for` |
-| `raspberry_pi/amr/hazard/event_log.py` | Bounded `HazardEventLog` + JSONL persist/`read_events` |
-| `raspberry_pi/amr/hazard/manager.py` | `HazardManager` (decision, latching, event sync, snapshot) |
-| `raspberry_pi/amr/hazard/__init__.py` | Public exports |
-| `raspberry_pi/amr/hazard/__main__.py` | Offline scripted demo (`python -m amr.hazard`) |
-| `raspberry_pi/tests/test_hazard.py` | 48 tests |
-| `docs/hazard.md` | Full documentation + limitations |
-| `config/hazard.yaml` | Thresholds, kinds, one placeholder zone (`NOT_VERIFIED`) |
+
+| Path                                   | What                                                                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AI_CONTEXT/PROJECT_CONTEXT.md`        | Project, conventions, ground rules, working agreement                                                                                      |
+| `AI_CONTEXT/CURRENT_STATUS.md`         | Verified test counts, per-module status, honest gaps                                                                                       |
+| `AI_CONTEXT/ARCHITECTURE.md`           | Layers, gate, safety layers, config, extension points                                                                                      |
+| `AI_CONTEXT/TASK_BOARD.md`             | Shared queue with `[ ]/[~]/[x]/[!]` legend                                                                                                 |
+| `AI_CONTEXT/HANDOFF.md`                | This file                                                                                                                                  |
+| `raspberry_pi/amr/hazard/types.py`     | `HazardKind/Severity/State`, `HazardReading`, `HazardEvent`, `HazardStatus`, `HazardLocation`                                              |
+| `raspberry_pi/amr/hazard/sources.py`   | `HazardSource` protocol, `GasSensorSource`, `VisionHazardSource`, `RobotStateSource`, `RestrictedZoneSource`, `HazardZone`, `severity_for` |
+| `raspberry_pi/amr/hazard/event_log.py` | Bounded `HazardEventLog` + JSONL persist/`read_events`                                                                                     |
+| `raspberry_pi/amr/hazard/manager.py`   | `HazardManager` (decision, latching, event sync, snapshot)                                                                                 |
+| `raspberry_pi/amr/hazard/__init__.py`  | Public exports                                                                                                                             |
+| `raspberry_pi/amr/hazard/__main__.py`  | Offline scripted demo (`python -m amr.hazard`)                                                                                             |
+| `raspberry_pi/tests/test_hazard.py`    | 48 tests                                                                                                                                   |
+| `docs/hazard.md`                       | Full documentation + limitations                                                                                                           |
+| `config/hazard.yaml`                   | Thresholds, kinds, one placeholder zone (`NOT_VERIFIED`)                                                                                   |
 
 ### Modified (additive only)
-| Path | Change | Risk |
-|---|---|---|
+
+| Path                                      | Change                                                                                                                                                                       | Risk                                         |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | `raspberry_pi/amr/robot/robot_manager.py` | `attach_hazard()`, `hazard_snapshot()`, `_scaled()`, `_hazard_location()`; hazard veto in `_gate()`; Layer-3.5 evaluation in `tick()`; optional `hazard` key in `snapshot()` | Low — no-op unless `attach_hazard` is called |
-| `raspberry_pi/amr/utils/config.py` | `HazardConfig` dataclass, `AppConfig.hazard` field, load + `_validate_hazard`, `typing.List` import | Low — defaults preserve behaviour |
-| `raspberry_pi/tests/test_config.py` | +9 hazard config tests | None |
-| `README.md` | Badge 276→333, hazard row/layout/roadmap, "See it work" step 4, Layer-3.5 note | None |
-| `docs/safety.md` | Fixed stale `architecture.md` link → `AI_CONTEXT/ARCHITECTURE.md` | None |
-| `raspberry_pi/amr/logging/logger.py` | Fixed stale `docs/architecture.md` docstring reference | None (comment only) |
+| `raspberry_pi/amr/utils/config.py`        | `HazardConfig` dataclass, `AppConfig.hazard` field, load + `_validate_hazard`, `typing.List` import                                                                          | Low — defaults preserve behaviour            |
+| `raspberry_pi/tests/test_config.py`       | +9 hazard config tests                                                                                                                                                       | None                                         |
+| `README.md`                               | Badge 276→333, hazard row/layout/roadmap, "See it work" step 4, Layer-3.5 note                                                                                               | None                                         |
+| `docs/safety.md`                          | Fixed stale `architecture.md` link → `AI_CONTEXT/ARCHITECTURE.md`                                                                                                            | None                                         |
+| `raspberry_pi/amr/logging/logger.py`      | Fixed stale `docs/architecture.md` docstring reference                                                                                                                       | None (comment only)                          |
 
 ---
 
@@ -2486,15 +2484,15 @@ tagging for future spatial hazard visualisation.
 All hardware-free, on `amr/mocks/`, run from `raspberry_pi/` with the repo
 virtualenv.
 
-| Command | Result | Status |
-|---|---|---|
-| `python -m pytest` (full suite) | **333 passed, 2 skipped, 0 failed** in 11.91s | **tested** |
-| `python -m pytest tests/test_hazard.py` | 48 passed | **tested** |
-| `python -m pytest tests/test_config.py` | 18 passed (incl. 9 new hazard tests) | **tested** |
-| `python -m amr.hazard` | exit 0 · `RESULT: steps=4 failures=0 events_recorded=3 final_hazard=NORMAL final_mode=IDLE` | **tested** |
-| `python -m amr.warehouse` | `RESULT: completed=3 failed=0` (no regression) | **tested** |
-| `python -m amr.main --mock --demo` | all steps `ok` (no regression) | **tested** |
-| `python -m amr.main --mock --web` + `curl /status`, `POST /command` | HTTP 200, E-STOP accepted | **tested** (earlier in session) |
+| Command                                                             | Result                                                                                      | Status                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------- |
+| `python -m pytest` (full suite)                                     | **333 passed, 2 skipped, 0 failed** in 11.91s                                               | **tested**                      |
+| `python -m pytest tests/test_hazard.py`                             | 48 passed                                                                                   | **tested**                      |
+| `python -m pytest tests/test_config.py`                             | 18 passed (incl. 9 new hazard tests)                                                        | **tested**                      |
+| `python -m amr.hazard`                                              | exit 0 · `RESULT: steps=4 failures=0 events_recorded=3 final_hazard=NORMAL final_mode=IDLE` | **tested**                      |
+| `python -m amr.warehouse`                                           | `RESULT: completed=3 failed=0` (no regression)                                              | **tested**                      |
+| `python -m amr.main --mock --demo`                                  | all steps `ok` (no regression)                                                              | **tested**                      |
+| `python -m amr.main --mock --web` + `curl /status`, `POST /command` | HTTP 200, E-STOP accepted                                                                   | **tested** (earlier in session) |
 
 **Regression evidence:** the baseline suite was 276 passed / 2 skipped before this
 session; it is 333 / 2 after, so all 276 pre-existing tests still pass and the 57
@@ -2502,14 +2500,14 @@ net new tests are additive.
 
 ### Test status honesty
 
-| Area | Status |
-|---|---|
-| `amr/hazard` decision logic, latching, events, sources, zones | **tested** (48 unit tests, no hardware) |
+| Area                                                                                           | Status                                             |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `amr/hazard` decision logic, latching, events, sources, zones                                  | **tested** (48 unit tests, no hardware)            |
 | `RobotManager.attach_hazard` integration (escalate-only, veto, speed cap, no-op when detached) | **tested** (7 integration tests on the mock stack) |
-| Hazard config load + validation | **tested** (9 tests) |
-| Real gas/fire/human sensor behaviour | **not tested** — no hardware exists |
-| Anything on a physical robot | **not tested / hardware-dependent** |
-| Arduino firmware | **not tested** — no toolchain in CI |
+| Hazard config load + validation                                                                | **tested** (9 tests)                               |
+| Real gas/fire/human sensor behaviour                                                           | **not tested** — no hardware exists                |
+| Anything on a physical robot                                                                   | **not tested / hardware-dependent**                |
+| Arduino firmware                                                                               | **not tested** — no toolchain in CI                |
 
 ### Bugs found and fixed during testing
 
@@ -2526,18 +2524,18 @@ net new tests are additive.
 
 ## 4. Known issues
 
-* **`amr/hazard` is not wired into `amr/web` or `amr/warehouse`.** The manager
+- **`amr/hazard` is not wired into `amr/web` or `amr/warehouse`.** The manager
   exposes a JSON `snapshot()`; consumers are unwritten.
-* **No sensor hardware and no pins.** `config/hazard.yaml` is `NOT_VERIFIED` and
+- **No sensor hardware and no pins.** `config/hazard.yaml` is `NOT_VERIFIED` and
   the example zone is a placeholder (it happens to overlap `shelf_c`).
-* `HazardManager` does **not** self-disable on `config.hazard.enabled` — the
-  deployment switch is honoured by *wiring* (documented in `docs/hazard.md`).
+- `HazardManager` does **not** self-disable on `config.hazard.enabled` — the
+  deployment switch is honoured by _wiring_ (documented in `docs/hazard.md`).
   An agent that attaches it manually bypasses that switch by design.
-* `VisionHazardSource` is a seam only; no detector model.
-* No spatial visualisation renderer (events export as JSONL with locations).
-* Pre-existing: no web authentication; `SafetyAction.TURN`/`REPLAN` still
+- `VisionHazardSource` is a seam only; no detector model.
+- No spatial visualisation renderer (events export as JSONL with locations).
+- Pre-existing: no web authentication; `SafetyAction.TURN`/`REPLAN` still
   reserved and never emitted; robot geometry still `null`.
-* `.kilo/` remains untracked on purpose (agent tooling with a nested `.git`).
+- `.kilo/` remains untracked on purpose (agent tooling with a nested `.git`).
 
 ---
 
@@ -2562,7 +2560,7 @@ See `TASK_BOARD.md` §C for the full, scoped list. Summary:
 **C2 — wire `amr/hazard` into the web panel and telemetry.**
 
 Rationale: it is unblocked, hardware-free, additive, low-risk, and it is what
-makes the new layer *visible* to an operator — without an acknowledge path and a
+makes the new layer _visible_ to an operator — without an acknowledge path and a
 status readout the latched `EMERGENCY` is only reachable from a Python REPL.
 It also exercises the `hazard.enabled` deployment switch for the first time.
 
@@ -2578,12 +2576,12 @@ release and leaves the `SAFETY_STOP` mode reset to the existing
 
 **Branch:** `main` (not pushed). Three commits, in this order:
 
-| # | Hash | Commit |
-|---|---|---|
-| — | `dfa70c6` | (pre-existing baseline, = `origin/main`) `Initial commit: AMR autonomous mobile robot project` |
-| 1 | `eadf6a5` | `chore(repo): track project artifacts that were previously untracked` — `CONTRIBUTING.md`, `LICENSE`, `assets/`, `.github/`, `showcase.html`, plus `.gitignore` now ignoring `.kilo/` |
-| 2 | `4eeb571` | `feat(hazard): add context-aware multi-hazard safety layer` — the `amr/hazard/` package, config, tests, `docs/hazard.md`, the AI_CONTEXT bootstrap, and the README/`docs/safety.md`/`logger.py` documentation updates |
-| 3 | *this commit* | `docs(ai-context): record handoff commit hashes` — this §7 hash table plus the `TASK_BOARD.md` C10 housekeeping status |
+| #   | Hash          | Commit                                                                                                                                                                                                                |
+| --- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —   | `dfa70c6`     | (pre-existing baseline, = `origin/main`) `Initial commit: AMR autonomous mobile robot project`                                                                                                                        |
+| 1   | `eadf6a5`     | `chore(repo): track project artifacts that were previously untracked` — `CONTRIBUTING.md`, `LICENSE`, `assets/`, `.github/`, `showcase.html`, plus `.gitignore` now ignoring `.kilo/`                                 |
+| 2   | `4eeb571`     | `feat(hazard): add context-aware multi-hazard safety layer` — the `amr/hazard/` package, config, tests, `docs/hazard.md`, the AI_CONTEXT bootstrap, and the README/`docs/safety.md`/`logger.py` documentation updates |
+| 3   | _this commit_ | `docs(ai-context): record handoff commit hashes` — this §7 hash table plus the `TASK_BOARD.md` C10 housekeeping status                                                                                                |
 
 **Exact hashes:** this table was filled in by a small follow-up commit (row 3),
 because a file cannot contain its own commit hash. For the live value run
@@ -2591,4 +2589,3 @@ because a file cannot contain its own commit hash. For the live value run
 
 Nothing was pushed — `origin/main` is still at `dfa70c6`. **The next agent should
 `git pull` before starting** and must re-read `TASK_BOARD.md` (it is shared).
-

@@ -43,3 +43,16 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # Roboto is bundled rather than fetched at runtime. Flutter web's CanvasKit
+  # renderer otherwise downloads Roboto from fonts.gstatic.com; on a network
+  # where Google is blocked or slow, every label then renders blank and the app
+  # looks broken. Shipping the font keeps the web build self-contained.
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700

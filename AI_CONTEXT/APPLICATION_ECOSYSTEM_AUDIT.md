@@ -24,17 +24,17 @@ This is the most important finding, because it constrains every later phase:
 consumer of endpoints that already exist. The suggested
 `amr/web/command_center/`, `amr/web/map/`, `amr/web/dashboard/` directory
 split from the brief does **not** match reality and was deliberately not
-created — map, twin, camera, hazards, missions and replay are *views inside
-one SPA*, not separately-served applications. Creating those directories would
+created — map, twin, camera, hazards, missions and replay are _views inside
+one SPA_, not separately-served applications. Creating those directories would
 have meant either fake empty packages or a second copy of the frontend.
 
 ## Existing pages (HTML)
 
-| Application | URL | Entry point | Platform | Purpose | Reuse | Modify | Missing |
-|---|---|---|---|---|---|---|---|
-| Web control panel | `/` | `INDEX_HTML` in `server.py` | web | Original Phase-10 panel; the only page that sends motion commands | yes | minimal | — |
-| Telemetry dashboard | `/dashboard` | `DASHBOARD_HTML` in `server.py` | web | Legacy C7/C11 3-panel console | yes | none | — |
-| **AMR Command Center** | `/command-center` | `COMMAND_CENTER_HTML` + `amr/web/static/command_center.{html,css,js}` | web | Primary operator console, 12 views, read-only | yes | extend in place | — |
+| Application            | URL               | Entry point                                                           | Platform | Purpose                                                           | Reuse | Modify          | Missing |
+| ---------------------- | ----------------- | --------------------------------------------------------------------- | -------- | ----------------------------------------------------------------- | ----- | --------------- | ------- |
+| Web control panel      | `/`               | `INDEX_HTML` in `server.py`                                           | web      | Original Phase-10 panel; the only page that sends motion commands | yes   | minimal         | —       |
+| Telemetry dashboard    | `/dashboard`      | `DASHBOARD_HTML` in `server.py`                                       | web      | Legacy C7/C11 3-panel console                                     | yes   | none            | —       |
+| **AMR Command Center** | `/command-center` | `COMMAND_CENTER_HTML` + `amr/web/static/command_center.{html,css,js}` | web      | Primary operator console, 12 views, read-only                     | yes   | extend in place | —       |
 
 Only three HTML documents exist. Every other "application" in the request is
 either a view of the Command Center or a JSON API.
@@ -49,25 +49,25 @@ via URL hash (`/command-center#twin`) through `initViews()` → `fromHash()`, so
 
 ## JSON / binary API
 
-| Method | Route | Returns | Notes |
-|---|---|---|---|
-| GET | `/status` | JSON | full robot snapshot |
-| GET | `/sensor` | JSON | one sensor poll + safety decision |
-| GET | `/telemetry` | JSON | C7 telemetry document |
-| GET | `/dashboard/state` | JSON | **the single consolidated feed** — telemetry + health + map + twin + events + `ops` (C5e) |
-| GET | `/hazard` | JSON | pure read; never evaluates or clears |
-| GET | `/map` | JSON | read-only map projection, world coords |
-| GET | `/map.svg` | SVG | server-rendered map, `width`/`height`/`zoom` params |
-| GET | `/digital-twin` | JSON | 3D twin derived from the same snapshot |
-| GET | `/camera`, `/camera/status` | JSON | camera state; `{"available": false}` when none |
-| GET | `/camera/frame`, `/image` | JPEG | single frame, 503 when no camera |
-| GET | `/camera/overlay` | JSON | image-space overlay description |
-| GET | `/replay/recordings`, `/replay/status` | JSON | replay listing / position |
-| GET | `/health` | JSON | liveness + degradation summary |
-| GET | `/static/<file>` | CSS/JS | strictly limited to the 3 known files (no path traversal) |
-| POST | `/command` | JSON | **motion**: estop, stop, mode, forward, backward, rotate, turn |
-| POST | `/hazard/acknowledge` | JSON | step 1 of two-step latch release; does not clear `SAFETY_STOP` |
-| POST | `/replay/load` | JSON | load a recording |
+| Method | Route                                  | Returns | Notes                                                                                     |
+| ------ | -------------------------------------- | ------- | ----------------------------------------------------------------------------------------- |
+| GET    | `/status`                              | JSON    | full robot snapshot                                                                       |
+| GET    | `/sensor`                              | JSON    | one sensor poll + safety decision                                                         |
+| GET    | `/telemetry`                           | JSON    | C7 telemetry document                                                                     |
+| GET    | `/dashboard/state`                     | JSON    | **the single consolidated feed** — telemetry + health + map + twin + events + `ops` (C5e) |
+| GET    | `/hazard`                              | JSON    | pure read; never evaluates or clears                                                      |
+| GET    | `/map`                                 | JSON    | read-only map projection, world coords                                                    |
+| GET    | `/map.svg`                             | SVG     | server-rendered map, `width`/`height`/`zoom` params                                       |
+| GET    | `/digital-twin`                        | JSON    | 3D twin derived from the same snapshot                                                    |
+| GET    | `/camera`, `/camera/status`            | JSON    | camera state; `{"available": false}` when none                                            |
+| GET    | `/camera/frame`, `/image`              | JPEG    | single frame, 503 when no camera                                                          |
+| GET    | `/camera/overlay`                      | JSON    | image-space overlay description                                                           |
+| GET    | `/replay/recordings`, `/replay/status` | JSON    | replay listing / position                                                                 |
+| GET    | `/health`                              | JSON    | liveness + degradation summary                                                            |
+| GET    | `/static/<file>`                       | CSS/JS  | strictly limited to the 3 known files (no path traversal)                                 |
+| POST   | `/command`                             | JSON    | **motion**: estop, stop, mode, forward, backward, rotate, turn                            |
+| POST   | `/hazard/acknowledge`                  | JSON    | step 1 of two-step latch release; does not clear `SAFETY_STOP`                            |
+| POST   | `/replay/load`                         | JSON    | load a recording                                                                          |
 
 No WebSocket and no SSE. The Command Center polls `/dashboard/state` at 1 Hz.
 The brief's "do not introduce WebSockets for appearance" is honoured by leaving
@@ -80,13 +80,13 @@ rest of this work must not blur.
 
 ## Launch commands (real, from `argparse`)
 
-| Command | Effect |
-|---|---|
-| `python -m amr.main --mock` | headless tick loop, no hardware |
-| `python -m amr.main --mock --web` | web server + mock robot |
-| `python -m amr.main --mock --web --mission-demo` | + live warehouse mission (**refused without `--mock`**) |
-| `python -m amr.main --demo` | scripted sequence, exits |
-| `--host` (default `0.0.0.0`), `--port` (default `8080`), `--config-dir` | bind + config |
+| Command                                                                 | Effect                                                  |
+| ----------------------------------------------------------------------- | ------------------------------------------------------- |
+| `python -m amr.main --mock`                                             | headless tick loop, no hardware                         |
+| `python -m amr.main --mock --web`                                       | web server + mock robot                                 |
+| `python -m amr.main --mock --web --mission-demo`                        | + live warehouse mission (**refused without `--mock`**) |
+| `python -m amr.main --demo`                                             | scripted sequence, exits                                |
+| `--host` (default `0.0.0.0`), `--port` (default `8080`), `--config-dir` | bind + config                                           |
 
 ## Documentation inventory
 
@@ -112,12 +112,12 @@ new, not hidden.
 
 ## Toolchain actually installed (checked, not assumed)
 
-| Tool | Present | Consequence |
-|---|---|---|
-| `node` / `npm` | yes | JS bundlers possible, but none needed |
-| `cargo` / `rustc` | **no** | **Tauri cannot be built or verified here** |
-| `adb` | **no** | no Android device/emulator path |
-| `xcodebuild` | yes | iOS-capable, but needs a signing identity |
+| Tool              | Present | Consequence                                |
+| ----------------- | ------- | ------------------------------------------ |
+| `node` / `npm`    | yes     | JS bundlers possible, but none needed      |
+| `cargo` / `rustc` | **no**  | **Tauri cannot be built or verified here** |
+| `adb`             | **no**  | no Android device/emulator path            |
+| `xcodebuild`      | yes     | iOS-capable, but needs a signing identity  |
 
 Any claim of a built `.app`, `.msi` or `.apk` would therefore be false. Desktop
 binaries are reported as `BUILD NOT AVAILABLE`, which the brief explicitly

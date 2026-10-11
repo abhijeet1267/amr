@@ -6,6 +6,7 @@ from, and exposes the repo root / config dir to tests.
 
 from __future__ import annotations
 
+import logging
 import pathlib
 import sys
 
@@ -27,6 +28,39 @@ def repo_root() -> pathlib.Path:
 @pytest.fixture
 def config_dir() -> pathlib.Path:
     return _REPO_ROOT / "config"
+
+
+# --------------------------------------------------------------------------- #
+# Logging isolation
+#
+# ``amr.logging.setup_logging`` mutates a *process-global* logger: it installs
+# handlers, sets the level and turns propagation off. Tests that exercise it
+# (``test_logging.py``, ``test_web_server.py``) used to leave those handlers
+# behind, still pointing at a ``tmp_path`` pytest had already deleted. Every
+# later test in the same process then paid for synchronous I/O on a dead file:
+# the suite ran roughly twenty times slower, and the watchdog-sensitive mission
+# test could trip its wall-clock timeout and fail — a failure that appeared or
+# vanished depending on test order, which is the signature of leaked state
+# rather than a real defect. Restoring the logger around every test keeps the
+# modules isolated and makes the suite order-independent.
+# --------------------------------------------------------------------------- #
+@pytest.fixture(autouse=True)
+def _restore_amr_logger():
+    logger = logging.getLogger("amr")
+    saved_handlers = list(logger.handlers)
+    saved_level = logger.level
+    saved_propagate = logger.propagate
+    try:
+        yield
+    finally:
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            if handler not in saved_handlers:
+                handler.close()
+        for handler in saved_handlers:
+            logger.addHandler(handler)
+        logger.setLevel(saved_level)
+        logger.propagate = saved_propagate
 
 
 # --------------------------------------------------------------------------- #

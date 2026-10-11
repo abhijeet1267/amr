@@ -9,8 +9,8 @@ NORMAL  ->  WARNING  ->  SLOW  ->  STOP  ->  EMERGENCY
 ```
 
 > **Status of the thresholds:** `config/hazard.yaml` is `status: NOT_VERIFIED`
-> and `enabled: false`. Every threshold is a *configurable test value*, and the
-> example zone is a *placeholder*, not a surveyed layout. Nothing here may be
+> and `enabled: false`. Every threshold is a _configurable test value_, and the
+> example zone is a _placeholder_, not a surveyed layout. Nothing here may be
 > treated as a life-safety limit until it has been validated on real sensors in
 > the real warehouse and `status` has been set to `VERIFIED`.
 
@@ -28,9 +28,9 @@ Layer 3  Pi-side policy           SafetyManager: PROCEED/WAIT/STOP (amr.safety)
 Layer 3.5 Multi-hazard layer      HazardManager: NORMAL/.../EMERGENCY  <-- this
 ```
 
-Layer 3 answers *"is the path clear right now?"* from the ultrasonic ring. The
-hazard layer answers the wider question *"is the environment safe to operate in
-at all?"* — which depends on more than proximity: air quality, a person in the
+Layer 3 answers _"is the path clear right now?"_ from the ultrasonic ring. The
+hazard layer answers the wider question _"is the environment safe to operate in
+at all?"_ — which depends on more than proximity: air quality, a person in the
 aisle, a fire, or simply **where the robot is**.
 
 ---
@@ -39,7 +39,7 @@ aisle, a fire, or simply **where the robot is**.
 
 These are load-bearing. Do not weaken them.
 
-1. **Escalate only.** The hazard layer can *tighten* the outcome; it can never
+1. **Escalate only.** The hazard layer can _tighten_ the outcome; it can never
    relax a Layer-3 decision. `RobotManager` takes the worst of both. A hazard
    verdict of `NORMAL` never clears a proximity `STOP`.
 2. **Never drive.** It returns a verdict and nothing else. Only `RobotManager`
@@ -54,13 +54,13 @@ These are load-bearing. Do not weaken them.
 
 ## The five states
 
-| State | Meaning | Motion | Speed |
-|---|---|---|---|
-| `NORMAL` | No hazard observed | allowed | full |
-| `WARNING` | Hazard present, below its stop threshold | allowed | full |
-| `SLOW` | Hazard requires reduced speed | allowed | `slow_speed_scale` (default 0.5) |
-| `STOP` | Hazard requires an immediate stop | **vetoed** | 0 |
-| `EMERGENCY` | Life-safety hazard | **vetoed + latched** | 0 |
+| State       | Meaning                                  | Motion               | Speed                            |
+| ----------- | ---------------------------------------- | -------------------- | -------------------------------- |
+| `NORMAL`    | No hazard observed                       | allowed              | full                             |
+| `WARNING`   | Hazard present, below its stop threshold | allowed              | full                             |
+| `SLOW`      | Hazard requires reduced speed            | allowed              | `slow_speed_scale` (default 0.5) |
+| `STOP`      | Hazard requires an immediate stop        | **vetoed**           | 0                                |
+| `EMERGENCY` | Life-safety hazard                       | **vetoed + latched** | 0                                |
 
 `WARNING` is informational: the operator is told, behaviour does not change.
 `SLOW` is the "caution" band. `STOP` and `EMERGENCY` both veto motion;
@@ -70,13 +70,13 @@ These are load-bearing. Do not weaken them.
 
 Decision is worst-wins and depends only on `(kind, severity)`:
 
-| Reading | Resulting state |
-|---|---|
+| Reading                                                   | Resulting state       |
+| --------------------------------------------------------- | --------------------- |
 | any `CRITICAL` reading whose kind is in `emergency_kinds` | `EMERGENCY` (latches) |
-| any other `CRITICAL` reading | `STOP` |
-| a `WARNING` reading whose kind is in `slow_kinds` | `SLOW` |
-| any other `WARNING` reading | `WARNING` |
-| only `INFO` readings, or none | `NORMAL` |
+| any other `CRITICAL` reading                              | `STOP`                |
+| a `WARNING` reading whose kind is in `slow_kinds`         | `SLOW`                |
+| any other `WARNING` reading                               | `WARNING`             |
+| only `INFO` readings, or none                             | `NORMAL`              |
 
 Defaults: `emergency_kinds = [FIRE, GAS, SMOKE]`,
 `slow_kinds = [GAS, SMOKE, HUMAN, ZONE_BREACH]`. Both are configurable, and an
@@ -96,16 +96,16 @@ class HazardSource(Protocol):
 ```
 
 They are **dependency-injected**: none of them touch hardware, a bus or a camera
-directly. Each wraps a *callable* supplied by the caller (a GPIO read, a vision
+directly. Each wraps a _callable_ supplied by the caller (a GPIO read, a vision
 detector, a state getter), which is what makes the whole layer testable with no
 robot attached — the same philosophy as `amr/mocks`.
 
-| Source | Input (injected callable) | Kinds |
-|---|---|---|
-| `GasSensorSource` | `reader() -> float \| None` — concentration in `unit` | `GAS` (or `SMOKE`) |
-| `VisionHazardSource` | `detector() -> [(kind, confidence) \| HazardReading]` | `FIRE`, `HUMAN`, … |
-| `RobotStateSource` | `state_provider()`, `nav_provider()` | `ROBOT_FAULT` |
-| `RestrictedZoneSource` | `pose_provider()` + configured rectangles | `ZONE_BREACH` |
+| Source                 | Input (injected callable)                             | Kinds              |
+| ---------------------- | ----------------------------------------------------- | ------------------ |
+| `GasSensorSource`      | `reader() -> float \| None` — concentration in `unit` | `GAS` (or `SMOKE`) |
+| `VisionHazardSource`   | `detector() -> [(kind, confidence) \| HazardReading]` | `FIRE`, `HUMAN`, … |
+| `RobotStateSource`     | `state_provider()`, `nav_provider()`                  | `ROBOT_FAULT`      |
+| `RestrictedZoneSource` | `pose_provider()` + configured rectangles             | `ZONE_BREACH`      |
 
 Sources are duck-typed where they read other modules: `RobotStateSource` reads
 `connected` / `last_error` / `status` attributes without importing `amr.robot`
@@ -119,7 +119,7 @@ stop), and a stale robot error or a failed/cancelled navigation attempt as
 ### Zones (robot location as context)
 
 `RestrictedZoneSource` raises a reading while the robot is inside a configured
-rectangle. This is what makes the layer *context-aware*: the same air reading
+rectangle. This is what makes the layer _context-aware_: the same air reading
 means different things in a battery-charging bay than in an open aisle. With no
 pose available the source stays silent — **a missing location never invents a
 hazard**.
@@ -131,13 +131,13 @@ hazard**.
 Every reading above `INFO` is recorded as a `HazardEvent` in a bounded ring
 buffer (`max_events`):
 
-* keyed by `kind:source`, so one ongoing gas leak is **one** event that
-  *escalates in place* (`WARNING -> CRITICAL`) rather than a new event every
+- keyed by `kind:source`, so one ongoing gas leak is **one** event that
+  _escalates in place_ (`WARNING -> CRITICAL`) rather than a new event every
   control-loop tick;
-* tagged with the robot's location when one is available (`HazardLocation`:
+- tagged with the robot's location when one is available (`HazardLocation`:
   `x`, `y`, `theta`, optional `zone`);
-* resolved when the reading disappears, recording `cleared_at` / `duration_s`;
-* exportable as **JSONL** (one JSON object per line) via `event_log_path`,
+- resolved when the reading disappears, recording `cleared_at` / `duration_s`;
+- exportable as **JSONL** (one JSON object per line) via `event_log_path`,
   rendered onto the map by the spatial visualisation below. `read_events(path)`
   is the tolerant read side. Export is best-effort: an unwritable path logs a
   warning and never raises, because a logging failure must not stop the safety
@@ -152,18 +152,18 @@ event, but the `EMERGENCY` latch persists until acknowledged.
 
 `config/hazard.yaml`, loaded by `amr/utils/config.py` as `AppConfig.hazard`.
 
-| Key | Default | Meaning |
-|---|---|---|
-| `enabled` | `false` | **Deployment switch.** Wiring checks it; the layer stays inert until an operator opts in. |
-| `status` | `NOT_VERIFIED` | Set to `VERIFIED` only after physical validation. |
-| `slow_speed_scale` | `0.5` | Speed multiplier in `SLOW` (must be in `(0, 1]`). |
-| `max_events` | `256` | Event ring-buffer size (memory is never unbounded). |
-| `event_log_path` | `null` | Optional JSONL export path. |
-| `gas_warn_at` / `gas_critical_at` / `gas_unit` | `300` / `1000` / `ppm` | Gas thresholds. `gas_critical_at: 0` disables the critical band. |
-| `human_warn_at` / `human_critical_at` | `0.5` / `0.8` | Vision confidence thresholds (0..1). |
-| `emergency_kinds` | `[FIRE, GAS, SMOKE]` | Kinds that latch `EMERGENCY`. |
-| `slow_kinds` | `[GAS, SMOKE, HUMAN, ZONE_BREACH]` | Kinds that reduce speed at `WARNING`. |
-| `zones` | one placeholder | `{name, x_min, x_max, y_min, y_max, severity?, kind?}` rectangles. |
+| Key                                            | Default                            | Meaning                                                                                   |
+| ---------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `enabled`                                      | `false`                            | **Deployment switch.** Wiring checks it; the layer stays inert until an operator opts in. |
+| `status`                                       | `NOT_VERIFIED`                     | Set to `VERIFIED` only after physical validation.                                         |
+| `slow_speed_scale`                             | `0.5`                              | Speed multiplier in `SLOW` (must be in `(0, 1]`).                                         |
+| `max_events`                                   | `256`                              | Event ring-buffer size (memory is never unbounded).                                       |
+| `event_log_path`                               | `null`                             | Optional JSONL export path.                                                               |
+| `gas_warn_at` / `gas_critical_at` / `gas_unit` | `300` / `1000` / `ppm`             | Gas thresholds. `gas_critical_at: 0` disables the critical band.                          |
+| `human_warn_at` / `human_critical_at`          | `0.5` / `0.8`                      | Vision confidence thresholds (0..1).                                                      |
+| `emergency_kinds`                              | `[FIRE, GAS, SMOKE]`               | Kinds that latch `EMERGENCY`.                                                             |
+| `slow_kinds`                                   | `[GAS, SMOKE, HUMAN, ZONE_BREACH]` | Kinds that reduce speed at `WARNING`.                                                     |
+| `zones`                                        | one placeholder                    | `{name, x_min, x_max, y_min, y_max, severity?, kind?}` rectangles.                        |
 
 Invalid values fail fast with `ConfigError` (see `_validate_hazard`).
 
@@ -198,13 +198,13 @@ and no hazard code runs in the control loop.
 
 Once attached:
 
-* `RobotManager.tick()` evaluates the layer after Layer 3 and calls the existing
+- `RobotManager.tick()` evaluates the layer after Layer 3 and calls the existing
   `_enforce_stop` path when the verdict blocks motion — the robot ends in
   `SAFETY_STOP` with the motors at zero;
-* `_gate()` additionally raises `RobotCommandError("hazard veto: ...")` on a
+- `_gate()` additionally raises `RobotCommandError("hazard veto: ...")` on a
   blocking verdict, so motion cannot slip through between ticks;
-* gated drive commands are capped by `speed_scale` (identity unless `SLOW`);
-* `robot.snapshot()["hazard"]` carries the full `HazardManager.snapshot()`.
+- gated drive commands are capped by `speed_scale` (identity unless `SLOW`);
+- `robot.snapshot()["hazard"]` carries the full `HazardManager.snapshot()`.
 
 `HazardManager.from_config(...)` is the convenience constructor: it adds a
 `RestrictedZoneSource` automatically when `zones` are configured.
@@ -262,17 +262,17 @@ python -m amr.hazard.visualisation --events events.jsonl --out hazard-map.svg
 python -m amr.hazard.visualisation --out -        # SVG to stdout
 ```
 
-* **Pure read-side** — imports nothing from `amr.robot` / `amr.navigation` /
+- **Pure read-side** — imports nothing from `amr.robot` / `amr.navigation` /
   `amr.warehouse`, never touches the control loop; safe to run on a laptop that
   has only the JSONL file. Inputs are duck-typed: `config/warehouse.yaml`
-  locations (dict *or* list entries), `HazardEvent` objects / `read_events()`
+  locations (dict _or_ list entries), `HazardEvent` objects / `read_events()`
   dicts / a full `HazardManager.snapshot()`, plus the zones from
   `config/hazard.yaml`.
-* **Deterministic** — no clock, no randomness: identical inputs produce
+- **Deterministic** — no clock, no randomness: identical inputs produce
   byte-identical SVG.
-* **Tolerant** — malformed location/zone entries are skipped; events without a
+- **Tolerant** — malformed location/zone entries are skipped; events without a
   usable location are listed in the side panel instead of being dropped.
-* **Styled like `assets/warehouse-map.svg`** — metre grid and axis ticks,
+- **Styled like `assets/warehouse-map.svg`** — metre grid and axis ticks,
   aspect-preserving y-up projection, waypoints (`dock` green), dashed
   restricted-zone rectangles, a colour legend, and one marker per event
   coloured by `STATE_COLORS`. Resolved events render dimmed
@@ -316,17 +316,17 @@ the hazard system.
 
 ### Severity, confidence and location
 
-* **Confidence is preserved end-to-end** (`0.84` in → `0.84` in the event; it is
+- **Confidence is preserved end-to-end** (`0.84` in → `0.84` in the event; it is
   never rescaled or forced to 1.0) and is exposed as `HazardEvent.confidence`
   via `GET /hazard`.
-* Thresholds come from `config/hazard.yaml` (`vision_warn_at`,
+- Thresholds come from `config/hazard.yaml` (`vision_warn_at`,
   `vision_critical_at`; both fall back to the human thresholds when unset). They
   are **software defaults, not experimentally validated**.
-* Severity follows the existing policy table — `FIRE` at high confidence reaches
+- Severity follows the existing policy table — `FIRE` at high confidence reaches
   `EMERGENCY`; a `PERSON` detection yields `STOP`, **not** `EMERGENCY`. Nothing
   is auto-escalated beyond the configured policy.
-* **A bounding box is image space, never metres.** It is preserved in
-  `metadata["bbox"]`; only a *supplied* world-frame `location` is propagated to
+- **A bounding box is image space, never metres.** It is preserved in
+  `metadata["bbox"]`; only a _supplied_ world-frame `location` is propagated to
   `HazardEvent.location`. When none is supplied the location stays `None` and
   C3 lists the event in its "without location" panel. The layer never invents
   world coordinates from pixels.
@@ -352,27 +352,27 @@ python -m amr.hazard.vision person fire      # or name them
 
 ## Limitations / not done yet
 
-* **No physical sensors are wired.** `config/robot.yaml` still has
+- **No physical sensors are wired.** `config/robot.yaml` still has
   `TODO_VERIFY` ultrasonic pins and there are no gas/fire sensor pins at all.
   Nothing in this layer has run against real hardware — it is
   **hardware-dependent at the integration boundary and not tested there**.
-* The gas thresholds are sensor-specific and unvalidated (an MQ-2 is calibrated
+- The gas thresholds are sensor-specific and unvalidated (an MQ-2 is calibrated
   against one reference gas and its ppm output is approximate).
-* The example zone in `config/hazard.yaml` is a placeholder that happens to
+- The example zone in `config/hazard.yaml` is a placeholder that happens to
   overlap `shelf_c`; it is not a surveyed layout.
-* `VisionHazardSource` ships a **contract and a deterministic simulated
+- `VisionHazardSource` ships a **contract and a deterministic simulated
   detector** (see below) — no real camera or ML model is wired in.
-* The layer is **wired into `amr/web`** (`GET /hazard` + `POST
-  /hazard/acknowledge`, opt-in via `config.hazard.enabled`) but **not into
+- The layer is **wired into `amr/web`** (`GET /hazard` + `POST
+/hazard/acknowledge`, opt-in via `config.hazard.enabled`) but **not into
   `amr/warehouse`** — task scheduling does not consult the hazard verdict yet.
-* `amr/main.py` attaches the layer **without sensor sources**: no gas/vision
+- `amr/main.py` attaches the layer **without sensor sources**: no gas/vision
   hardware exists, and `RobotStateSource` is intentionally not auto-wired
   because `RobotState.last_error` is sticky (it would pin `WARNING` forever
   after the first E-STOP). Sources are added later via `hazard.add_source(...)`.
 
 ### What this is **not**
 
-The novelty is the *aggregation*: many heterogeneous inputs, one deterministic
+The novelty is the _aggregation_: many heterogeneous inputs, one deterministic
 escalation ladder, a latched life-safety state, and an auditable location-tagged
 event history. Proximity stop, obstacle avoidance, RFID, camera streaming and
 navigation on their own are **not** novel and are not claimed as such.

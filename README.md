@@ -6,22 +6,22 @@ A safe, **layered** control stack for a differential-drive smart-warehouse robot
 A Raspberry Pi is the brain (web control, navigation, warehouse tasks) and an
 Arduino UNO is the reflex system (real-time motor drive, watchdog, hardware
 proximity stop). Every command is funneled through a single **gated** API so the
-robot *cannot* move when safety says no.
+robot _cannot_ move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1541%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1594%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
 
-| | |
-|---|---|
-| **Brain** | Raspberry Pi — Python 3, stdlib HTTP, `pyserial` |
-| **Reflexes** | Arduino UNO — C++ firmware, L298N H-bridge |
-| **Drive** | Differential, 2× DC gear motor |
-| **Sensing** | 4× HC-SR04 ultrasonic (F/L/R/B) + optional camera |
-| **Control** | Web panel + JSON API, warehouse task queue |
-| **Safety** | 3 layers — hardware watchdog/proximity, Pi state, policy |
+|              |                                                          |
+| ------------ | -------------------------------------------------------- |
+| **Brain**    | Raspberry Pi — Python 3, stdlib HTTP, `pyserial`         |
+| **Reflexes** | Arduino UNO — C++ firmware, L298N H-bridge               |
+| **Drive**    | Differential, 2× DC gear motor                           |
+| **Sensing**  | 4× HC-SR04 ultrasonic (F/L/R/B) + optional camera        |
+| **Control**  | Web panel + JSON API, warehouse task queue               |
+| **Safety**   | 3 layers — hardware watchdog/proximity, Pi state, policy |
 
 ---
 
@@ -51,19 +51,19 @@ robot *cannot* move when safety says no.
 
 Claims in this repo are tied to a reproducible, hardware-free test run.
 
-| Claim | Value | Reproduce |
-|---|---|---|
-| Test suite | **1541 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest` |
-| Python matrix | 3.10 / 3.11 / 3.12 | `.github/workflows/ci.yml` |
-| Safety thresholds | *configurable test values* | `config/safety.yaml` (`status: NOT_VERIFIED`) |
-| Geometry (wheel base/dia) | *not yet measured* | `config/robot.yaml` (`null`) |
+| Claim                     | Value                                  | Reproduce                                     |
+| ------------------------- | -------------------------------------- | --------------------------------------------- |
+| Test suite                | **1594 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest`         |
+| Python matrix             | 3.10 / 3.11 / 3.12                     | `.github/workflows/ci.yml`                    |
+| Safety thresholds         | _configurable test values_             | `config/safety.yaml` (`status: NOT_VERIFIED`) |
+| Geometry (wheel base/dia) | _not yet measured_                     | `config/robot.yaml` (`null`)                  |
 
 The 2 skipped tests are the camera tests that need `opencv-python`/`numpy`; they
 run automatically when those are installed and skip gracefully otherwise. The
 suite runs entirely on **mocks** — no serial device, no motors, no camera.
 
 > ⚠️ `config/safety.yaml` is `status: NOT_VERIFIED` and the robot geometry is
-> `null`. Every distance and wheel size is a *test value* until measured on the
+> `null`. Every distance and wheel size is a _test value_ until measured on the
 > real hardware. Do not trust the robot at speed until these are verified.
 
 ---
@@ -92,12 +92,12 @@ python -m amr.main --mock --web
 It prints the address to open — something like
 `AMR web control: http://localhost:8080`. Then click any of these:
 
-| Click | Opens |
-|---|---|
-| **[Applications Hub](http://localhost:8080/applications)** | Directory of every interface, with copy-to-clipboard commands for the demos |
-| **[Command Center](http://localhost:8080/command-center)** | The full operator console: map, 3D twin, camera, mission, telemetry, safety, replay, events, diagnostics, connectivity |
-| **[Monitoring dashboard](http://localhost:8080/dashboard)** | The older three-panel telemetry view |
-| **[Control panel](http://localhost:8080/)** | Manual drive controls — the only page that can command motion |
+| Click                                                       | Opens                                                                                                                  |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **[Applications Hub](http://localhost:8080/applications)**  | Directory of every interface, with copy-to-clipboard commands for the demos                                            |
+| **[Command Center](http://localhost:8080/command-center)**  | The full operator console: map, 3D twin, camera, mission, telemetry, safety, replay, events, diagnostics, connectivity |
+| **[Monitoring dashboard](http://localhost:8080/dashboard)** | The older three-panel telemetry view                                                                                   |
+| **[Control panel](http://localhost:8080/)**                 | Manual drive controls — the only page that can command motion                                                          |
 
 > **The links only work while that command is still running** in its own
 > terminal — press `Ctrl-C` to stop it, and they stop answering.
@@ -206,8 +206,8 @@ flowchart TD
     STORE --> REP[ReplayPlayer<br/>C14b]
     REP --> CC
 
-    classDef view fill:#1a2534,stroke:#22d3ee,color:#e6edf7
-    classDef safety fill:#2a1418,stroke:#ef4d5a,color:#e6edf7
+    classDef view fill:#ffffff,stroke:#1a5fb4,color:#182026
+    classDef safety fill:#fdecea,stroke:#c0392b,color:#182026
     class V2D,V3D,VCAM,VCHART,CC view
     class SAFE,HZ safety
 ```
@@ -247,27 +247,27 @@ into `SAFETY_STOP` are deterministic; the robot never auto-releases itself.
 
 ## Repository navigation
 
-| Path | Responsibility | Key types |
-|---|---|---|
-| `raspberry_pi/amr/main.py` | Entry point, wiring, CLI flags | `RobotManager.create_mock()` |
-| `amr/robot/` | Gated command API, state, mode machine | `RobotManager`, `RobotState`, `ModeController` |
-| `amr/control/` | Differential drive + motor driver | `DifferentialDrive`, `MotorDriver`, `clamp_speed` |
-| `amr/communication/` | Serial protocol + transport | `ArduinoSerial`, `ArduinoSerialTransport` |
-| `amr/safety/` | Deterministic Pi-side policy | `SafetyManager`, `SafetyDecision`, `SafetyAction` |
-| `amr/hazard/` | Context-aware multi-hazard layer (Layer 3.5) | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `VisionHazardSource`, `VisionDetection` |
-| `amr/sensors/` | Ultrasonic validation | `UltrasonicManager`, `UltrasonicReading` |
-| `amr/navigation/` | Goals, odometry, waypoint planning | `Navigator`, `Pose`, `Goal` |
-| `amr/warehouse/` | Task queue + orchestration (Phase 16) | `WarehouseTaskManager`, `WarehouseMap`, `Task` |
-| `amr/rfid/` | Shelf / payload identification reader contract (C17) | `RfidReader`, `RfidTag`, `SimulatedRfidReader`, `confirm` |
-| `amr/camera/` | Camera facade (libcamera / V4L2 / mock) + C8 frame contract | `CameraManager`, `MockCamera`, `CameraSource`, `CameraFrame`, `SimulatedCameraSource`, `RaspberryPiCameraSource` |
-| `amr/web/` | Stdlib HTTP control panel + JSON API | `AMRWebApp` |
-| `amr/telemetry/` | Read-only telemetry contract + collector (C7); operations console projection (C11) | `TelemetrySnapshot`, `TelemetryCollector`, `build_console_state` |
-| `amr/map/` | C9 map state + world→screen transform + SVG renderer; C10 3D twin state | `MapSnapshot`, `MapService`, `MapTransform`, `PathHistory`, `build_twin_state`, `DigitalTwinState` |
-| `amr/mocks/` | Hardware-free doubles for tests | `MockSerial`, `MockMotor`, `MockCamera` |
-| `amr/utils/` | Config loading + helpers | `load_config`, `SafetyConfig`, `RobotConfig` |
-| `config/` | YAML: `robot`, `safety`, `serial`, `warehouse`, `rfid` | — |
-| `firmware/arduino/` | Arduino C++ controller | `amr_controller.ino`, `MotorControl` |
-| `docs/` | `safety`, `serial_protocol`, `web_control`, `hazard`, `telemetry`, `rfid`, `ros2` | — |
+| Path                       | Responsibility                                                                     | Key types                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `raspberry_pi/amr/main.py` | Entry point, wiring, CLI flags                                                     | `RobotManager.create_mock()`                                                                                     |
+| `amr/robot/`               | Gated command API, state, mode machine                                             | `RobotManager`, `RobotState`, `ModeController`                                                                   |
+| `amr/control/`             | Differential drive + motor driver                                                  | `DifferentialDrive`, `MotorDriver`, `clamp_speed`                                                                |
+| `amr/communication/`       | Serial protocol + transport                                                        | `ArduinoSerial`, `ArduinoSerialTransport`                                                                        |
+| `amr/safety/`              | Deterministic Pi-side policy                                                       | `SafetyManager`, `SafetyDecision`, `SafetyAction`                                                                |
+| `amr/hazard/`              | Context-aware multi-hazard layer (Layer 3.5)                                       | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `VisionHazardSource`, `VisionDetection`        |
+| `amr/sensors/`             | Ultrasonic validation                                                              | `UltrasonicManager`, `UltrasonicReading`                                                                         |
+| `amr/navigation/`          | Goals, odometry, waypoint planning                                                 | `Navigator`, `Pose`, `Goal`                                                                                      |
+| `amr/warehouse/`           | Task queue + orchestration (Phase 16)                                              | `WarehouseTaskManager`, `WarehouseMap`, `Task`                                                                   |
+| `amr/rfid/`                | Shelf / payload identification reader contract (C17)                               | `RfidReader`, `RfidTag`, `SimulatedRfidReader`, `confirm`                                                        |
+| `amr/camera/`              | Camera facade (libcamera / V4L2 / mock) + C8 frame contract                        | `CameraManager`, `MockCamera`, `CameraSource`, `CameraFrame`, `SimulatedCameraSource`, `RaspberryPiCameraSource` |
+| `amr/web/`                 | Stdlib HTTP control panel + JSON API                                               | `AMRWebApp`                                                                                                      |
+| `amr/telemetry/`           | Read-only telemetry contract + collector (C7); operations console projection (C11) | `TelemetrySnapshot`, `TelemetryCollector`, `build_console_state`                                                 |
+| `amr/map/`                 | C9 map state + world→screen transform + SVG renderer; C10 3D twin state            | `MapSnapshot`, `MapService`, `MapTransform`, `PathHistory`, `build_twin_state`, `DigitalTwinState`               |
+| `amr/mocks/`               | Hardware-free doubles for tests                                                    | `MockSerial`, `MockMotor`, `MockCamera`                                                                          |
+| `amr/utils/`               | Config loading + helpers                                                           | `load_config`, `SafetyConfig`, `RobotConfig`                                                                     |
+| `config/`                  | YAML: `robot`, `safety`, `serial`, `warehouse`, `rfid`                             | —                                                                                                                |
+| `firmware/arduino/`        | Arduino C++ controller                                                             | `amr_controller.ino`, `MotorControl`                                                                             |
+| `docs/`                    | `safety`, `serial_protocol`, `web_control`, `hazard`, `telemetry`, `rfid`, `ros2`  | —                                                                                                                |
 
 ---
 
@@ -283,8 +283,8 @@ stop — never relax one. It is opt-in and off by default.
 
 - **Layer 1 — Arduino hardware stop (last resort).** A communication **watchdog**
   (default **1000 ms**) stops the motors if no valid command arrives, and a
-  **proximity stop** triggers when a *valid* reading drops below its threshold:
-  **front/rear < 20 cm**, **left/right < 15 cm**. A `-1`/no-echo reading is *clear*,
+  **proximity stop** triggers when a _valid_ reading drops below its threshold:
+  **front/rear < 20 cm**, **left/right < 15 cm**. A `-1`/no-echo reading is _clear_,
   not an obstacle.
 - **Layer 2 — Pi state.** The Pi keeps a structured `RobotState` (sensors,
   connection, drive, safety) and polls `STATUS` / `SENSOR`.
@@ -313,9 +313,11 @@ L298N external supply — never the Pi or Arduino 5 V rails.
 Newline-delimited text at **9600 baud**. The Pi sends commands; the Arduino
 answers with `PONG`, `ACK …`, `ERR <code>`, `STATUS L= R= MODE=`,
 `SENSOR F= L= R= B=`, `VERSION <ver>`, or unsolicited `WATCHDOG TRIGGERED`.
-`STOP` intentionally returns nothing. Legacy one-letter drive commands
-(`F`/`B`/`L`/`R`/`S`) remain for the original panel. The watchdog is tunable at
-runtime with `WDT <ms>`. See [`docs/serial_protocol.md`](docs/serial_protocol.md).
+`STOP` is acknowledged with `ACK STOP`. Legacy one-letter drive commands
+(`F`/`B`/`L`/`R`/`S`) remain for the original panel. The firmware watchdog is
+settable at runtime with `WDT <ms>`, but the Pi does not send it yet: the
+Arduino keeps its compiled-in 1000 ms default, which today happens to match
+`safety.yaml`. See [`docs/serial_protocol.md`](docs/serial_protocol.md).
 
 ---
 
@@ -337,13 +339,13 @@ mocks. The map (`config/warehouse.yaml`) is a set of world-frame waypoints
   `null` is a no-op; `gripper` is the C16 real-backend driver). Real gripper
   hardware plugs into the `GripperActuator` protocol — the driver
   (`GripperManipulator`) only reports success when the injected actuator
-  *confirms* the motion, and **no gripper hardware ships with this repo**: the
+  _confirms_ the motion, and **no gripper hardware ships with this repo**: the
   factory refuses `"gripper"` without an actuator, and the shipped config is
   `mock`.
 - **Motion tuning** — `task_speed` 0.5 m/s, `turn_speed` 1.0 rad/s,
   `wheel_base_m` 0.30 (overridden by measured `robot.wheel_track_m` when set).
 - **Identification (C17)** — an optional RFID reader confirms the shelf the robot
-  is parked at — and, on a pick, the payload it is about to take — *before* the
+  is parked at — and, on a pick, the payload it is about to take — _before_ the
   manipulator is asked to act. A mismatch fails the task with the reason
   recorded, instead of closing the gripper on the wrong box. The shipped
   `rfid.backend: "null"` attaches **no reader**, so nothing about this path runs
@@ -358,30 +360,31 @@ A **stdlib-only** HTTP panel — no build step, no external assets. It adds no n
 capabilities: every command goes through the gated `RobotManager`, so a safety
 veto, illegal mode transition, or a dropped link all surface as `HTTP 400`.
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/` | Self-contained control panel |
-| GET | `/status` | Full robot snapshot (JSON) |
-| GET | `/sensor` | One sensor poll + safety decision (JSON) |
-| GET | `/camera` | Camera status (JSON) |
-| GET | `/image` | One JPEG frame (`image/jpeg`, or `503` unavailable) |
-| GET | `/camera/status` | C8 frame-contract status: `LIVE`/`SIMULATION`/`UNAVAILABLE`/`ERROR` + metadata, no pixels |
-| GET | `/camera/frame` | C8 latest encoded frame (`image/png`/`image/jpeg`, or `503`) |
-| GET | `/hazard` | Hazard layer status (JSON; `attached: false` when not wired) |
-| GET | `/telemetry` | Full read-only telemetry snapshot (C7) |
-| GET | `/health` | Liveness / degradation report, plus live logging status (C7) |
-| GET | `/map` | C9 map state: warehouse, robot, goal, route, path, hazards, safety (JSON) |
-| GET | `/map.svg` | C9 server-rendered 2D map (`image/svg+xml`; `?width=&height=&zoom=`) |
-| GET | `/dashboard` | Monitoring dashboard page (C7 + C9 live 2D map) |
-| GET | `/command-center` | **AMR Command Center** operator console (C15c) |
-| GET | `/static/command_center.css` | Command Center stylesheet (whitelisted) |
-| GET | `/static/command_center.js` | Command Center script (whitelisted) |
-| GET | `/applications` | **Applications Hub** — directory of every interface, with live statuses (Phase C) |
-| GET | `/applications/state` | Registry payload: every entry + the status it has now (JSON, read-only) |
-| GET | `/static/applications.css` | Applications Hub stylesheet (whitelisted) |
-| GET | `/static/applications.js` | Applications Hub script (whitelisted) |
-| POST | `/command` | Execute one command (JSON in/out) |
-| POST | `/hazard/acknowledge` | Release a latched hazard `EMERGENCY` (step 1 of the two-step release; never resets the robot mode) |
+| Method | Path                         | Description                                                                                        |
+| ------ | ---------------------------- | -------------------------------------------------------------------------------------------------- |
+| GET    | `/`                          | Self-contained control panel                                                                       |
+| GET    | `/status`                    | Full robot snapshot (JSON)                                                                         |
+| GET    | `/sensor`                    | One sensor poll + safety decision (JSON)                                                           |
+| GET    | `/camera`                    | Camera status (JSON)                                                                               |
+| GET    | `/image`                     | One JPEG frame (`image/jpeg`, or `503` unavailable)                                                |
+| GET    | `/camera/status`             | C8 frame-contract status: `LIVE`/`SIMULATION`/`UNAVAILABLE`/`ERROR` + metadata, no pixels          |
+| GET    | `/camera/frame`              | C8 latest encoded frame (`image/png`/`image/jpeg`, or `503`)                                       |
+| GET    | `/hazard`                    | Hazard layer status (JSON; `attached: false` when not wired)                                       |
+| GET    | `/telemetry`                 | Full read-only telemetry snapshot (C7)                                                             |
+| GET    | `/health`                    | Liveness / degradation report, plus live logging status (C7)                                       |
+| GET    | `/map`                       | C9 map state: warehouse, robot, goal, route, path, hazards, safety (JSON)                          |
+| GET    | `/map.svg`                   | C9 server-rendered 2D map (`image/svg+xml`; `?width=&height=&zoom=`)                               |
+| GET    | `/heatmap`                   | C19 hazard density + traffic density over one shared extent (JSON, read-only)                      |
+| GET    | `/dashboard`                 | Monitoring dashboard page (C7 + C9 live 2D map)                                                    |
+| GET    | `/command-center`            | **AMR Command Center** operator console (C15c)                                                     |
+| GET    | `/static/command_center.css` | Command Center stylesheet (whitelisted)                                                            |
+| GET    | `/static/command_center.js`  | Command Center script (whitelisted)                                                                |
+| GET    | `/applications`              | **Applications Hub** — directory of every interface, with live statuses (Phase C)                  |
+| GET    | `/applications/state`        | Registry payload: every entry + the status it has now (JSON, read-only)                            |
+| GET    | `/static/applications.css`   | Applications Hub stylesheet (whitelisted)                                                          |
+| GET    | `/static/applications.js`    | Applications Hub script (whitelisted)                                                              |
+| POST   | `/command`                   | Execute one command (JSON in/out)                                                                  |
+| POST   | `/hazard/acknowledge`        | Release a latched hazard `EMERGENCY` (step 1 of the two-step release; never resets the robot mode) |
 
 `POST /command` accepts `estop`, `stop`, `mode`, and drive commands
 (`forward`, `backward`, `rotate_left`, `rotate_right`, `turn_left`,
@@ -392,14 +395,14 @@ a single-operator LAN tool; never expose the port to the internet. Details in
 [`docs/web_control.md`](docs/web_control.md).
 
 > **Read-only monitoring (C7).** `GET /telemetry`, `/health`, and `/dashboard`
-> are a *view* of the runtime: they perform no `tick()` and issue no commands.
+> are a _view_ of the runtime: they perform no `tick()` and issue no commands.
 > `POST /command` remains the only control path, unchanged. See
 > [`docs/telemetry.md`](docs/telemetry.md).
 
 ### 3D digital twin (C10)
 
 `GET /dashboard` also carries a **3D Digital Twin** card, fed by the read-only
-`GET /digital-twin`. It is a *view of the same C9 `MapSnapshot`* as the 2D map —
+`GET /digital-twin`. It is a _view of the same C9 `MapSnapshot`_ as the 2D map —
 the same pose drives both, so they cannot disagree. The browser renderer is raw
 WebGL with **no Three.js, npm, CDN or build step**, preserving the project's
 zero-dependency frontend. Controls are visualisation-only: orbit, zoom,
@@ -490,7 +493,7 @@ the operator always knows which they are looking at.
 
 Replay is advanced inside the web app's **existing** control loop — the page
 still has exactly one timer, and the C14 engine's no-thread / no-clock design is
-untouched. A client names a *recording id*, never a filesystem path; separators,
+untouched. A client names a _recording id_, never a filesystem path; separators,
 `..` and absolute paths are refused. Display-only: the replay branch returns
 before `/command` and never calls `dispatch()`, verified as zero actuator writes
 over real HTTP.
@@ -499,38 +502,40 @@ over real HTTP.
 
 ### AMR Command Center (C15c)
 
-`GET /command-center` is the full operator console — a dark, dense, responsive
-layout for a laptop, a desktop monitor or a tablet. It is a **view**: it renders
+`GET /command-center` is the full operator console — a light, dense, responsive
+layout for a laptop, a desktop monitor or a tablet (dark is one toggle away, and
+the choice is remembered). It is a **view**: it renders
 payloads the rest of the system already produces and adds no robot logic of its
 own.
 
-| Panel | Source |
-|---|---|
-| 3D Digital Twin | `GET /digital-twin` (C10), raw WebGL |
+| Panel                           | Source                                           |
+| ------------------------------- | ------------------------------------------------ |
+| 3D Digital Twin                 | `GET /digital-twin` (C10), raw WebGL             |
 | Live Camera + detection overlay | `GET /camera/frame` (C8) + hazard metadata (C13) |
-| Warehouse Map | `GET /map` (C9), rendered as SVG in-browser |
-| Robot Status / Safety / Mission | `/dashboard/state` (C7/C11/C12) |
-| Telemetry charts + Event Log | `history` (C15c) |
-| Record & Replay | C14 / C14b |
+| Warehouse Map                   | `GET /map` (C9), rendered as SVG in-browser      |
+| Spatial heat map                | `GET /heatmap` (C19), two density grids           |
+| Robot Status / Safety / Mission | `/dashboard/state` (C7/C11/C12)                  |
+| Telemetry charts + Event Log    | `history` (C15c)                                 |
+| Record & Replay                 | C14 / C14b                                       |
 
 Everything arrives in **one** request per second, so there is a single polling
 loop and no second timer.
 
 **What it deliberately does not do**
 
-* **No fabricated numbers.** A missing sensor reads `n/a`; a chart with no data
+- **No fabricated numbers.** A missing sensor reads `n/a`; a chart with no data
   says `NOT AVAILABLE`. An absent battery is never drawn as `0%` — a
   server-side test asserts the `null` survives all the way to the payload.
-* **No image-to-world conversion.** A camera bounding box stays image-space. The
-  hazard panel *says so in words* ("image-space only — not placed on the map"),
+- **No image-to-world conversion.** A camera bounding box stays image-space. The
+  hazard panel _says so in words_ ("image-space only — not placed on the map"),
   and only world-located hazards are drawn on the map or in the 3D scene.
-* **No invented warehouse.** The project has no surveyed shelf, rack, boundary
+- **No invented warehouse.** The project has no surveyed shelf, rack, boundary
   or static-obstacle geometry, so the map draws the data extent and labels it as
   such rather than inventing a floor plan.
-* **No actuation.** The only write the page makes is the existing replay
+- **No actuation.** The only write the page makes is the existing replay
   transport. `POST /command` is never called, and the script is source-checked
   for that.
-* **Honest mode.** A `SIMULATED DATA` banner is shown whenever the backend is
+- **Honest mode.** A `SIMULATED DATA` banner is shown whenever the backend is
   mock-backed, and `LIVE` / `REPLAY` is a first-class badge plus banner rather
   than a subtle colour change.
 
@@ -540,6 +545,44 @@ text alongside every colour. Charts carry `aria-label`s; the map is a labelled
 `role="img"`.
 
 > [`docs/command_center.md`](docs/command_center.md).
+
+### C19 — Spatial heat map
+
+`GET /heatmap` (and the **Heat map** view in the console) plots **two density
+grids over one shared extent**: where hazards were recorded, and where the robot
+actually went. It is the "future spatial hazard visualisation" named in
+`AI_CONTEXT/PROJECT_CONTEXT.md`, plus the traffic half that makes the hazard half
+readable in context.
+
+Both grids are binned in **Python** (`amr/map/heatmap.py`, unit-tested), so no
+client re-derives a bin index. The payload publishes `cell_m`, the extent,
+`severity_weights` and `row_order`, so the drawing is a straight render:
+
+- **Hazard density** counts recorded events **that carry a world location**,
+  weighted by severity (INFO 1, WARNING 2, CRITICAL 4). An event with only
+  image-space evidence is counted in `unlocated` and never placed — the C5 rule,
+  enforced at this boundary too.
+- **Traffic density** counts path samples, so a cell is *time spent there*, not
+  distance travelled.
+
+The extent comes from the **configured** geometry, not from the current data, so
+two polls are comparable; a sample outside it is counted in `clipped` rather
+than dropped. With no configured geometry both grids are `null` and the source
+is `UNAVAILABLE` — no floor plan is invented. `row_order` is published because
+the frame is y-up and row 0 is the **bottom** row: a client that assumed
+otherwise would draw a plausible, mirrored picture.
+
+The console still polls **once** per tick — `heatmap` rides in
+`/dashboard/state`, byte-identical to the standalone endpoint (asserted by a
+test, as for `map` and `twin`).
+
+> ⚠️ **The hazard grid is empty on the shipped configuration, and that is
+> correct.** No hazard sensor exists in this repository and
+> `config/hazard.yaml` is `NOT_VERIFIED`, so nothing writes the event history the
+> grid reads. It is exercised in tests with injected readings. Nothing here has
+> been run against a physical robot.
+
+> [`docs/heatmap.md`](docs/heatmap.md).
 
 ### Applications Hub (Phase C)
 
@@ -559,17 +602,17 @@ The statuses come from [`config/applications.yaml`](config/applications.yaml)
 via [`amr/apps/registry.py`](raspberry_pi/amr/apps/registry.py), and the rule
 that matters is enforced there:
 
-* **A runtime can only make a status worse.** `resolve_status()` may downgrade
+- **A runtime can only make a status worse.** `resolve_status()` may downgrade
   `AVAILABLE` → `MOCK` (only a simulated robot is answering) or `OFFLINE`
   (server unreachable), and a camera-dependent card resolves to
   `HARDWARE REQUIRED` because no camera has ever been verified here. It may
   **never upgrade** a declared status, so attaching a mock camera cannot turn
   `HARDWARE REQUIRED` into `AVAILABLE`.
-* **No dead links and no invented downloads.** An entry with `url: null` renders
+- **No dead links and no invented downloads.** An entry with `url: null` renders
   as “API — no interface” rather than as a broken application; the mobile client
   is `NOT INSTALLED` and the desktop client is `BUILD NOT AVAILABLE` (`cargo`
   is absent, so a Tauri bundle cannot be built or verified here).
-* **Read-only, like everything else.** The hub issues one `GET` and nothing
+- **Read-only, like everything else.** The hub issues one `GET` and nothing
   else; a test asserts the page has no `POST`, no form and no `/command` path,
   and every link on it points at a read-only destination. A separate test reads
   the route table out of `server.py` and refuses any registry URL that is not a
@@ -581,12 +624,12 @@ that matters is enforced there:
 
 All config lives in [`config/`](config) and is loaded by `amr/utils/config.py`.
 
-| File | Highlights |
-|---|---|
-| `robot.yaml` | robot name, `wheel_track_m`/`wheel_diameter_m` (**`null`** until measured), `motors.max_speed` 255, ultrasonic pins (`TODO_VERIFY`), camera `pi` 1280×720 |
-| `safety.yaml` | `watchdog_timeout_ms` 1000, stop distances F/R 20 · L/R 15, valid window 2–400 cm, `status: NOT_VERIFIED` |
-| `serial.yaml` | `port` `/dev/ttyACM0`, `baudrate` 9600, per-command timeouts, `protocol_version` `1.0` |
-| `warehouse.yaml` | `enabled`, `dock`, task/turn speed, `wheel_base_m`, `queue_max` 16, `manipulator: mock` (also `null`, `gripper` — actuator required), `locations` map |
+| File                | Highlights                                                                                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `robot.yaml`        | robot name, `wheel_track_m`/`wheel_diameter_m` (**`null`** until measured), `motors.max_speed` 255, ultrasonic pins (`TODO_VERIFY`), camera `pi` 1280×720            |
+| `safety.yaml`       | `watchdog_timeout_ms` 1000, stop distances F/R 20 · L/R 15, valid window 2–400 cm, `status: NOT_VERIFIED`                                                            |
+| `serial.yaml`       | `port` `/dev/ttyACM0`, `baudrate` 9600, per-command timeouts, `protocol_version` `1.0`                                                                               |
+| `warehouse.yaml`    | `enabled`, `dock`, task/turn speed, `wheel_base_m`, `queue_max` 16, `manipulator: mock` (also `null`, `gripper` — actuator required), `locations` map                |
 | `applications.yaml` | Phase B/C interface registry: ids, categories, platforms, declared status, `url` / `api_base` / `launch_command`, `read_only` flags (read by `amr/apps/registry.py`) |
 
 Values marked `null` / `TODO_VERIFY` / `NOT_VERIFIED` are placeholders that must
@@ -606,6 +649,25 @@ ultrasonic, serial protocol). Key properties:
 - **L298N H-bridge** — PWM + direction for the two DC motors.
 
 Build & flash with the Arduino IDE or `arduino-cli` for an **UNO** board.
+
+### Hardware setup & verification
+
+Nothing in this repository has been run on physical hardware yet. The guides
+below take it from a mock-tested stack to a working robot, and say how to prove
+each step:
+
+| Guide | Covers |
+| ----- | ------ |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md) | **Start here.** The complete numbered checklist: what runs where, how to copy the code onto the Pi, install, flash, wire, verify, and use the app |
+| [`docs/hardware.md`](docs/hardware.md) | **Master bring-up**: bill of materials, wiring (power, motors, ultrasonic, camera), pin map (with two conflicts to fix), staged bring-up, per-component and end-to-end validation, common issues, and the `NOT_VERIFIED` → `VERIFIED` procedure |
+| [`docs/setup_arduino.md`](docs/setup_arduino.md) | Install the toolchain, compile, flash the UNO, and validate the firmware over serial |
+| [`docs/setup_raspberry_pi.md`](docs/setup_raspberry_pi.md) | Pi OS, venv + `pyserial`, serial-port discovery (`ttyACM0`/`ttyUSB0`, udev), camera enablement, running against hardware, and pointing the app at the robot |
+| [`tools/health_check.sh`](tools/health_check.sh) | One-shot check: serial port, firmware link (`PING`/`VERSION`/`STATUS`/`SENSOR`), camera, and the running web stack |
+
+```bash
+tools/health_check.sh                 # from the repository root
+tools/health_check.sh --url http://localhost:8080
+```
 
 ---
 
@@ -683,14 +745,16 @@ one reaches `-qq`, which is quiet enough that pytest drops the `N passed` line.
 The command still runs (and still prints failures) — it just never shows you the
 number, which is the one thing you ran it to see.
 
-The 38 test files cover protocol parsing, the mode state machine, the safety
+The 39 test files cover protocol parsing, the mode state machine, the safety
 policy (including the C6 obstacle-avoidance policy
 `tests/test_avoidance.py` — turn/replan, stop priority, loop guard,
 determinism), differential-drive math, odometry/navigation, the warehouse task
 manager, the camera manager, the hazard layer, the vision-to-hazard pipeline
 (`tests/test_vision.py`, simulated detections only), the RFID identification
 path (`tests/test_rfid.py`, simulated reader only), the optional ROS 2 message
-translation (`tests/test_ros_bridge.py`, no ROS required), the interface registry and
+translation (`tests/test_ros_bridge.py`, no ROS required), the spatial heat map
+(`tests/test_heatmap.py` — binning, orientation, severity weighting, and the
+"nothing is silently dropped" rules), the interface registry and
 the applications hub (`tests/test_app_registry.py`, `tests/test_applications_hub.py`),
 and a real
 `ThreadingHTTPServer` driven against the
@@ -719,9 +783,16 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   ├── hazard.md               # context-aware multi-hazard safety layer
 │   ├── telemetry.md            # telemetry contract + read-only dashboard (C7)
 │   ├── map.md                  # warehouse map + task locations
+│   ├── heatmap.md              # spatial heat map: hazard + traffic density (C19)
 │   ├── manipulator.md          # gripper driver, injected actuator (C16)
 │   ├── rfid.md                 # shelf / payload identification (C17)
 │   ├── ros2.md                 # optional ROS 2 message translation (C18, no ROS)
+│   ├── DEPLOY.md               # end-to-end deployment checklist (start here)
+│   ├── hardware.md             # hardware verification & bring-up (master)
+│   ├── setup_arduino.md        # firmware build / flash / validate
+│   └── setup_raspberry_pi.md   # Pi OS, serial link, camera, running it
+├── tools/
+│   └── health_check.sh         # serial + camera + web health check
 ├── AI_CONTEXT/                 # shared context for the multi-agent team
 │   ├── PROJECT_CONTEXT.md  CURRENT_STATUS.md  ARCHITECTURE.md
 │   └── TASK_BOARD.md  HANDOFF.md
@@ -734,7 +805,7 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   │   ├── safety/  hazard/  sensors/  navigation/  rfid/
 │   │   ├── warehouse/  camera/  web/  mocks/  utils/
 │   │   ├── apps/                # interface registry + applications hub data
-│   ├── tests/                  # pytest suite (38 files)
+│   ├── tests/                  # pytest suite (39 files)
 │   └── pyproject.toml          # packaging + [dev] extras
 ├── ros2/                       # optional ROS 2 message translation (C18, no rclpy)
 ├── .github/workflows/ci.yml    # pytest matrix + ruff
@@ -756,7 +827,7 @@ navigation → warehouse). Explicit next steps:
    `Navigator` on hardware.
 3. **Obstacle avoidance** — promote `SafetyAction.TURN` / `REPLAN` from reserved
    to active policy.
-4. **Manipulation hardware** — C16 ships the gripper *driver*
+4. **Manipulation hardware** — C16 ships the gripper _driver_
    (`GripperActuator` protocol + `GripperManipulator`, selected by
    `warehouse.manipulator: "gripper"`), tested end to end against a fake
    actuator. What is missing is the hardware itself: a servo/arm, its power

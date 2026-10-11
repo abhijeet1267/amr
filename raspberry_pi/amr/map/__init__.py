@@ -63,10 +63,26 @@ from .twin import (  # noqa: E402
     yaw_to_rotation_z,
 )
 
+# C19: the heat map is a third projection of the same MapSnapshot, plus the
+# hazard event history. Like the twin it loads after the snapshot it reads.
+from .heatmap import (  # noqa: E402
+    DEFAULT_CELL_M,
+    HEATMAP_SCHEMA_VERSION,
+    SEVERITY_WEIGHTS,
+    HeatGrid,
+    HeatmapState,
+    build_heatmap_state,
+    severity_weight,
+)
+
 __all__ = [
+    "DEFAULT_CELL_M",
     "DEFAULT_PATH_LIMIT",
     "DigitalTwinState",
     "GEOMETRY_DISCLAIMER",
+    "HEATMAP_SCHEMA_VERSION",
+    "HeatGrid",
+    "HeatmapState",
     "LIVE",
     "MAP_SCHEMA_VERSION",
     "MapGoal",
@@ -84,11 +100,13 @@ __all__ = [
     "NO_STATIC_GEOMETRY",
     "PathHistory",
     "ROBOT_LENGTH_M",
+    "SEVERITY_WEIGHTS",
     "SIMULATION",
     "TWIN_COORDINATE_SYSTEM",
     "TWIN_SCHEMA_VERSION",
     "UNAVAILABLE",
     "bounds_for",
+    "build_heatmap_state",
     "build_map_snapshot",
     "build_twin_state",
     "enum_str",
@@ -98,6 +116,7 @@ __all__ = [
     "robot_from",
     "robot_model",
     "route_from",
+    "severity_weight",
     "source_tag",
     "waypoints_from",
     "world_to_three",

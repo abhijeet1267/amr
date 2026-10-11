@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 
+import '../features/setup/setup_wizard.dart';
 import '../providers/robot_provider.dart';
 import '../theme/theme.dart';
 
@@ -125,6 +126,19 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                   ),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SetupWizard(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.help_outline, size: 18),
+                  label: const Text('Run setup again'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
                 const SizedBox(height: 24),

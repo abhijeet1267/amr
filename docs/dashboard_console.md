@@ -7,7 +7,7 @@ sensors, camera and system health — all read-only, all from existing state.
 ## 1. Architecture
 
 C11 adds **no new telemetry schema and no second state engine**. It reuses the
-C7 contract verbatim and only *assembles* it:
+C7 contract verbatim and only _assembles_ it:
 
 ```text
 AMR Runtime
@@ -53,10 +53,10 @@ Every panel keeps the C7 `DataSource` tag (`LIVE` / `SIMULATION` /
 `UNAVAILABLE` / `ERROR`) and adds an `availability` word. Two invariants are
 enforced by tests:
 
-* `UNAVAILABLE` is never coerced to `0`, `"ok"`, `100%` or a plausible default.
+- `UNAVAILABLE` is never coerced to `0`, `"ok"`, `100%` or a plausible default.
   A missing battery shows `percentage: null`, `N/A`, and
   `note: "no battery source in this build"`.
-* An empty runtime reports **"Mission data unavailable"** rather than a
+- An empty runtime reports **"Mission data unavailable"** rather than a
   blank-but-healthy mission.
 
 Route progress is **reported, never recomputed**. The C7 collector's value is
@@ -75,12 +75,12 @@ given coordinates and never drawn on either map.
 ## 6. JavaScript validation (mandatory since C10)
 
 C10 shipped a dashboard-wide JavaScript break that every pytest test passed
-over, because the tests asserted on HTML *text* while the failure was in the
+over, because the tests asserted on HTML _text_ while the failure was in the
 executed script. C11 makes that impossible:
 
 `tests/test_console.py::TestDashboardJavaScriptSyntax` extracts the served
 `<script>` bodies from `DASHBOARD_HTML` / `INDEX_HTML`, writes them to a
-temporary file and runs **`node --check`**. This is a *validation tool only* —
+temporary file and runs **`node --check`**. This is a _validation tool only_ —
 the AMR never imports Node, and the project still needs no npm.
 
 If Node is absent the two syntax tests **skip with an explicit reason**
@@ -110,14 +110,14 @@ C9 and C10 read-only tests, which shared the same latent defect.
 
 ## 8. Limitations
 
-* Battery, real sensors, a real mission runtime and a real camera remain
+- Battery, real sensors, a real mission runtime and a real camera remain
   **unavailable in this build**; the console reports them as such rather than
   filling the gaps.
-* Mission "state" is *described* from existing counters, not a new state
+- Mission "state" is _described_ from existing counters, not a new state
   machine.
-* The mission runtime is not wired into the mock dashboard, so the panel
+- The mission runtime is not wired into the mock dashboard, so the panel
   normally shows "Mission data unavailable".
-* No historical replay, no analytics, no cloud backend, no authentication.
+- No historical replay, no analytics, no cloud backend, no authentication.
 
 ## 9. Testing status
 
@@ -128,4 +128,3 @@ guard, and read-only guarantees.
 
 **Hardware tested: NO.** No Raspberry Pi, robot, camera or battery was used.
 **Firmware tested: NO.** Firmware untouched.
-

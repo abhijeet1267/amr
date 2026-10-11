@@ -7,8 +7,8 @@ robot:
 
   # TODO: VERIFY by measuring the physical robot (metres). Required before
   # odometry/Nav2 can be trusted. See docs/hardware.md.
-  wheel_track_m: null      # distance between left and right wheel centres
-  wheel_diameter_m: null   # rolling diameter of the wheel
+  wheel_track_m: null # distance between left and right wheel centres
+  wheel_diameter_m: null # rolling diameter of the wheel
 
 motors:
   # Maximum |speed| value mapped to PWM duty (0..255).
@@ -39,5 +39,5 @@ camera:
   # Camera cable compatibility is NOT yet confirmed. The software must work
   # with the camera unavailable; `enabled` only gates attempts to use it.
   enabled: true
-  device: "pi"             # "pi" (libcamera/raspichill) or "v4l2"
+  device: "pi" # "pi" (libcamera/raspichill) or "v4l2"
   resolution: "1280x720"

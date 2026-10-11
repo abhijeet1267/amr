@@ -11,17 +11,17 @@ The mission telemetry section had **never reported anything**. Three separate
 defects in `TelemetryCollector._mission()` each independently forced it to
 `UNAVAILABLE`:
 
-| # | Defect | Effect |
-|---|--------|--------|
-| 1 | Tested `isinstance(wh.status(), dict)`, but `status()` returns a `ManagerStatus` **object** | Early return → `UNAVAILABLE` |
-| 2 | Read `current_task`; the real key is `current` | Active task silently dropped |
-| 3 | Read `mission_id`; no runtime ever produced it | Always `None` |
+| #   | Defect                                                                                      | Effect                       |
+| --- | ------------------------------------------------------------------------------------------- | ---------------------------- |
+| 1   | Tested `isinstance(wh.status(), dict)`, but `status()` returns a `ManagerStatus` **object** | Early return → `UNAVAILABLE` |
+| 2   | Read `current_task`; the real key is `current`                                              | Active task silently dropped |
+| 3   | Read `mission_id`; no runtime ever produced it                                              | Always `None`                |
 
 Defect 1 masked the others, which is why the panel looked merely "empty" rather
 than broken. The fix accepts **either** an object or a plain dict, and tolerates
 both key spellings, so existing hand-rolled test doubles keep working.
 
-This was only findable by driving the *real* manager — a test double written
+This was only findable by driving the _real_ manager — a test double written
 from the same wrong assumption would have kept it broken.
 
 ## Data flow (read-only)
@@ -44,20 +44,20 @@ GET /dashboard/state  →  Mission panel
 `ManagerStatus` (additive, last, all optional — existing positional
 construction is unaffected):
 
-| Field | Meaning |
-|---|---|
-| `mission_id` | Caller-supplied label for this run. `None` when unconfigured — never invented. |
-| `destination` | The active task's own named location. `None` when idle. |
-| `total_tasks` | Queued + active + completed + failed. |
+| Field         | Meaning                                                                        |
+| ------------- | ------------------------------------------------------------------------------ |
+| `mission_id`  | Caller-supplied label for this run. `None` when unconfigured — never invented. |
+| `destination` | The active task's own named location. `None` when idle.                        |
+| `total_tasks` | Queued + active + completed + failed.                                          |
 
 `MissionTelemetry` (also additive):
 
-| Field | Meaning |
-|---|---|
-| `destination` | Same source as above, carried through. |
-| `total_tasks` | Real count of work submitted. |
-| `mission_progress` | `completed / total`, 0..1. `None` when no tasks exist. |
-| `task_progress` | Straight-line progress of the *active task*, 0..1. `None` with no goal. |
+| Field              | Meaning                                                                 |
+| ------------------ | ----------------------------------------------------------------------- |
+| `destination`      | Same source as above, carried through.                                  |
+| `total_tasks`      | Real count of work submitted.                                           |
+| `mission_progress` | `completed / total`, 0..1. `None` when no tasks exist.                  |
+| `task_progress`    | Straight-line progress of the _active task_, 0..1. `None` with no goal. |
 
 `task_progress` deliberately reuses the collector's existing `_goal_progress()`
 helper and the navigator's own goal — one calculation, so the Mission panel and
@@ -70,16 +70,16 @@ The roadmap narrative is
 onto what the runtime actually knows, using **only** the real task type
 (`pick` / `place` / `move` / `return_to_dock`) and real travel progress:
 
-| Real state | Phase |
-|---|---|
-| Task `pick`/`place`/`move`, progress < 0.9 | `NAVIGATE` |
-| Task `pick`, arrived | `PICKUP` |
-| Task `place`, arrived | `DROP` |
-| Task `move`, arrived | `ARRIVE` |
-| Task `return_to_dock` | `RETURN` |
-| No task, work completed | `COMPLETED` |
-| No task, no work | `IDLE` |
-| Source unavailable/error | `UNAVAILABLE` |
+| Real state                                 | Phase         |
+| ------------------------------------------ | ------------- |
+| Task `pick`/`place`/`move`, progress < 0.9 | `NAVIGATE`    |
+| Task `pick`, arrived                       | `PICKUP`      |
+| Task `place`, arrived                      | `DROP`        |
+| Task `move`, arrived                       | `ARRIVE`      |
+| Task `return_to_dock`                      | `RETURN`      |
+| No task, work completed                    | `COMPLETED`   |
+| No task, no work                           | `IDLE`        |
+| Source unavailable/error                   | `UNAVAILABLE` |
 
 `AT_ARRIVAL = 0.9` is a **display convention only**. It is never fed back into
 navigation, and the raw `current_task_type` / `current_task_status` are always

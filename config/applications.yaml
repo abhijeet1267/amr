@@ -101,6 +101,24 @@ applications:
     requires_camera: false
     requires_hardware: false
 
+  - id: heatmap
+    name: Spatial Heat Map
+    description: >-
+      Two density grids over one shared extent: where hazards were recorded
+      (weighted by severity) and where the robot actually went. Binned on the
+      robot, so the client never re-derives a cell index. Read-only.
+    category: visualization
+    platforms: [web, android, ios, macos, windows]
+    status: AVAILABLE
+    url: /command-center#heatmap
+    api_base: /heatmap
+    launch_command: python -m amr.main --mock --web
+    icon: heatmap
+    read_only: true
+    requires_robot: true
+    requires_camera: false
+    requires_hardware: false
+
   - id: digital_twin
     name: 3D Digital Twin
     description: >-
@@ -507,4 +525,3 @@ applications:
     requires_robot: true
     requires_camera: false
     requires_hardware: false
-

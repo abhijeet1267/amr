@@ -10,11 +10,13 @@ import 'package:provider/provider.dart';
 import 'features/camera/camera_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/diagnostics/diagnostics_screen.dart';
+import 'features/heatmap/heatmap_screen.dart';
 import 'features/logs/logs_screen.dart';
 import 'features/map/map_screen.dart';
 import 'features/missions/missions_screen.dart';
 import 'features/sensors/sensors_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/setup/setup_wizard.dart';
 import 'providers/robot_provider.dart';
 import 'screens/applications_hub_screen.dart';
 import 'screens/connection_screen.dart';
@@ -41,9 +43,37 @@ class AmrControllerApp extends StatelessWidget {
         title: 'AMR Controller',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
-        home: const CommandCenterShell(),
+        home: const RootGate(),
       ),
     );
+  }
+}
+
+/// Chooses the first screen: the setup wizard until the operator has completed
+/// it once, then the console. This is what makes the app self-guiding on a
+/// fresh install on *every* platform — the same gate runs on Android, macOS,
+/// Windows, Linux and the web.
+class RootGate extends StatelessWidget {
+  const RootGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final loaded = context.select<RobotProvider, bool>((p) => p.setupLoaded);
+    final done = context.select<RobotProvider, bool>((p) => p.setupComplete);
+
+    if (!loaded) {
+      // Reading the saved connection is a single SharedPreferences read; the
+      // spinner is only ever visible for a frame or two.
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (!done) {
+      return SetupWizard(
+        onFinished: () => context.read<RobotProvider>().markSetupComplete(),
+      );
+    }
+    return const CommandCenterShell();
   }
 }
 
@@ -63,6 +93,7 @@ class _CommandCenterShellState extends State<CommandCenterShell> {
     (Icons.dashboard_outlined, Icons.dashboard, 'Dashboard'),
     (Icons.videocam_outlined, Icons.videocam, 'Camera'),
     (Icons.map_outlined, Icons.map, 'Map'),
+    (Icons.local_fire_department_outlined, Icons.local_fire_department, 'Heat map'),
     (Icons.gamepad_outlined, Icons.gamepad, 'Teleop'),
     (Icons.alt_route, Icons.alt_route, 'Missions'),
     (Icons.hub_outlined, Icons.hub, 'Apps'),
@@ -77,6 +108,7 @@ class _CommandCenterShellState extends State<CommandCenterShell> {
     DashboardScreen(),
     CameraScreen(),
     MapScreen(),
+    HeatmapScreen(),
     TeleopScreen(),
     MissionsScreen(),
     ApplicationsHubScreen(),

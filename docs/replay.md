@@ -34,10 +34,10 @@ rec.record(collector.snapshot())      # -> ReplayFrame, or None if filtered
 Three properties, borrowed from the existing `HazardEventLog` so the project
 has one convention rather than two:
 
-* **Bounded** — a fixed-capacity ring buffer, so a long run cannot grow memory
+- **Bounded** — a fixed-capacity ring buffer, so a long run cannot grow memory
   without limit.
-* **JSONL** — one JSON object per line, readable without this Python package.
-* **Best effort** — an unwritable path warns and keeps recording in memory; a
+- **JSONL** — one JSON object per line, readable without this Python package.
+- **Best effort** — an unwritable path warns and keeps recording in memory; a
   logging failure must never stop a run.
 
 `min_interval_s` (default 0.5 s) drops samples that arrive too close together,
@@ -46,12 +46,12 @@ how many were skipped.
 
 ### Honesty rules
 
-* A snapshot with **no usable timestamp is skipped**, not recorded — a frame
+- A snapshot with **no usable timestamp is skipped**, not recorded — a frame
   with no time cannot be placed on a timeline, and guessing would replay it at
   the wrong moment.
-* An **unknown pose stays `None`**, never smoothed to `0.0`. A replay must not
+- An **unknown pose stays `None`**, never smoothed to `0.0`. A replay must not
   invent a position the robot never reported.
-* Only the fields a replay needs are stored (pose, navigation, safety, hazards,
+- Only the fields a replay needs are stored (pose, navigation, safety, hazards,
   mission). The full hazard **event log** from C3 remains the audit record.
 
 ## Replay player
@@ -70,10 +70,10 @@ The player has **no thread, no `sleep` and no internal clock**. You hand it
 elapsed time and it tells you which frame should be on screen. This is the whole
 design:
 
-* the same `advance` sequence always yields the same frames, so a demo is
+- the same `advance` sequence always yields the same frames, so a demo is
   reproducible;
-* the tests finish in milliseconds with no real time passing;
-* a browser loop already owns a timer, so the future dashboard can drive this
+- the tests finish in milliseconds with no real time passing;
+- a browser loop already owns a timer, so the future dashboard can drive this
   directly instead of starting a second one.
 
 A source-level test fails if `time.time`, `time.sleep` or `Thread` ever appear
@@ -81,23 +81,23 @@ in the module.
 
 ### Transport semantics
 
-| Action | Behaviour |
-|---|---|
-| `play()` | Start advancing. At the end, restarts from the beginning. |
-| `pause()` | Freeze; the current frame stays on screen. |
-| `restart()` | Back to frame 0, **paused** — playback does not auto-resume. |
-| `seek(i)` / `seek_seconds(t)` | Clamped jump; a pure lookup, no time passes. |
-| `advance(dt)` | Move the virtual clock by `dt × speed`. |
+| Action                        | Behaviour                                                    |
+| ----------------------------- | ------------------------------------------------------------ |
+| `play()`                      | Start advancing. At the end, restarts from the beginning.    |
+| `pause()`                     | Freeze; the current frame stays on screen.                   |
+| `restart()`                   | Back to frame 0, **paused** — playback does not auto-resume. |
+| `seek(i)` / `seek_seconds(t)` | Clamped jump; a pure lookup, no time passes.                 |
+| `advance(dt)`                 | Move the virtual clock by `dt × speed`.                      |
 
 Deliberate choices:
 
-* **Reaching the end stops and holds the last frame** rather than wrapping. A
+- **Reaching the end stops and holds the last frame** rather than wrapping. A
   replay that silently loops is surprising.
-* **A negative or unparseable `dt` is ignored** — a clock glitch is not a
+- **A negative or unparseable `dt` is ignored** — a clock glitch is not a
   rewind request.
-* **A non-positive speed is refused** with a `ValueError`, so `play()` can never
+- **A non-positive speed is refused** with a `ValueError`, so `play()` can never
   quietly mean "rewind".
-* A frame is on screen *at* its timestamp and stays until the clock passes it
+- A frame is on screen _at_ its timestamp and stays until the clock passes it
   (exact tie-breaking), which is what makes playback reproducible.
 
 ## Recording format
@@ -105,16 +105,32 @@ Deliberate choices:
 JSONL, one frame per line, schema `"1.0"`:
 
 ```json
-{"schema_version": "1.0", "timestamp": 1700000000.0, "offset_s": 0.0,
- "pose": {"x": 1.2, "y": 0.4, "z": 0.0, "yaw": 0.0},
- "navigation": {"state": "MOVING", "goal": "shelf_a", "route_points": 2},
- "safety": {"state": "NORMAL", "action": "PROCEED", "emergency_stop": false},
- "hazards": [{"kind": "FIRE", "severity": "CRITICAL", "confidence": 0.9,
-              "source": "cam", "x": 2.0, "y": 3.0}],
- "hazard_state": "EMERGENCY",
- "mission": {"mission_id": "web-run", "current_task": "t1",
-             "current_task_type": "PICK", "current_task_status": "RUNNING",
-             "completed_tasks": 0}}
+{
+  "schema_version": "1.0",
+  "timestamp": 1700000000.0,
+  "offset_s": 0.0,
+  "pose": { "x": 1.2, "y": 0.4, "z": 0.0, "yaw": 0.0 },
+  "navigation": { "state": "MOVING", "goal": "shelf_a", "route_points": 2 },
+  "safety": { "state": "NORMAL", "action": "PROCEED", "emergency_stop": false },
+  "hazards": [
+    {
+      "kind": "FIRE",
+      "severity": "CRITICAL",
+      "confidence": 0.9,
+      "source": "cam",
+      "x": 2.0,
+      "y": 3.0
+    }
+  ],
+  "hazard_state": "EMERGENCY",
+  "mission": {
+    "mission_id": "web-run",
+    "current_task": "t1",
+    "current_task_type": "PICK",
+    "current_task_status": "RUNNING",
+    "completed_tasks": 0
+  }
+}
 ```
 
 `read_recording()` skips a corrupt line rather than aborting, so a truncated

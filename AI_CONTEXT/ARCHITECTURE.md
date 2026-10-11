@@ -44,21 +44,21 @@ crash, reboot, or pulled cable can never leave the robot driving.
 
 Each layer depends only on the layers below it.
 
-| # | Package | Responsibility | Key types |
-|---|---|---|---|
-| 1 | `amr.communication` | Serial protocol + transport | `protocol.py`, `ArduinoSerial`, `ArduinoSerialTransport` |
-| 2 | `amr.control` | Motor driver + differential-drive vocabulary | `MotorDriver`, `ArduinoMotorDriver`, `DifferentialDrive`, `clamp_speed` |
-| 3 | `amr.safety` | Deterministic proximity policy | `SafetyManager`, `SafetyDecision`, `SafetyAction` |
-| 3.5 | `amr.hazard` | Context-aware multi-hazard aggregation + read-side spatial visualisation | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `render_map_svg` |
-| 4 | `amr.sensors` | Ultrasonic read + validation | `UltrasonicManager`, `UltrasonicReading` |
-| 5 | `amr.robot` | The gated runtime owner | `RobotManager`, `RobotState`, `ModeController`, `RobotMode` |
-| 6 | `amr.camera` | Camera facade (libcamera / V4L2 / mock) | `CameraManager` |
-| 7 | `amr.navigation` | Odometry + waypoint planning | `Navigator`, `LocalNavigator`, `Pose`, `Goal`, `NavResult` |
-| 8 | `amr.warehouse` | Task queue + orchestration | `WarehouseTaskManager`, `WarehouseMap`, `Task`, `Manipulator` |
-| 9 | `amr.web` | HTTP control panel + JSON API | `AMRWebApp` |
-| — | `amr.mocks` | Hardware-free doubles | `MockSerialTransport`, `MockMotorDriver`, `MockUltrasonicSensor`, `MockCamera` |
-| — | `amr.logging` | Rotating structured logging | `setup_logging`, `get_logger`, `log_event` |
-| — | `amr.utils` | Config loading + validation | `load_config`, `AppConfig`, `SerialConfig`, `SafetyConfig`, `RobotConfig`, `WarehouseConfig`, `HazardConfig` |
+| #   | Package             | Responsibility                                                           | Key types                                                                                                    |
+| --- | ------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 1   | `amr.communication` | Serial protocol + transport                                              | `protocol.py`, `ArduinoSerial`, `ArduinoSerialTransport`                                                     |
+| 2   | `amr.control`       | Motor driver + differential-drive vocabulary                             | `MotorDriver`, `ArduinoMotorDriver`, `DifferentialDrive`, `clamp_speed`                                      |
+| 3   | `amr.safety`        | Deterministic proximity policy                                           | `SafetyManager`, `SafetyDecision`, `SafetyAction`                                                            |
+| 3.5 | `amr.hazard`        | Context-aware multi-hazard aggregation + read-side spatial visualisation | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `render_map_svg`                           |
+| 4   | `amr.sensors`       | Ultrasonic read + validation                                             | `UltrasonicManager`, `UltrasonicReading`                                                                     |
+| 5   | `amr.robot`         | The gated runtime owner                                                  | `RobotManager`, `RobotState`, `ModeController`, `RobotMode`                                                  |
+| 6   | `amr.camera`        | Camera facade (libcamera / V4L2 / mock)                                  | `CameraManager`                                                                                              |
+| 7   | `amr.navigation`    | Odometry + waypoint planning                                             | `Navigator`, `LocalNavigator`, `Pose`, `Goal`, `NavResult`                                                   |
+| 8   | `amr.warehouse`     | Task queue + orchestration                                               | `WarehouseTaskManager`, `WarehouseMap`, `Task`, `Manipulator`                                                |
+| 9   | `amr.web`           | HTTP control panel + JSON API                                            | `AMRWebApp`                                                                                                  |
+| —   | `amr.mocks`         | Hardware-free doubles                                                    | `MockSerialTransport`, `MockMotorDriver`, `MockUltrasonicSensor`, `MockCamera`                               |
+| —   | `amr.logging`       | Rotating structured logging                                              | `setup_logging`, `get_logger`, `log_event`                                                                   |
+| —   | `amr.utils`         | Config loading + validation                                              | `load_config`, `AppConfig`, `SerialConfig`, `SafetyConfig`, `RobotConfig`, `WarehouseConfig`, `HazardConfig` |
 
 ---
 
@@ -67,15 +67,15 @@ Each layer depends only on the layers below it.
 `RobotManager` is the single owner of runtime behaviour and the **only** path to
 the motors.
 
-* Owns `RobotState` (the one published snapshot), `ModeController`,
+- Owns `RobotState` (the one published snapshot), `ModeController`,
   `SafetyManager`, `UltrasonicManager`, `DifferentialDrive`.
-* `_gate()` rejects a motion command unless: connected **and** the mode allows
+- `_gate()` rejects a motion command unless: connected **and** the mode allows
   motion **and** the safety decision is `PROCEED` **and** (when attached) the
   hazard verdict does not block.
-* `stop()` / `estop()` are **never** gated — you must always be able to stop.
-* `tick()` is one control-loop iteration: poll sensors → evaluate Layer 3 →
+- `stop()` / `estop()` are **never** gated — you must always be able to stop.
+- `tick()` is one control-loop iteration: poll sensors → evaluate Layer 3 →
   enforce `STOP` → evaluate Layer 3.5 (if attached) → enforce its veto.
-* `request_mode()` enforces the mode machine; entering `AUTONOMOUS` additionally
+- `request_mode()` enforces the mode machine; entering `AUTONOMOUS` additionally
   requires a `PROCEED` decision.
 
 ### Mode state machine
@@ -93,12 +93,12 @@ SAFETY_STOP / ERROR ──► IDLE           (only after an explicit operator re
 
 ## 4. Safety layers
 
-| Layer | Where | Mechanism | Can stop the robot alone |
-|---|---|---|---|
-| 1 | Arduino firmware | comms watchdog (1000 ms) + proximity stop below thresholds | yes |
-| 2 | Pi, `RobotState` | structured state from `STATUS`/`SENSOR` polls, link-loss detection | yes (`_on_link_loss`) |
-| 3 | Pi, `amr.safety` | deterministic proximity rules → `PROCEED/WAIT/STOP/TURN/REPLAN` | yes |
-| 3.5 | Pi, `amr.hazard` | multi-input aggregation → `NORMAL/WARNING/SLOW/STOP/EMERGENCY` | yes (escalate-only) |
+| Layer | Where            | Mechanism                                                          | Can stop the robot alone |
+| ----- | ---------------- | ------------------------------------------------------------------ | ------------------------ |
+| 1     | Arduino firmware | comms watchdog (1000 ms) + proximity stop below thresholds         | yes                      |
+| 2     | Pi, `RobotState` | structured state from `STATUS`/`SENSOR` polls, link-loss detection | yes (`_on_link_loss`)    |
+| 3     | Pi, `amr.safety` | deterministic proximity rules → `PROCEED/WAIT/STOP/TURN/REPLAN`    | yes                      |
+| 3.5   | Pi, `amr.hazard` | multi-input aggregation → `NORMAL/WARNING/SLOW/STOP/EMERGENCY`     | yes (escalate-only)      |
 
 Layer 3.5 hard rules: **escalate only**, **never drive**, **fail safe**,
 **deterministic**. It is opt-in via `RobotManager.attach_hazard()`, so the
@@ -115,7 +115,7 @@ and can only reduce motion; commands still leave through the one existing
 `safety.avoidance.enabled` is `false`, so the default stack is unchanged.
 See `docs/safety.md` §C6. **Simulation only; thresholds NOT_VERIFIED.**
 
-A reading of `-1` (no echo / clear) is *not* an obstacle, per direction.
+A reading of `-1` (no echo / clear) is _not_ an obstacle, per direction.
 A complete loss of valid sensor data **is** unsafe (Layer 3 rule 2).
 
 ---
@@ -134,13 +134,13 @@ Full reference: `docs/serial_protocol.md`. Do not change one side alone.
 fail-fast (`ConfigError`). A missing file yields documented defaults; a
 malformed file raises. Unknown keys are ignored (forward-compatible).
 
-| File | Dataclass |
-|---|---|
-| `serial.yaml` | `SerialConfig` |
-| `safety.yaml` | `SafetyConfig` |
-| `robot.yaml` | `RobotConfig` (motors, ultrasonic pins, camera) |
-| `warehouse.yaml` | `WarehouseConfig` (map, tuning, manipulator) |
-| `hazard.yaml` | `HazardConfig` (thresholds, kinds, zones, event log) |
+| File             | Dataclass                                            |
+| ---------------- | ---------------------------------------------------- |
+| `serial.yaml`    | `SerialConfig`                                       |
+| `safety.yaml`    | `SafetyConfig`                                       |
+| `robot.yaml`     | `RobotConfig` (motors, ultrasonic pins, camera)      |
+| `warehouse.yaml` | `WarehouseConfig` (map, tuning, manipulator)         |
+| `hazard.yaml`    | `HazardConfig` (thresholds, kinds, zones, event log) |
 
 Status flags: `safety.yaml` and `hazard.yaml` are `NOT_VERIFIED`, and
 `robot.yaml` geometry is `null`, until measured on the physical robot.
@@ -149,30 +149,30 @@ Status flags: `safety.yaml` and `hazard.yaml` are `NOT_VERIFIED`, and
 
 ## 7. Testability architecture
 
-* **`amr/mocks/`** lets the entire high-level stack run with no hardware:
+- **`amr/mocks/`** lets the entire high-level stack run with no hardware:
   `MockSerialTransport` emulates the Arduino protocol, `MockMotorDriver` records
   speeds, `MockUltrasonicSensor` sets ranges, `MockCamera` fakes frames.
-* `RobotManager.create_mock(config)` wires the full stack over the mock
+- `RobotManager.create_mock(config)` wires the full stack over the mock
   transport — the **same code path** as hardware; only the transport differs.
-* New components must follow this pattern: depend on **injected callables**, not
+- New components must follow this pattern: depend on **injected callables**, not
   on hardware. `amr.hazard` sources are the newest example.
-* Import discipline: no module may require `pyserial`, OpenCV or ROS *to
-  import*. `amr.hazard` deliberately imports nothing from `amr.robot` /
-  `amr.navigation` (duck typing) to avoid import cycles — it is imported *by*
+- Import discipline: no module may require `pyserial`, OpenCV or ROS _to
+  import_. `amr.hazard` deliberately imports nothing from `amr.robot` /
+  `amr.navigation` (duck typing) to avoid import cycles — it is imported _by_
   the robot manager.
 
 ---
 
 ## 8. Extension points
 
-| To add… | Extend | Do not |
-|---|---|---|
-| A new hazard input | implement `HazardSource.read()`; add via `HazardManager.add_source` | reach into the motors |
-| A new motion capability | add a gated method on `RobotManager` | call `MotorDriver`/`ArduinoSerial` directly |
-| A new stop condition | route through `SafetyManager`/`ModeController` → `SAFETY_STOP` | add an ad-hoc motor write |
-| A new manipulator | implement `amr.warehouse.tasks.Manipulator` | modify the task manager |
-| A new config knob | add to the relevant dataclass + YAML + `_validate_*` | hardcode it |
-| A new dashboard/monitoring view | read the C7 `TelemetrySnapshot` | add a second copy of robot state, or give the view a write path |
+| To add…                         | Extend                                                              | Do not                                                          |
+| ------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------- |
+| A new hazard input              | implement `HazardSource.read()`; add via `HazardManager.add_source` | reach into the motors                                           |
+| A new motion capability         | add a gated method on `RobotManager`                                | call `MotorDriver`/`ArduinoSerial` directly                     |
+| A new stop condition            | route through `SafetyManager`/`ModeController` → `SAFETY_STOP`      | add an ad-hoc motor write                                       |
+| A new manipulator               | implement `amr.warehouse.tasks.Manipulator`                         | modify the task manager                                         |
+| A new config knob               | add to the relevant dataclass + YAML + `_validate_*`                | hardcode it                                                     |
+| A new dashboard/monitoring view | read the C7 `TelemetrySnapshot`                                     | add a second copy of robot state, or give the view a write path |
 
 ---
 
@@ -219,8 +219,8 @@ robot state. See `docs/telemetry.md`.
 
 ## 11. Map layer (C9)
 
-`amr/map/` is also an **observation** layer, and splits map *state* from map
-*drawing* so C10 can reuse the state:
+`amr/map/` is also an **observation** layer, and splits map _state_ from map
+_drawing_ so C10 can reuse the state:
 
 ```
 WarehouseMap · HazardZone · Navigator · HazardManager · TelemetryCollector
@@ -231,17 +231,17 @@ MapSnapshot  →  GET /map          (JSON, presentation-independent)
             →  C10 3D twin       (GET /digital-twin, same snapshot)
 ```
 
-* **One** coordinate conversion lives in `amr/map/transform.py`
+- **One** coordinate conversion lives in `amr/map/transform.py`
   (uniform scale, y flipped for SVG). The browser repeats the same formula for
   zoom/pan only; it never decides map semantics.
-* `PathHistory` bounds the travelled trail (600 pts, de-duplicated) so a
+- `PathHistory` bounds the travelled trail (600 pts, de-duplicated) so a
   1 Hz dashboard poll cannot grow memory without limit.
-* The C5 rule is enforced at this boundary: a hazard is placed **only** with a
+- The C5 rule is enforced at this boundary: a hazard is placed **only** with a
   real world `location`; image-space evidence is listed under `unlocated` with
   no coordinates.
-* The project models **no** shelf/rack/obstacle/boundary geometry, so those
+- The project models **no** shelf/rack/obstacle/boundary geometry, so those
   report `UNAVAILABLE` with a visible note instead of an invented floor plan.
-* Read-only: `amr/map/` imports no motor/PWM/serial/GPIO code, never steps the
+- Read-only: `amr/map/` imports no motor/PWM/serial/GPIO code, never steps the
   navigator, and a test proves map reads write nothing to the serial transport.
 
 See `docs/map.md`.
@@ -257,20 +257,20 @@ scene assembly for a procedural AMR.
 MapSnapshot  →  build_twin_state()  →  GET /digital-twin  →  WebGL card
 ```
 
-* **Coordinate system:** the repository frame is unchanged — metres, y-up, yaw in
+- **Coordinate system:** the repository frame is unchanged — metres, y-up, yaw in
   radians. A z-up renderer needs `three.x = world.x`, `three.y = -world.y`,
   `rotation_z_deg = -degrees(yaw)`. One conversion, one place, tested at 0,
   ±π/2 and π. The browser never re-derives it.
-* **Renderer:** raw **WebGL, no Three.js** — the project keeps zero frontend
+- **Renderer:** raw **WebGL, no Three.js** — the project keeps zero frontend
   dependencies, so it stays one self-contained Python process with no npm, CDN
   or build step. `renderer.library` is `null` in the payload.
-* **No command path:** GET only, no actuation controls, and the twin module
+- **No command path:** GET only, no actuation controls, and the twin module
   references no `RobotManager`/`Navigator`/`SafetyManager`/serial/GPIO/PWM.
   Safety state is read and displayed, never acted on.
-* **Honesty:** `source` is inherited from the map; the scene is labelled
+- **Honesty:** `source` is inherited from the map; the scene is labelled
   schematic because the project has no surveyed geometry; a missing camera or
   pose degrades to `UNAVAILABLE` rather than being faked.
-* Uses the dashboard's existing 1 Hz poll — no second timer.
+- Uses the dashboard's existing 1 Hz poll — no second timer.
 
 See `docs/digital_twin.md`.
 
@@ -287,18 +287,18 @@ DigitalTwinState (C10) ─┤                                  ↓
 health (C7)            ─┘                              Dashboard
 ```
 
-* **No new schema.** Every field is copied or derived arithmetically; the
+- **No new schema.** Every field is copied or derived arithmetically; the
   `map` and `twin` keys are the untouched C9/C10 payloads, asserted equal to
   their standalone endpoints so the console cannot become a second state.
-* **One request per tick.** The page fetches `/dashboard/state` instead of
+- **One request per tick.** The page fetches `/dashboard/state` instead of
   telemetry + map + twin + health, still on the existing 1 Hz poll — no second
   timer, no WebSocket.
-* **Absence stays absence.** `UNAVAILABLE` is never coerced to `0` or "healthy";
+- **Absence stays absence.** `UNAVAILABLE` is never coerced to `0` or "healthy";
   an unwired mission runtime reports "Mission data unavailable". Route progress
   is reported with its basis, never recomputed or faked.
-* **Read-only.** GET only, no actuation controls; `POST /command` remains the
+- **Read-only.** GET only, no actuation controls; `POST /command` remains the
   sole actuator path.
-* **JavaScript is syntax-checked in CI** (`node --check` on the served
+- **JavaScript is syntax-checked in CI** (`node --check` on the served
   scripts), permanently closing the C10 gap where a broken dashboard script
   passed every test. Node is a validation tool only, never a runtime dep.
 
@@ -324,14 +324,14 @@ GET /dashboard/state  →  Mission panel
 
 Three properties matter for anyone extending this:
 
-* **One mission truth.** The collector adapts `ManagerStatus`; it never
-  re-decides what the robot is doing. The reader accepts the object *or* a plain
+- **One mission truth.** The collector adapts `ManagerStatus`; it never
+  re-decides what the robot is doing. The reader accepts the object _or_ a plain
   dict so third-party warehouse implementations still work.
-* **Derived, never invented.** `mission_progress` is `completed / total` over
+- **Derived, never invented.** `mission_progress` is `completed / total` over
   real submitted work; `task_progress` is real straight-line distance to the
   navigator's own goal. Unknown stays `None` — and unknown is never read as
   arrival or as 0%.
-* **Safety outranks the narrative.** The phase is presentation only; a
+- **Safety outranks the narrative.** The phase is presentation only; a
   `TURN`/`REPLAN` shows `AVOID`, `STOP`/`WAIT` show `HELD`, and an E-stop shows
   `EMERGENCY`. Nothing here feeds back into navigation.
 
@@ -342,4 +342,3 @@ The dashboard remains read-only throughout; `POST /command` is still the only
 actuator path.
 
 See `docs/mission_monitoring.md`.
-
