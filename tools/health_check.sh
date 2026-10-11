@@ -138,20 +138,26 @@ fi
 # 3. Camera
 # --------------------------------------------------------------------------- #
 hdr "3. Camera"
+# The Pi renamed its camera CLI: libcamera-still -> rpicam-still (package
+# libcamera-apps -> rpicam-apps). Accept whichever this image ships.
+CAM=""
+for c in rpicam-still libcamera-still; do
+  command -v "$c" >/dev/null 2>&1 && { CAM="$c"; break; }
+done
 if [ "$DO_CAMERA" -eq 0 ]; then
   skip "camera checks disabled (--no-camera)"
-elif command -v libcamera-still >/dev/null 2>&1; then
+elif [ -n "$CAM" ]; then
   TMP="$(mktemp -t amr_frame.XXXXXX.jpg)"
-  if libcamera-still -n -t 200 -o "$TMP" >/dev/null 2>&1 && [ -s "$TMP" ]; then
-    ok "libcamera-still captured a frame ($(wc -c <"$TMP" | tr -d ' ') bytes)"
+  if "$CAM" -n -t 200 -o "$TMP" >/dev/null 2>&1 && [ -s "$TMP" ]; then
+    ok "$CAM captured a frame ($(wc -c <"$TMP" | tr -d ' ') bytes)"
   else
-    bad "libcamera-still present but captured nothing (ribbon / enablement?)"
+    bad "$CAM present but captured nothing (ribbon / enablement?)"
   fi
   rm -f "$TMP"
 elif ls /dev/video* >/dev/null 2>&1; then
   ok "V4L2 device present: $(ls /dev/video* | tr '\n' ' ') (set camera.device: v4l2)"
 else
-  bad "no camera: libcamera-still missing and no /dev/video* (see docs/setup_raspberry_pi.md)"
+  bad "no camera: no rpicam-still / libcamera-still and no /dev/video* (see docs/setup_raspberry_pi.md)"
 fi
 
 # --------------------------------------------------------------------------- #

@@ -198,6 +198,14 @@ class CameraSource(Protocol):
 
 
 
+#: Raspberry Pi renamed its camera CLI: ``libcamera-still`` (package
+#: ``libcamera-apps``) became ``rpicam-still`` (package ``rpicam-apps``).
+#: Current Raspberry Pi OS ships the new name and older images the old one, so
+#: a configured command that is not installed is retried under the other name
+#: rather than reporting the camera unavailable.
+CAPTURE_CLI_CANDIDATES: Tuple[str, ...] = ("rpicam-still", "libcamera-still")
+
+
 class RaspberryPiCameraSource:
     """Real Raspberry Pi camera adapter — **NOT_VERIFIED** until hardware is run.
 
@@ -260,6 +268,23 @@ class RaspberryPiCameraSource:
         #: Latest captured frame; retaining exactly one bounds image memory.
         self._last_frame: Optional[CameraFrame] = None
 
+    def _capture_cli(self) -> Optional[str]:
+        """The one-shot capture CLI to shell out to, or ``None``.
+
+        An explicitly configured command wins when it is actually installed.
+        When it is not, the other name the Raspberry Pi OS tools ship under is
+        tried — ``libcamera-still`` was renamed to ``rpicam-still``, so a build
+        pinned to either name would otherwise look like a missing camera.
+        """
+        if not self._fallback_command:
+            return None
+        if shutil.which(self._fallback_command[0]):
+            return self._fallback_command[0]
+        for name in CAPTURE_CLI_CANDIDATES:
+            if shutil.which(name):
+                return name
+        return None
+
     # -- lifecycle ---------------------------------------------------------- #
     def start(self) -> None:
         """Acquire the camera. Idempotent; never raises for a real failure."""
@@ -277,12 +302,13 @@ class RaspberryPiCameraSource:
             self._open_picamera2(library)
             if self._running:
                 return
-        if self._fallback_command and shutil.which(self._fallback_command[0]):
+        cli = self._capture_cli()
+        if cli is not None:
             # A one-shot CLI has no persistent handle: it is "running" whenever
             # the binary exists, and each read shells out for a single frame.
             self._running = True
             self._status = CameraStatus.LIVE
-            self._backend = "libcamera-still"
+            self._backend = cli
             self._reason = None
             return
         if not self._reason:
@@ -417,15 +443,16 @@ class RaspberryPiCameraSource:
             # the frame stays a self-describing transport envelope.
             png = self._array_to_png(array)
             return png, self.width, self.height, "png"
-        if self._fallback_command:
+        cli = self._capture_cli()
+        if cli is not None:
             out = subprocess.run(  # noqa: S603 - fixed argv, no shell
-                [*self._fallback_command, "--encoding=jpeg", "-"],
+                [cli, "--encoding=jpeg", "-"],
                 capture_output=True, timeout=self._capture_timeout_s,
             )
             if out.returncode != 0 or not out.stdout:
                 raise RuntimeError(
                     (out.stderr or b"capture failed").decode(errors="replace")
-                    .strip() or "libcamera-still failed"
+                    .strip() or f"{cli} failed"
                 )
             return out.stdout, self.width, self.height, "jpeg"
         raise RuntimeError(self._reason or "no capture backend")

@@ -406,6 +406,23 @@ class TestRaspberryPiCameraSource:
         assert cam.describe()["backend"] == "libcamera-still"
         assert cam.status() is CameraStatus.LIVE
 
+    def test_the_renamed_rpicam_cli_is_found_too(self, monkeypatch):
+        """Raspberry Pi renamed the CLI: ``libcamera-still`` -> ``rpicam-still``.
+
+        Current Raspberry Pi OS ships only the new name, so a build that knows
+        only the old one reports a perfectly working camera as UNAVAILABLE.
+        A configured name that is not installed must be retried under the other.
+        """
+        monkeypatch.setattr(
+            shutil, "which",
+            lambda name: "/usr/bin/rpicam-still" if name == "rpicam-still" else None,
+        )
+        cam = RaspberryPiCameraSource(library=None,
+                                      fallback_command=("libcamera-still",))
+        cam.start()
+        assert cam.describe()["backend"] == "rpicam-still"
+        assert cam.status() is CameraStatus.LIVE
+
     def test_stop_is_idempotent_and_releases_the_device(self):
         lib = _FakeLibrary(devices=("cam0",))
         cam = RaspberryPiCameraSource(library=lib, fallback_command=None)

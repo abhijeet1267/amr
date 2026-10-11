@@ -72,21 +72,36 @@ fi
 
 # ---------------------------------------------------------------- 3. camera --
 say "3/4  Camera check (independent of the robot)"
-if command -v libcamera-still >/dev/null 2>&1; then
-  ok "libcamera-still present"
-  if libcamera-still -n -t 500 -o /tmp/amr-cam-test.jpg >/dev/null 2>&1 \
+# Raspberry Pi renamed its camera CLI: `libcamera-still` (package
+# `libcamera-apps`) is now `rpicam-still` (package `rpicam-apps`). Current
+# Raspberry Pi OS ships the new name, older images the old one.
+CAM=""
+for c in rpicam-still libcamera-still; do
+  if command -v "$c" >/dev/null 2>&1; then CAM="$c"; break; fi
+done
+if [ -n "$CAM" ]; then
+  ok "$CAM present"
+  if "$CAM" -n -t 500 -o /tmp/amr-cam-test.jpg >/dev/null 2>&1 \
      && [ -s /tmp/amr-cam-test.jpg ]; then
     ok "captured a test frame: /tmp/amr-cam-test.jpg ($(wc -c </tmp/amr-cam-test.jpg) bytes)"
     ok "the camera works — the app's Camera screen will show frames"
   else
-    warn "libcamera-still exists but the capture failed."
+    warn "$CAM exists but the capture failed."
     warn "usual causes: ribbon not seated, latch open, or the camera not enabled"
   fi
 else
-  warn "libcamera-still is NOT installed."
+  warn "no camera CLI found (looked for rpicam-still and libcamera-still)."
   warn "to add it (the one step that needs sudo — run it yourself if you want it):"
-  printf '        sudo apt update && sudo apt install -y libcamera-tools\n'
+  printf '        sudo apt update && sudo apt install -y rpicam-apps\n'
+  warn "on older Raspberry Pi OS the package is 'libcamera-apps' instead"
   warn "the app works fine without a camera; the Camera screen stays offline"
+fi
+# The preferred path is the Python stack, which needs no CLI at all.
+if python3 -c 'import picamera2' >/dev/null 2>&1; then
+  ok "picamera2 is installed — the app will use it first"
+else
+  warn "picamera2 not installed (optional, but it is the preferred path):"
+  printf '        sudo apt install -y python3-picamera2\n'
 fi
 
 # ---------------------------------------------------------------- 4. run -----

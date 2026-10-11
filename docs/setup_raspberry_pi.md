@@ -136,8 +136,9 @@ PY
 
 The camera is a **CSI** device, not USB. Two backends exist in the code:
 
-- `device: "pi"` → `RaspberryPiCameraSource` prefers **`picamera2`**, then  
-  **`libcamera-still`**.
+- `device: "pi"` → `RaspberryPiCameraSource` prefers **`picamera2`**, then the
+  one-shot CLI — **`rpicam-still`** on current Raspberry Pi OS, or
+  **`libcamera-still`** on older images (the tool was renamed; both are accepted).
 - `device: "v4l2"` → OpenCV on `/dev/video0` (needs `opencv-python` + `numpy`).
 
 The shipped `config/robot.yaml` uses `device: "pi"`, `resolution: "1280x720"`.
@@ -145,11 +146,13 @@ The shipped `config/robot.yaml` uses `device: "pi"`, `resolution: "1280x720"`.
 ### 4.1 Enable and test the camera
 
 ```bash
-# Bookworm: libcamera is the default stack. Install the tools + Python bindings:
-sudo apt install -y libcamera-tools python3-picamera2
+# Current Raspberry Pi OS (Bookworm/Trixie): the tools are `rpicam-*` and the
+# package is `rpicam-apps`. On older images it is `libcamera-apps` / `libcamera-*`.
+sudo apt install -y rpicam-apps python3-picamera2
+#   older images:  sudo apt install -y libcamera-apps python3-picamera2
 
-# One-shot capture to prove the hardware works
-libcamera-still -n -t 200 -o /tmp/frame.jpg
+# One-shot capture to prove the hardware works (use whichever name exists)
+rpicam-still -n -t 200 -o /tmp/frame.jpg      # older: libcamera-still
 file /tmp/frame.jpg          # expect: JPEG image data, 1280x720 (or similar)
 ```
 
