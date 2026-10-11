@@ -660,6 +660,7 @@ each step:
 | ----- | ------ |
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | **Start here.** The complete numbered checklist: what runs where, how to copy the code onto the Pi, install, flash, wire, verify, and use the app |
 | [`docs/WIRING_CHECK.md`](docs/WIRING_CHECK.md) | What to photograph of your build, the ten wiring faults to check before powering up, and the exact order of what to do next |
+| [`docs/COMPONENTS.md`](docs/COMPONENTS.md) | **Analysis of every component and connection**: inventory, wire-by-wire map, full Arduino pin allocation, interfaces, and the two blocking pin faults |
 | [`docs/hardware.md`](docs/hardware.md) | **Master bring-up**: bill of materials, wiring (power, motors, ultrasonic, camera), pin map (with two conflicts to fix), staged bring-up, per-component and end-to-end validation, common issues, and the `NOT_VERIFIED` → `VERIFIED` procedure |
 | [`docs/setup_arduino.md`](docs/setup_arduino.md) | Install the toolchain, compile, flash the UNO, and validate the firmware over serial |
 | [`docs/setup_raspberry_pi.md`](docs/setup_raspberry_pi.md) | Pi OS, venv + `pyserial`, serial-port discovery (`ttyACM0`/`ttyUSB0`, udev), camera enablement, running against hardware, and pointing the app at the robot |
@@ -790,6 +791,7 @@ endpoints). Everything runs on the mocks under `amr/mocks/`.
 │   ├── ros2.md                 # optional ROS 2 message translation (C18, no ROS)
 │   ├── DEPLOY.md               # end-to-end deployment checklist (start here)
 │   ├── WIRING_CHECK.md         # photos to take + pre-power wiring checks
+│   ├── COMPONENTS.md           # component + connection analysis (pins, faults)
 │   ├── hardware.md             # hardware verification & bring-up (master)
 │   ├── setup_arduino.md        # firmware build / flash / validate
 │   └── setup_raspberry_pi.md   # Pi OS, serial link, camera, running it

@@ -137,5 +137,7 @@ you power it up.
 > Reminder: none of this has been run on real hardware yet — yours is the first
 > real build. Treat every stage as unverified until its validation passes.
 
-**See also:** [`DEPLOY.md`](DEPLOY.md) · [`hardware.md`](hardware.md) ·
-[`setup_arduino.md`](setup_arduino.md) · [`setup_raspberry_pi.md`](setup_raspberry_pi.md)
+**See also:** [`COMPONENTS.md`](COMPONENTS.md) (every component and connection
+analysed, with the full pin table) · [`DEPLOY.md`](DEPLOY.md) ·
+[`hardware.md`](hardware.md) · [`setup_arduino.md`](setup_arduino.md) ·
+[`setup_raspberry_pi.md`](setup_raspberry_pi.md)
