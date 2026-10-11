@@ -17,7 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 # Install the real serial driver:  pip install -e .[serial]
 serial = ["pyserial>=3.5"]
-dev = ["pytest>=7.0", "pyserial>=3.5"]
+dev = ["pytest>=7.0", "pyserial>=3.5", "ruff>=0.5"]
 
 [tool.setuptools.packages.find]
 where = ["."]

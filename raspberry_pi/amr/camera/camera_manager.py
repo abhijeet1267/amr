@@ -26,6 +26,7 @@ from typing import Optional, Protocol, runtime_checkable
 
 from ..logging import get_logger
 from ..utils.config import CameraConfig
+from .frame import CAPTURE_CLI_CANDIDATES
 
 
 class CameraError(Exception):
@@ -65,14 +66,29 @@ class PiCameraBackend:
         self._config = config
         self.log = get_logger("camera")
 
-    # -- pi (libcamera) ---------------------------------------------------- #
+    # -- pi (libcamera / rpicam) -------------------------------------------- #
+    def _capture_cli(self) -> Optional[str]:
+        """The one-shot capture CLI to use, or ``None`` when neither exists.
+
+        Raspberry Pi renamed ``libcamera-still`` to ``rpicam-still`` (package
+        ``libcamera-apps`` -> ``rpicam-apps``). Current images ship only the new
+        name, so hardcoding either one reports a working camera as unavailable.
+        """
+        for name in CAPTURE_CLI_CANDIDATES:
+            if shutil.which(name):
+                return name
+        return None
+
     def _libcamera_available(self) -> bool:
-        return shutil.which("libcamera-still") is not None
+        return self._capture_cli() is not None
 
     def _libcamera_capture(self) -> Optional[bytes]:
+        cli = self._capture_cli()
+        if cli is None:
+            return None
         w, h = self._parse_resolution()
         cmd = [
-            "libcamera-still",
+            cli,
             "-t", "200",          # 200 ms exposure: fast snapshot
             "-w", str(w),
             "-h", str(h),

@@ -120,37 +120,6 @@ def extract_metrics(snapshot: Dict[str, Any]) -> Dict[str, Optional[float]]:
     return out
 
 
-@dataclass
-class Sample:
-    """One observation of one or more metrics at a single instant."""
-
-    timestamp: float
-    values: Dict[str, Optional[float]] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {"t": self.timestamp, "v": dict(self.values)}
-
-
-@dataclass
-class Event:
-    """One thing that happened, for the Command Center's event log."""
-
-    timestamp: float
-    level: str
-    category: str
-    message: str
-    detail: Optional[Dict[str, Any]] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "t": self.timestamp,
-            "level": self.level,
-            "category": self.category,
-            "message": self.message,
-            "detail": dict(self.detail) if self.detail else None,
-        }
-
-
 class TelemetrySeries:
     """Bounded ring of :class:`Sample` objects, fed from telemetry snapshots.
 
