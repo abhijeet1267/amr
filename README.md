@@ -666,6 +666,7 @@ each step:
 | [`docs/setup_arduino.md`](docs/setup_arduino.md) | Install the toolchain, compile, flash the UNO, and validate the firmware over serial |
 | [`docs/setup_raspberry_pi.md`](docs/setup_raspberry_pi.md) | Pi OS, venv + `pyserial`, serial-port discovery (`ttyACM0`/`ttyUSB0`, udev), camera enablement, running against hardware, and pointing the app at the robot |
 | [`tools/health_check.sh`](tools/health_check.sh) | One-shot check: serial port, firmware link (`PING`/`VERSION`/`STATUS`/`SENSOR`), camera, and the running web stack |
+| [`tools/pi_quickstart.sh`](tools/pi_quickstart.sh) | Bring the app up on a bare Pi — mock mode, camera check, no hardware, no sudo |
 
 ```bash
 tools/health_check.sh                 # from the repository root

@@ -17,6 +17,52 @@ phone app connects to the Pi over Wi-Fi.
 
 ---
 
+## Part 0 — Prove the app and camera work first (no Arduino needed)
+
+You do **not** need the Arduino, motors or sensors to get the app working. The
+stack has a **mock mode** that runs the whole robot in-process, so you can verify
+the network link, the console, the app and the camera on the Pi alone.
+
+On the Pi:
+
+```bash
+cd ~/amr
+./tools/pi_quickstart.sh
+```
+
+It finds a Python that can run the stack, checks the camera, and starts the
+console in mock mode. It uses **no sudo**, touches no GPIO, and installs nothing
+system-wide. Ctrl-C stops it, and it is safe to re-run.
+
+Then, from another machine on the same network:
+
+| Want | Use | Why |
+| --- | --- | --- |
+| Drive/monitor from a phone | the **Android APK** | native apps are not subject to browser CORS |
+| Use it from a computer | the Pi's own console: `http://<pi-ip>:8080/command-center` | served by the Pi itself, so no cross-origin issue |
+| Preview the app UI | `dist/amr-controller-web/` | **cannot** drive the robot — the server sends no CORS headers |
+
+Enter the Pi's IP and port `8080` in the app's setup wizard.
+
+### What mock mode means
+
+`--mock` runs the controller in-process. Commands are accepted and telemetry is
+generated, but **nothing is sent to hardware**. That is exactly what you want
+while the robot is unbuilt: it proves the app, the network and the camera work
+before any wiring is involved.
+
+### Only install what you need
+
+The stack's **only** dependency is **PyYAML**, which Raspberry Pi OS already
+ships as `python3-yaml`. `pyserial` is needed only once the Arduino is attached
+(`pip install -e ".[serial]"` in a venv).
+
+It does **not** use FastAPI, uvicorn, websockets or starlette. Installing those
+system-wide with `pip install --break-system-packages` is unnecessary and
+pollutes the system Python on Raspberry Pi OS.
+
+---
+
 ## Part A — Raspberry Pi
 
 ### A1. Prepare the Pi
