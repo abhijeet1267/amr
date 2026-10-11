@@ -43,12 +43,39 @@ WebGL is built into every browser, so a small hand-written renderer is lighter
 and more portable here. The response declares this explicitly:
 
 ```json
-"renderer": {"backend": "webgl", "library": null, "shading": "flat"}
+"renderer": {"backend": "webgl", "library": null,
+             "shading": "per-face lambert + hemisphere ambient, distance fog"}
 ```
 
 If WebGL is unavailable, the panel shows a plain message and the 2D map and all
 telemetry keep working — the dashboard degrades honestly rather than showing a
 blank black box.
+
+### How the scene is lit
+
+One colour per primitive with no shading is what made the twin read as a flat
+silhouette: every face of a box landed at the same brightness, so the chassis
+looked like a green sticker rather than a solid. Every triangle is therefore
+shaded once, as the mesh is built, from its own face normal:
+
+- a **key light** from above/front/left, which gives each face of a box its own
+  brightness — the single change that makes the scene read as 3D;
+- a **sky/ground hemisphere ambient**, so an up-facing panel stays brighter than
+  a down-facing one even out of the key light. A flat ambient renders every
+  unlit face identically, which is what a schematic looks like.
+
+Both terms are view-independent, so they are correct at every camera angle and
+cost nothing per frame. On top of that:
+
+- **distance fog**, using the linear view depth from the vertex shader (not
+  `gl_FragCoord.z`, which is non-linear and would be uncontrollable here). The
+  fog colour is `--stage`, so the ground plane dissolves into the panel;
+- a **contact shadow** — three stacked opaque discs of darkened floor colour,
+  giving a stepped radial falloff with no blending pass and no z-fighting.
+  Without it the robot reads as hovering above the floor;
+- a **0.5 m floor grid**, so the floor is a measurable surface rather than a
+  coloured rectangle. It is capped, so a huge configured floor cannot stall the
+  frame building grid boxes.
 
 ## 3. Coordinate system
 
@@ -114,11 +141,17 @@ can reach the twin, let alone the robot through it.
 A **procedural** model — no CAD asset, no external file:
 
 - chassis box + deck
-- four wheels at the chassis corners
-- camera module on the front face (a _model_ of the C8 sensor, never live imagery)
-- ultrasonic mast
+- four wheels at the chassis corners, each with a **hub** cap. The wheels are
+  stood up on their axle: cylinders are built along `+z`, so a wheel drawn
+  without the `tAxle()` rotation lies flat like a plate, which was the old
+  model's biggest tell
+- camera module on the front face, with a **lens barrel** — a _model_ of the C8
+  sensor, never live imagery
+- ultrasonic **mast + head**, so the sensor is visibly mounted rather than
+  floating
 - a manipulator **mount**, marked `"implemented": false` — no manipulator exists yet
-- a white forward indicator, so heading is visible even from directly above
+- a status LED on the deck, and a white forward indicator, so heading is visible
+  even from directly above
 
 Dimensions are nominal, unmeasured, and describe a schematic AMR. The whole
 model is assembled from primitives in the browser and uploaded as one vertex
@@ -170,7 +203,10 @@ the same `poll()` as the map), so the page still has a single polling loop.
 ## 10. Limitations
 
 - No text geometry: labels live in an HTML legend, not as 3D sprites.
-- Flat shading; no lighting, shadows, textures or reflections.
+- Shading is per-face Lambert + hemisphere ambient, with distance fog and a
+  contact shadow. There are **no** textures, no per-pixel normals, no specular
+  or environment reflections, and the shadow is a stacked-disc approximation
+  rather than a real shadow map. Geometry is still primitives only.
 - No shelf/rack/obstacle meshes (none exist in the project — see §9).
 - `implemented: false` on the manipulator mount is accurate: no arm exists.
 - Hardware untested. See §11.

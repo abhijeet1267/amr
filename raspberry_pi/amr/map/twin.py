@@ -438,7 +438,7 @@ def build_twin_state(
         renderer={
             "backend": "webgl",
             "library": None,
-            "shading": "flat",
+            "shading": "per-face lambert + hemisphere ambient, distance fog",
             "note": "raw WebGL, no third-party 3D library, no build step",
         },
     )

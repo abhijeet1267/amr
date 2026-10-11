@@ -1174,11 +1174,12 @@ function renderCameraOverlay(list, cam) {
    stays visible even when the scene is empty so the operator can tell an empty
    warehouse apart from a broken panel. */
 var T_LEGEND = [
-  ["#2fbf71", "Robot body (chassis)"],
-  ["#151b24", "Wheels (4)"],
-  ["#3893fa", "Camera module"],
-  ["#d99e1c", "Sensor mast"],
+  ["#2fbf71", "Robot body (chassis + deck)"],
+  ["#151b24", "Wheels (4, with hubs)"],
+  ["#3893fa", "Camera module + lens"],
+  ["#d99e1c", "Sensor mast + head"],
   ["#ffffff", "Heading indicator (front)"],
+  ["#6b7585", "Floor grid (0.5 m)"],
   ["#f5a623", "Hazard"],
   ["#38bcf6", "Planned route"],
   ["#a855f7", "Goal"],
@@ -1213,11 +1214,20 @@ function renderTwin(s) {
    geometry arrives in renderer coordinates from the C10 payload — the world->3D
    conversion is done once on the server, so the 2D and 3D views cannot disagree. */
 var T_VS =
-  "attribute vec3 aPos;attribute vec3 aCol;uniform mat4 uMVP;" +
-  "varying vec3 vCol;void main(){vCol=aCol;gl_Position=uMVP*vec4(aPos,1.0);}";
+  "attribute vec3 aPos;attribute vec3 aCol;uniform mat4 uMVP;uniform mat4 uView;" +
+  "varying vec3 vCol;varying float vDepth;" +
+  "void main(){vCol=aCol;vDepth=-(uView*vec4(aPos,1.0)).z;" +
+  "gl_Position=uMVP*vec4(aPos,1.0);}";
+/* The fragment stage fades toward the background with distance. It uses the
+   linear view depth handed over by the vertex shader, NOT gl_FragCoord.z: the
+   depth-buffer value is non-linear, and with a 0.1/200 near/far pair the whole
+   scene lands in its last 2%, where fog would be uncontrollable. */
 var T_FS =
-  "precision mediump float;varying vec3 vCol;uniform float uAlpha;" +
-  "void main(){gl_FragColor=vec4(vCol,uAlpha);}";
+  "precision mediump float;varying vec3 vCol;varying float vDepth;" +
+  "uniform float uAlpha;uniform vec3 uFog;uniform vec2 uFogRange;" +
+  "void main(){float f=clamp((vDepth-uFogRange.x)/" +
+  "(uFogRange.y-uFogRange.x),0.0,1.0);" +
+  "gl_FragColor=vec4(mix(vCol,uFog,f*0.72),uAlpha);}";
 
 function tMul(a, b) {
   var o = new Float32Array(16);
@@ -1299,6 +1309,24 @@ function tRotZ(deg) {
     s = Math.sin(a);
   return new Float32Array([c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 }
+function tRotX(deg) {
+  var a = (deg * Math.PI) / 180,
+    c = Math.cos(a),
+    s = Math.sin(a);
+  return new Float32Array([1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1]);
+}
+function tRotY(deg) {
+  var a = (deg * Math.PI) / 180,
+    c = Math.cos(a),
+    s = Math.sin(a);
+  return new Float32Array([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]);
+}
+/* Cylinders are built along +z, but a wheel's axle is +y and the camera lens
+   points +x, so both have to be stood up. This is the translate-then-rotate
+   pair that does it, re-centring the cylinder on the point it is given. */
+function tAxle(px, py, pz, width) {
+  return tMul(tTrans(px, py, pz), tMul(tRotX(-90), tTrans(0, 0, -width / 2)));
+}
 
 function initTwin() {
   var canvas = $("t-canvas");
@@ -1346,6 +1374,9 @@ function initTwin() {
   CC.twin.aCol = gl.getAttribLocation(p, "aCol");
   CC.twin.uMVP = gl.getUniformLocation(p, "uMVP");
   CC.twin.uAlpha = gl.getUniformLocation(p, "uAlpha");
+  CC.twin.uView = gl.getUniformLocation(p, "uView");
+  CC.twin.uFog = gl.getUniformLocation(p, "uFog");
+  CC.twin.uFogRange = gl.getUniformLocation(p, "uFogRange");
   CC.twin.bufPos = gl.createBuffer();
   CC.twin.bufCol = gl.createBuffer();
   gl.enable(gl.DEPTH_TEST);
@@ -1361,14 +1392,58 @@ function tXf(m, v) {
     m[2] * v[0] + m[6] * v[1] + m[10] * (v[2] || 0) + m[14],
   ];
 }
+/* -- shading ---------------------------------------------------------------
+   One colour per primitive, no texture and no material is why the twin used to
+   read as a flat silhouette: every face of a box landed at the same brightness,
+   so the eye had no edge to catch and the chassis looked like a green sticker.
+
+   Every triangle is therefore shaded once, as the mesh is built, from its own
+   face normal. Both terms are view-independent, so they are correct at every
+   camera angle and cost nothing per frame:
+
+     * a key light from above / front / left. This is what gives each face of a
+       box its own brightness, and it is the single change that makes the scene
+       read as solid;
+     * a sky/ground hemisphere ambient, so an up-facing panel stays brighter
+       than a down-facing one even where the key light does not reach. A flat
+       ambient would render every unlit face identically — which is what a
+       schematic looks like, not what a room looks like. */
+var T_LIGHT = tNorm([-0.42, -0.58, 0.7]); // direction TO the key light
+var T_AMB = 0.36; // ambient floor
+var T_SKY = 0.2; // hemisphere strength
+var T_KEY = 1 - T_AMB - T_SKY; // the remainder is the key light
+
+//: The colour the scene fades into. This is --stage from the stylesheet, so the
+//: ground plane dissolves into the panel instead of ending at a visible edge.
+var T_FOG = new Float32Array([0.043, 0.067, 0.098]);
+
+function tShade(col, n) {
+  var d = Math.max(0, tDot(n, T_LIGHT));
+  var hemi = 0.5 + 0.5 * n[2]; // 1 = facing up, 0 = facing down
+  var k = T_AMB + T_SKY * hemi + T_KEY * d;
+  if (k > 1.12) k = 1.12; // a touch of over-bright reads as a highlight
+  return [col[0] * k, col[1] * k, col[2] * k];
+}
+
+function tFaceNormal(t) {
+  return tNorm(
+    tCross(
+      [t[1][0] - t[0][0], t[1][1] - t[0][1], t[1][2] - t[0][2]],
+      [t[2][0] - t[0][0], t[2][1] - t[0][1], t[2][2] - t[0][2]],
+    ),
+  );
+}
+
 function tTris(tris, col) {
   var pos = [],
     cr = [];
-  for (var i = 0; i < tris.length; i++)
+  for (var i = 0; i < tris.length; i++) {
+    var s = tShade(col, tFaceNormal(tris[i]));
     for (var j = 0; j < 3; j++) {
       pos.push(tris[i][j][0], tris[i][j][1], tris[i][j][2]);
-      cr.push(col[0], col[1], col[2]);
+      cr.push(s[0], s[1], s[2]);
     }
+  }
   return {
     pos: new Float32Array(pos),
     col: new Float32Array(cr),
@@ -1462,11 +1537,24 @@ function tMerge(parts) {
   return { pos: new Float32Array(pos), col: new Float32Array(cr), n: n };
 }
 
+/* Base colours. These are *albedo*, not final pixels: every triangle is shaded
+   by tShade() on the way into the buffer, so a face value here is the colour
+   the surface would be under a full white light. */
 var T_COL = {
-  floor: [0.09, 0.12, 0.17],
+  ground: [0.078, 0.104, 0.145],
+  floor: [0.168, 0.208, 0.268],
+  grid: [0.098, 0.128, 0.172],
   chassis: [0.13, 0.77, 0.37],
-  wheel: [0.08, 0.09, 0.12],
+  deck: [0.1, 0.58, 0.28],
+  wheel: [0.075, 0.085, 0.11],
+  hub: [0.42, 0.46, 0.52],
   camera: [0.22, 0.56, 0.98],
+  lens: [0.06, 0.1, 0.16],
+  mast: [0.3, 0.34, 0.4],
+  sensor: [0.85, 0.62, 0.11],
+  mount: [0.24, 0.27, 0.32],
+  led: [0.3, 0.9, 0.45],
+  marker: [1, 1, 1],
   route: [0.22, 0.74, 0.97],
   goal: [0.66, 0.33, 0.97],
   hazard: [0.96, 0.65, 0.15],
@@ -1486,26 +1574,72 @@ function drawTwin(tw) {
     canvas.height = h;
   }
   gl.viewport(0, 0, w, h);
-  gl.clearColor(0.024, 0.039, 0.067, 1);
+  gl.clearColor(T_FOG[0], T_FOG[1], T_FOG[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   var parts = [];
   var f = tw.floor || {};
-  if (f.available && (f.corners || []).length === 4) {
-    var c = f.corners;
-    var lo0 = Math.min(c[0][0], c[2][0]),
-      lo1 = Math.min(c[0][1], c[2][1]);
-    var hi0 = Math.max(c[0][0], c[2][0]),
-      hi1 = Math.max(c[0][1], c[2][1]);
-    parts.push(
-      tBox(
-        hi0 - lo0,
-        hi1 - lo1,
-        0.02,
-        T_COL.floor,
-        tTrans((lo0 + hi0) / 2, (lo1 + hi1) / 2, -0.01),
-      ),
+  var fc = f.available && (f.corners || []).length === 4 ? f.corners : null;
+  var lo0 = fc ? Math.min(fc[0][0], fc[2][0]) : -5,
+    lo1 = fc ? Math.min(fc[0][1], fc[2][1]) : -5;
+  var hi0 = fc ? Math.max(fc[0][0], fc[2][0]) : 5,
+    hi1 = fc ? Math.max(fc[0][1], fc[2][1]) : 5;
+  var cx = (lo0 + hi0) / 2,
+    cy = (lo1 + hi1) / 2;
+
+  // The camera is resolved BEFORE the geometry, because the fog range and the
+  // grid extent both depend on it. Only the *camera* is decided here — the
+  // robot's pose still comes from telemetry, never from this function.
+  var t = CC.twin.target;
+  var rb0 = tw.robot;
+  if (CC.twin.follow && rb0 && rb0.position) {
+    t = [rb0.position[0], rb0.position[1], 0.35];
+    CC.twin.dist = 4.0;
+  } else if (fc) {
+    var span = Math.max(
+      Math.abs(fc[2][0] - fc[0][0]),
+      Math.abs(fc[2][1] - fc[0][1]),
+      2,
     );
+    t = [cx, cy, 0.2];
+    if (!CC.twin.follow) CC.twin.dist = Math.max(4.0, span * 1.8);
+  }
+  CC.twin.target = t;
+  var eye = [
+    t[0] + CC.twin.dist * Math.cos(CC.twin.pitch) * Math.cos(CC.twin.yaw),
+    t[1] + CC.twin.dist * Math.cos(CC.twin.pitch) * Math.sin(CC.twin.yaw),
+    t[2] + CC.twin.dist * Math.sin(CC.twin.pitch),
+  ];
+  var view = tLookAt(eye, t, [0, 0, 1]);
+  var mvp = tMul(
+    tPersp((50 * Math.PI) / 180, w / Math.max(1, h), 0.1, 200),
+    view,
+  );
+
+  // Ground: a wide plane the warehouse floor sits on as a raised deck. Without
+  // it the floor edge is the entire world, which reads as a floating tile; with
+  // it — and with the fog fading into the background — the scene gets a horizon
+  // and the eye gets a sense of how far away things are.
+  parts.push(tBox(64, 64, 0.02, T_COL.ground, tTrans(cx, cy, -0.035)));
+
+  if (fc) {
+    parts.push(
+      tBox(hi0 - lo0, hi1 - lo1, 0.02, T_COL.floor, tTrans(cx, cy, -0.01)),
+    );
+    // A 0.5 m grid. A floor with no scale reference is just a coloured
+    // rectangle; the grid is what lets an operator read "that hazard is two
+    // squares away". Capped, so a huge configured floor cannot build a
+    // thousand boxes and stall the frame.
+    var step = 0.5,
+      cap = 60,
+      n = 0;
+    for (var lx = Math.floor(lo0 / step) * step; lx <= hi0 + 1e-9 && n < cap; lx += step, n++) {
+      parts.push(tBox(0.012, hi1 - lo1, 0.004, T_COL.grid, tTrans(lx, cy, 0.002)));
+    }
+    n = 0;
+    for (var ly = Math.floor(lo1 / step) * step; ly <= hi1 + 1e-9 && n < cap; ly += step, n++) {
+      parts.push(tBox(hi0 - lo0, 0.012, 0.004, T_COL.grid, tTrans(cx, ly, 0.002)));
+    }
   }
   (tw.waypoints || []).forEach(function (p) {
     parts.push(
@@ -1554,6 +1688,46 @@ function drawTwin(tw) {
     );
     var mo = rb.model || {};
     var ch = mo.chassis || { size: [0.6, 0.4, 0.28], center_z: 0.22 };
+    var deck = mo.deck;
+
+    // Contact shadow: three stacked opaque discs of decreasing radius. A truly
+    // soft shadow needs a blended pass; stacked discs of darkened floor colour
+    // give a stepped radial falloff with no blending, no second draw call and
+    // no z-fighting, because each sits at its own height. Without this the
+    // robot reads as hovering a few centimetres off the floor.
+    [1.0, 0.66, 0.34].forEach(function (s, i) {
+      var r = Math.max(ch.size[0], ch.size[1]) * 0.74 * s;
+      var k = 0.42 - i * 0.16;
+      parts.push(
+        tCyl(
+          r,
+          0.004,
+          18,
+          [T_COL.floor[0] * k, T_COL.floor[1] * k, T_COL.floor[2] * k],
+          tMul(m, tTrans(0, 0, 0.006 + i * 0.004)),
+        ),
+      );
+    });
+
+    // Wheels first, so the body sits over them. The payload gives the axle as
+    // +y, so the cylinder is stood up: drawing it on its side made every wheel
+    // a flat plate, which was the old model's biggest tell.
+    (mo.wheels || []).forEach(function (wl) {
+      var ax = tAxle(wl.position[0], wl.position[1], wl.position[2], wl.width);
+      parts.push(tCyl(wl.radius, wl.width, 14, T_COL.wheel, tMul(m, ax)));
+      // Hub: a slightly wider, smaller disc, so it shows as a cap on both faces
+      // and the wheel reads as something that turns rather than a black disc.
+      parts.push(
+        tCyl(
+          wl.radius * 0.44,
+          wl.width + 0.014,
+          12,
+          T_COL.hub,
+          tMul(m, tAxle(wl.position[0], wl.position[1], wl.position[2], wl.width + 0.014)),
+        ),
+      );
+    });
+
     parts.push(
       tBox(
         ch.size[0],
@@ -1563,60 +1737,90 @@ function drawTwin(tw) {
         tMul(m, tTrans(0, 0, ch.center_z)),
       ),
     );
-    (mo.wheels || []).forEach(function (wl) {
-      parts.push(
-        tCyl(
-          wl.radius,
-          wl.width,
-          10,
-          T_COL.wheel,
-          tMul(m, tTrans(wl.position[0], wl.position[1], wl.position[2])),
-        ),
-      );
-    });
-    if (mo.camera) {
+    // Top plate: a single box has no silhouette detail, and the top face is the
+    // one an overhead view actually sees.
+    parts.push(
+      tBox(
+        ch.size[0] * 0.94,
+        ch.size[1] * 0.88,
+        0.03,
+        T_COL.deck,
+        tMul(m, tTrans(0, 0, ch.center_z + ch.size[2] / 2 + 0.015)),
+      ),
+    );
+    if (deck) {
       parts.push(
         tBox(
-          mo.camera.size[0],
-          mo.camera.size[1],
-          mo.camera.size[2],
-          T_COL.camera,
-          tMul(
-            m,
-            tTrans(
-              mo.camera.position[0],
-              mo.camera.position[1],
-              mo.camera.position[2],
-            ),
-          ),
+          deck.size[0],
+          deck.size[1],
+          deck.size[2],
+          T_COL.deck,
+          tMul(m, tTrans(0, 0, deck.center_z)),
+        ),
+      );
+    }
+    if (mo.camera) {
+      var cp = mo.camera.position,
+        cs = mo.camera.size;
+      parts.push(
+        tBox(cs[0], cs[1], cs[2], T_COL.camera, tMul(m, tTrans(cp[0], cp[1], cp[2]))),
+      );
+      // Lens: a short barrel on the front face — the one part that should read
+      // as glass rather than plastic.
+      parts.push(
+        tCyl(
+          cs[1] * 0.34,
+          0.02,
+          14,
+          T_COL.lens,
+          tMul(m, tMul(tTrans(cp[0] + cs[0] / 2, cp[1], cp[2]), tRotY(90))),
         ),
       );
     }
     if (mo.sensor) {
+      var sp = mo.sensor.position;
+      // Mast up from the deck, then the head on top: a sensor floating with no
+      // visible mount was the other thing that read as a diagram, not a robot.
+      parts.push(tCyl(0.012, sp[2], 8, T_COL.mast, tMul(m, tTrans(sp[0], sp[1], 0))));
       parts.push(
         tCyl(
           mo.sensor.radius,
           mo.sensor.height,
-          10,
-          [0.85, 0.62, 0.11],
-          tMul(
-            m,
-            tTrans(
-              mo.sensor.position[0],
-              mo.sensor.position[1],
-              mo.sensor.position[2],
-            ),
-          ),
+          14,
+          T_COL.sensor,
+          tMul(m, tTrans(sp[0], sp[1], sp[2] - mo.sensor.height / 2)),
         ),
       );
     }
-    // Forward indicator: proves heading even viewed from directly above.
+    var mm = mo.manipulator_mount;
+    if (mm) {
+      parts.push(
+        tBox(
+          mm.size[0],
+          mm.size[1],
+          mm.size[2],
+          T_COL.mount,
+          tMul(m, tTrans(mm.position[0], mm.position[1], mm.position[2])),
+        ),
+      );
+    }
+    // Status LED on the deck, and the forward marker: the marker is what proves
+    // heading even when the robot is viewed from directly above.
+    parts.push(
+      tCyl(
+        0.016,
+        0.01,
+        10,
+        T_COL.led,
+        tMul(m, tTrans(-ch.size[0] * 0.28, ch.size[1] * 0.28, ch.center_z + ch.size[2] / 2 + 0.032)),
+      ),
+    );
     parts.push(
       tBox(
         0.16,
         0.05,
         0.03,
-        [1, 1, 1],
+        T_COL.marker,
         tMul(m, tTrans(ch.size[0] / 2 + 0.06, 0, ch.center_z)),
       ),
     );
@@ -1632,36 +1836,15 @@ function drawTwin(tw) {
   gl.enableVertexAttribArray(CC.twin.aCol);
   gl.vertexAttribPointer(CC.twin.aCol, 3, gl.FLOAT, false, 0, 0);
 
-  var t = CC.twin.target;
-  // "Follow" tracks the AMR; otherwise the view frames the data extent. Both
-  // only move the *camera* — the robot's pose comes from telemetry, never here.
-  var rb2 = tw.robot;
-  if (CC.twin.follow && rb2 && rb2.position) {
-    t = [rb2.position[0], rb2.position[1], 0.35];
-    CC.twin.dist = 4.0;
-  } else if (f.available && (f.corners || []).length === 4) {
-    var fc = f.corners;
-    var span = Math.max(
-      Math.abs(fc[2][0] - fc[0][0]),
-      Math.abs(fc[2][1] - fc[0][1]),
-      2,
-    );
-    t = [(fc[0][0] + fc[2][0]) / 2, (fc[0][1] + fc[2][1]) / 2, 0.2];
-    if (!CC.twin.follow) CC.twin.dist = Math.max(4.0, span * 1.8);
-  }
-  CC.twin.target = t;
-  var eye = [
-    t[0] + CC.twin.dist * Math.cos(CC.twin.pitch) * Math.cos(CC.twin.yaw),
-    t[1] + CC.twin.dist * Math.cos(CC.twin.pitch) * Math.sin(CC.twin.yaw),
-    t[2] + CC.twin.dist * Math.sin(CC.twin.pitch),
-  ];
-  var mvp = tMul(
-    tPersp((50 * Math.PI) / 180, w / Math.max(1, h), 0.1, 200),
-    tLookAt(eye, t, [0, 0, 1]),
-  );
   gl.useProgram(CC.twin.prog);
   gl.uniformMatrix4fv(CC.twin.uMVP, false, mvp);
+  gl.uniformMatrix4fv(CC.twin.uView, false, view);
   gl.uniform1f(CC.twin.uAlpha, 1.0);
+  // Fog is anchored to the camera distance, so it deepens as the view pulls back
+  // and never washes out a close-up. The fog colour is the stage colour, so the
+  // ground plane fades into the panel instead of ending at a visible edge.
+  gl.uniform3fv(CC.twin.uFog, T_FOG);
+  gl.uniform2f(CC.twin.uFogRange, CC.twin.dist * 0.9, CC.twin.dist * 3.4);
   gl.drawArrays(gl.TRIANGLES, 0, mesh.n);
 }
 

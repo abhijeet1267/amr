@@ -430,7 +430,14 @@ main {
 .stage.cam {
   aspect-ratio: 4 / 3;
 }
-.stage .empty {
+/* The :not([hidden]) matters. The console hides these by setting the `hidden`
+   attribute, and the UA stylesheet turns that into `display: none` — but an
+   author rule that sets `display` beats the UA sheet regardless of specificity,
+   so a bare `.stage .empty { display: flex }` made every empty state permanent:
+   "No map data.", "Waiting for camera…" and "3D rendering is unavailable" all
+   sat on top of live panels, and the twin's WebGL fallback showed even when the
+   renderer was working. */
+.stage .empty:not([hidden]) {
   position: absolute;
   inset: 0;
   display: flex;
