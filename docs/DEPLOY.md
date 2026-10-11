@@ -236,6 +236,8 @@ E   open the app / the Pi console, enter the Pi's IP, connect
 F   safety rules
 ```
 
-**See also:** [`hardware.md`](hardware.md) (wiring + bring-up) ·  
+**See also:** [`WIRING_CHECK.md`](WIRING_CHECK.md) (photos to take + what to
+check before powering up) ·  
+[`hardware.md`](hardware.md) (wiring + bring-up) ·  
 [`setup_arduino.md`](setup_arduino.md) · [`setup_raspberry_pi.md`](setup_raspberry_pi.md) ·  
 [`../tools/health_check.sh`](../tools/health_check.sh)
