@@ -51,6 +51,20 @@ ss -ltnp 2>/dev/null | grep 8080 || echo "port 8080 is free"
 cd ~/amr && ./tools/pi_quickstart.sh
 ```
 
+If starting it fails with **`OSError: [Errno 98] Address already in use`**, an
+earlier copy is still running and holding the port. It is serving the *old* code,
+so the console will look out of date until it is replaced:
+
+```bash
+sudo ss -ltnp | grep ':8080'      # shows which process owns the port
+pkill -f "amr.main"               # stop every copy of the stack
+sudo ss -ltnp | grep ':8080' || echo "port 8080 is free"
+cd ~/amr && ./tools/pi_quickstart.sh
+```
+
+If you pick up new code with `git pull`, always stop the old process first —
+otherwise the port is still taken and the new code never starts.
+
 To pick up new code before starting, pull first:
 
 ```bash
