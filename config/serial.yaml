@@ -12,3 +12,10 @@ serial:
   write_timeout_s: 0.5
   # Must match firmware/arduino/amr_controller (PROTOCOL_VERSION).
   protocol_version: "1.1"
+
+  # Opening the port toggles DTR, which resets the UNO; it needs ~2 s to reboot
+  # before the sketch answers. If the first PING is missed (slow boot), start()
+  # retries — up to this many attempts, this far apart. Without it, an
+  # immediately-following PING always times out against real hardware.
+  startup_ping_attempts: 5
+  startup_ping_interval_s: 1.0

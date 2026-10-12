@@ -66,10 +66,24 @@ class SerialTransport(Protocol):
 class ArduinoSerialTransport:
     """pyserial-backed transport. pyserial is imported lazily."""
 
-    def __init__(self, port: str, baudrate: int = 9600, timeout: float = 1.0):
+    #: Opening the port toggles DTR, which RESETS an Arduino UNO. The board then
+    #: spends ~1.5 s in its bootloader before the sketch runs, so a command sent
+    #: immediately gets no answer. Measured on the real UNO (2026-10-13):
+    #: PING right after open -> b'' ; PING after a 2 s settle -> b'PONG'.
+    #: Every mock is instant, so no test could catch this — only hardware.
+    DEFAULT_SETTLE_S = 2.0
+
+    def __init__(
+        self,
+        port: str,
+        baudrate: int = 9600,
+        timeout: float = 1.0,
+        settle_s: float = DEFAULT_SETTLE_S,
+    ):
         self._port = port
         self._baudrate = baudrate
         self._timeout = timeout
+        self._settle_s = settle_s
         self._ser = None
 
     def open(self) -> None:
@@ -79,6 +93,11 @@ class ArduinoSerialTransport:
             self._ser = serial.Serial(
                 self._port, self._baudrate, timeout=self._timeout
             )
+            # Let the board finish rebooting before we speak to it, then drop
+            # whatever it printed in the meantime (the `AMR FW READY` banner and
+            # any partial line). Without this the first PING always times out.
+            if self._settle_s > 0:
+                time.sleep(self._settle_s)
             self._ser.reset_input_buffer()
 
     def close(self) -> None:

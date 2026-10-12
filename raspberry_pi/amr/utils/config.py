@@ -44,6 +44,11 @@ class SerialConfig:
     read_timeout_s: float = 1.0
     write_timeout_s: float = 0.5
     protocol_version: str = "1.0"
+    #: Opening the port resets an Arduino UNO, so the first PING can be missed
+    #: while it reboots. These control a short retry at start() — enough to ride
+    #: out a slow boot, without making a truly absent board hang forever.
+    startup_ping_attempts: int = 5
+    startup_ping_interval_s: float = 1.0
 
 
 @dataclass
@@ -508,6 +513,10 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
 def _validate_serial(c: SerialConfig) -> None:
     if not (9600 <= c.baudrate <= 115200):
         raise ConfigError(f"serial.baudrate {c.baudrate} out of expected range")
+    if c.startup_ping_attempts < 1:
+        raise ConfigError("serial.startup_ping_attempts must be >= 1")
+    if c.startup_ping_interval_s < 0:
+        raise ConfigError("serial.startup_ping_interval_s must be >= 0")
     if c.port:
         return
     raise ConfigError("serial.port is empty; set it in config/serial.yaml")

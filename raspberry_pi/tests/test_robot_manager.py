@@ -310,3 +310,76 @@ def test_command_event_reports_the_commanded_speed_not_the_requested_one(robot):
     assert "COMMAND FORWARD L=200 R=200" in lines, lines
     assert "COMMAND FORWARD L=100 R=100" in lines, (
         f"the scaled command must be logged as sent, not as requested: {lines}")
+
+
+# --------------------------------------------------------------------------- #
+# Startup ping retry (found on real hardware: opening the port resets the UNO)
+# --------------------------------------------------------------------------- #
+class _SlowBootTransport:
+    """A transport that answers nothing for the first N commands.
+
+    Mirrors the real UNO: opening the serial port toggles DTR and reboots the
+    board, so the first PING arrives while the bootloader is still running and
+    gets no reply. Measured on hardware (2026-10-13).
+    """
+
+    def __init__(self, silent_for: int = 2):
+        self._silent_for = silent_for
+        self._open = False
+        self._writes = 0
+        self._last = ""
+
+    def open(self): self._open = True
+    def close(self): self._open = False
+    @property
+    def is_open(self): return self._open
+
+    def write(self, line: str) -> None:
+        self._writes += 1
+        self._last = line.strip().upper()
+
+    def read_line(self, timeout: float):
+        # Answer only once the "boot" is over, and answer the command asked.
+        if self._writes <= self._silent_for:
+            return None
+        if self._last == "PING":
+            return "PONG"
+        if self._last == "VERSION":
+            return "VERSION 1.1"
+        if self._last == "SENSOR":
+            return "SENSOR F=100 L=100 R=100 B=100"
+        if self._last == "STATUS":
+            return "STATUS L=0 R=0 MODE=STOPPED"
+        return None
+
+
+def test_start_retries_a_missed_ping(app_config):
+    """A board that is slow to boot must not fail startup outright."""
+    from amr.communication.arduino_serial import ArduinoSerial
+    from amr.control import ArduinoMotorDriver
+
+    transport = _SlowBootTransport(silent_for=2)
+    serial = ArduinoSerial(transport, timeout=0.02)
+    driver = ArduinoMotorDriver(serial, max_speed=255)
+    mgr = RobotManager(serial, driver, app_config)
+    # Shrink the wait so the test is fast; the retry logic is what matters.
+    app_config.serial.startup_ping_attempts = 5
+    app_config.serial.startup_ping_interval_s = 0.01
+    assert mgr.start() is True
+    assert mgr.state.connected is True
+
+
+def test_start_still_fails_when_the_controller_never_answers(app_config):
+    """Retrying must not turn an absent controller into a false success."""
+    from amr.communication.arduino_serial import ArduinoSerial
+    from amr.control import ArduinoMotorDriver
+
+    transport = _SlowBootTransport(silent_for=10_000)
+    serial = ArduinoSerial(transport, timeout=0.02)
+    driver = ArduinoMotorDriver(serial, max_speed=255)
+    mgr = RobotManager(serial, driver, app_config)
+    app_config.serial.startup_ping_attempts = 3
+    app_config.serial.startup_ping_interval_s = 0.01
+    with pytest.raises(ConnectionError, match="not responding to PING"):
+        mgr.start()
+    assert mgr.state.connected is False

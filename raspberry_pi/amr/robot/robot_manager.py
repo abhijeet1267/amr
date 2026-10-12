@@ -193,11 +193,25 @@ class RobotManager:
         """Connect, ping, and take a first sensor snapshot.
 
         Raises ``ConnectionError`` if the controller does not answer PING.
+
+        The ping is retried: opening the serial port resets an Arduino UNO, and
+        the transport's settle wait is a fixed guess, so a board that is still
+        booting can miss the first PING even though the link is fine. Retrying a
+        few times distinguishes "slow to boot" from "not there" without making a
+        genuinely absent controller wait forever.
         """
         self._serial.connect()
-        if not self._serial.ping():
+        attempts = max(1, int(self._config.serial.startup_ping_attempts))
+        for attempt in range(attempts):
+            if self._serial.ping():
+                break
+            if attempt < attempts - 1:
+                time.sleep(self._config.serial.startup_ping_interval_s)
+        else:
             self.state.connected = False
-            raise ConnectionError("controller not responding to PING")
+            raise ConnectionError(
+                f"controller not responding to PING after {attempts} attempt(s)"
+            )
         self._note_ok()
         self.state.connected = True
 
