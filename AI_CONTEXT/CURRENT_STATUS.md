@@ -76,7 +76,7 @@ regenerated from the same measured `pytest --collect-only -q` run.
 | `safety` (Layer 3, incl. C6 avoidance)                         | **Implemented, unit-tested, opt-in**                    | `test_safety_manager.py` (14), `test_avoidance.py` (76)                                                                                                                                    |
 | `hazard` (Layer 3.5, incl. `visualisation`, `vision`)          | **Implemented, unit-tested, opt-in**                    | `test_hazard.py` (48), `test_hazard_visualisation.py` (23), `test_vision.py` (101), `python -m amr.hazard`, `python -m amr.hazard.vision`                                                  |
 | `sensors` (ultrasonic validation)                              | **Implemented, unit-tested**                            | `test_ultrasonic.py`                                                                                                                                                                       |
-| `sensors` (DHT11 + MQ gas, telemetry-only)                      | **Implemented, unit-tested**                            | `test_environment.py` (18); **MQ gas is UNAVAILABLE — no analog pin is assigned**                                                                                                            |
+| `sensors` (DHT11 + MQ gas, telemetry-only)                     | **Implemented, unit-tested**                            | `test_environment.py` (18); **MQ gas is UNAVAILABLE — no analog pin is assigned**                                                                                                          |
 | `robot` (manager, modes, state)                                | **Implemented, unit-tested**                            | `test_robot_manager.py`, `test_mode_controller.py`, `test_robot_state.py`                                                                                                                  |
 | `camera`                                                       | **Implemented, partially tested** (2 tests need OpenCV) | `test_camera_manager.py`                                                                                                                                                                   |
 | `navigation` (incl. C6 avoidance gate)                         | **Implemented, unit-tested**                            | `test_navigation.py` (50), `test_avoidance.py` (76)                                                                                                                                        |
@@ -109,20 +109,32 @@ python -m amr.hazard.visualisation   # render the events JSONL onto the map (SVG
 
 > These are the honest gaps. Do **not** describe them as complete.
 
-| Item                                                 | State                                | Blocker                                                                          |
-| ---------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------- |
-| Robot geometry (`wheel_track_m`, `wheel_diameter_m`) | **`null`**                           | Must be measured physically. Odometry/navigation math is unvalidated until then. |
-| Safety thresholds (`config/safety.yaml`)             | **`NOT_VERIFIED`**                   | Test values. Must be confirmed on hardware.                                      |
-| Hazard thresholds (`config/hazard.yaml`)             | **`NOT_VERIFIED`**, `enabled: false` | Sensor-specific; no gas/fire sensor hardware exists yet.                         |
-| Ultrasonic trig/echo pins                            | **`TODO_VERIFY`**                    | Wiring not documented; pins deliberately not invented.                           |
-| Camera cable compatibility                           | Unconfirmed                          | Software degrades gracefully when absent.                                        |
-| Arduino firmware                                     | **Never executed in CI**             | No Arduino toolchain in CI; requires a physical UNO.                             |
-| L298N ENA/ENB wiring                                 | Unverified                           | PWM output is gated until confirmed.                                             |
-| Anything on real hardware                            | **Not tested**                       | Every claim above is mock-based.                                                 |
+> **Hardware WAS exercised on 2026-10-13** (Pi 5 + UNO). The firmware compiled
+> (44% flash / 32% RAM) and flashed, `PING`/`VERSION`/`STATUS`/`SENSOR` answered,
+> four live ultrasonic distances were read, and the camera served a 1280×720
+> PNG. Three real defects were found this way and fixed (picamera2 config,
+> picamera2 venv visibility, serial DTR reset) — see `docs/camera.md` §1a.
+> Everything below remains genuinely unverified.
 
-### Hardware-dependent (untested here)
+| Item                                                 | State                                | Blocker                                                                           |
+| ---------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
+| Robot geometry (`wheel_track_m`, `wheel_diameter_m`) | **`null`**                           | Must be measured physically. Odometry/navigation math is unvalidated until then.  |
+| Safety thresholds (`config/safety.yaml`)             | **`NOT_VERIFIED`**                   | Test values. Must be confirmed on hardware.                                       |
+| Hazard thresholds (`config/hazard.yaml`)             | **`NOT_VERIFIED`**, `enabled: false` | Sensor-specific; **no gas sensor is wired** (no analog pin free).                 |
+| Motor drive / PWM polarity (L298N)                   | **Untested**                         | Firmware compiled and flashed, but no wheel has been commanded to move.           |
+| Wheel direction & real stop distances                | **Untested**                         | Requires a bench test with the wheels off the ground.                             |
+| DHT11 temperature/humidity                           | **Not reading** (`T=-1 H=-1`)        | Likely a missing ~10 kΩ pull-up; telemetry-only, blocks nothing.                  |
+| MQ gas sensor                                        | **No pin assigned**                  | The pin chart uses all 20 UNO pins. Reports `UNAVAILABLE`, never a fake 0.        |
+| LCD / buzzer on hardware                             | **Commands verified, effect not**    | `ACK LCD` / `ACK BUZZ` returned; whether the display/audio worked is unconfirmed. |
+| Arduino firmware in CI                               | **Never executed in CI**             | No AVR toolchain in CI; flashed by hand on the Pi only.                           |
 
-- Motor direction/PWM polarity, encoder/odometry accuracy, real stop distances.
+### Hardware-dependent (now partly exercised)
+
+- **Verified 2026-10-13:** firmware compiles/flashes; serial link
+  (`PING`/`VERSION`/`STATUS`); four ultrasonic readings; picamera2 frame capture.
+- **Still untested:** motor direction/PWM polarity, encoder/odometry accuracy,
+  real stop distances, the safety watchdog tripping during an actual drive, and
+  any autonomous motion.
 - The watchdog and proximity stop in `firmware/arduino/amr_controller/safety.cpp`.
 - The serial link itself (`/dev/ttyACM0` @ 9600).
 - Any gas/fire/human sensor — **none are wired at all**.

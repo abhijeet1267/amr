@@ -78,10 +78,24 @@ else
   warn "system python3 cannot import yaml; falling back to a private venv"
   command -v python3 >/dev/null 2>&1 || die "python3 not found at all"
   if [ ! -x "$PKG/.venv/bin/python" ]; then
-    python3 -m venv "$PKG/.venv" || die "could not create a venv"
-    ok "created $PKG/.venv (inside the repo, nothing global)"
+    # --system-site-packages is REQUIRED for the real camera. `picamera2` is an
+    # apt package (libcamera bindings), not a pip one, so it cannot be installed
+    # into an isolated venv — the app's interpreter must be able to see the
+    # system copy. Without this the camera source silently falls back to the
+    # CLI, whose capture then fails with "failed to acquire camera" even though
+    # the hardware works. Verified on the Pi 2026-10-13.
+    python3 -m venv --system-site-packages "$PKG/.venv" \
+      || die "could not create a venv"
+    ok "created $PKG/.venv (system site packages on, for picamera2)"
   else
     ok "re-using $PKG/.venv"
+    # A venv made before the camera work has this off; turn it on in place so an
+    # existing install gains the camera without being deleted.
+    if grep -q "include-system-site-packages = false" "$PKG/.venv/pyvenv.cfg" 2>/dev/null; then
+      sed -i "s/include-system-site-packages = false/include-system-site-packages = true/" \
+        "$PKG/.venv/pyvenv.cfg"
+      ok "enabled system site packages (so picamera2 is importable)"
+    fi
   fi
   "$PKG/.venv/bin/python" -m pip install --quiet --upgrade pip || true
   # [serial] adds pyserial, which is only needed once the Arduino is attached.

@@ -1,10 +1,14 @@
 # Camera monitoring (C8)
 
-> **REAL CAMERA HARDWARE TESTED: NO.**
-> No Raspberry Pi camera was available when this was written. Every claim below
-> is backed by the deterministic simulated camera or by fault-injected tests
-> that stand in for missing hardware. Nothing here is a measurement of real
-> camera performance, latency, or image quality.
+> **REAL CAMERA HARDWARE TESTED: YES (2026-10-13).**
+> Verified on the real robot: Raspberry Pi 5 + Camera Module v2 (`imx219`),
+> picamera2 0.3.37. `GET /camera/frame` returned a live **1280×720 PNG**
+> (0.8–1.2 MB) with `status: LIVE`, `backend: picamera2`, no error.
+> Image quality, latency and frame rate are still **not** measured — only that
+> frames are acquired and served.
+>
+> Getting there fixed three real defects that had never been caught because no
+> test could see them (see §2a).
 
 C8 adds the camera layer beneath C5's vision pipeline. It deliberately does
 **not** replace `amr/camera/camera_manager.py`, the C5 vision contract, or the
@@ -33,6 +37,37 @@ CameraSource (protocol)                    amr/camera/frame.py
 The camera is a **sensor**, not an actuator. It reads frames and publishes
 metadata; it never writes to the controller, changes robot mode, or influences
 safety, navigation, or hazards.
+
+## 1a. Three defects found only on real hardware
+
+All three produced the same misleading symptom — _"capture failed … failed to
+acquire camera"_ — on a camera that was working perfectly. `rpicam-still` alone
+captured a 744 KB JPEG, and no other process held the device.
+
+| #   | Defect                                          | Effect                                                                                                                                                                                                             |
+| --- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `configure(main={...})` was passed to picamera2 | `Picamera2.configure` takes a single `camera_config` argument and has **no** `main=` keyword. Every start raised `TypeError`, so picamera2 never opened and the code silently fell through to the CLI.             |
+| 2   | The failure path called `library.close()`       | `library` is the Picamera2 **class**, not the instance. It neither released the device nor raised, so the half-open handle kept the ISP pipeline and the CLI fallback then failed with `failed to acquire camera`. |
+| 3   | picamera2 was invisible to the venv             | `picamera2` ships as an apt package in **system** python; the project venv is isolated (`include-system-site-packages = false`), so the app's interpreter could not import it at all.                              |
+
+The fix: build the config with `create_still_configuration(main=...)`, close the
+**instance** on failure, and set `include-system-site-packages = true` in
+`raspberry_pi/.venv/pyvenv.cfg` so the venv sees the apt-provided `picamera2`.
+
+**Why the suite missed it:** the test double's `configure(**kwargs)` accepted
+`main=`, so a call that is a `TypeError` on real hardware passed every test. The
+double now mirrors the real signature.
+
+### Serial startup (same class of bug)
+
+Opening the port toggles DTR, which **resets an Arduino UNO**. The board spends
+~2 s in its bootloader, so a `PING` sent immediately after opening got no reply
+and the app aborted with _"controller not responding to PING"_. Measured on the
+UNO: immediate PING → nothing; after a 2 s settle → `PONG`. The transport now
+settles after opening and `RobotManager.start()` retries the ping
+(`serial.startup_ping_attempts` / `startup_ping_interval_s`).
+
+---
 
 ## 2. The `CameraFrame` contract
 
@@ -117,6 +152,14 @@ Each import is attempted lazily inside a guarded block. Any failure downgrades
 to the next candidate and records the reason. Nothing is initialised until
 `start()` is called.
 
+> **On the venv:** `picamera2` is an **apt** package (libcamera bindings), not a
+> pip one — it cannot be installed into an isolated venv. `pi_quickstart.sh`
+> runs the stack from `raspberry_pi/.venv`, so that venv must have
+> `include-system-site-packages = true` for picamera2 to be importable. Without
+> it the source silently falls back to the CLI, whose 5 s timeout then reports a
+> capture failure. Verified on the Pi: with the flag set, `backend` is
+> `picamera2` and `GET /camera/frame` returns a 1280×720 PNG.
+
 ## 7. HTTP surface (read-only)
 
 | Route                | Returns                                          |
@@ -152,9 +195,14 @@ hardware, GPIO, or motors. A missing or broken camera yields `503` or an
 
 ## 9. Known limitations
 
-- **No real hardware validation.** The Pi backend is written against the
-  documented APIs but has never been run on a Pi.
-- No continuous video stream; single-frame retrieval only.
+- **Camera acquisition IS validated** on a Pi 5 + imx219 (2026-10-13): frames
+  are acquired via picamera2 and served as 1280×720 PNG. What is **not**
+  measured is image quality, latency, frame rate, or long-run stability.
+- No continuous video stream; single-frame retrieval only. Each `read()` calls
+  `capture_array()`, so the served frame rate is whatever the polling gives.
+- **The DHT11 does not read** (`ENV T=-1 H=-1`). A bare 4-pin sensor needs a
+  ~10 kΩ pull-up between VCC and DATA; the internal pull-up is usually too
+  weak. Telemetry-only, so nothing is blocked.
 - No C5 `VisionDetector` is attached to real frames yet — that integration
   (and any ML model) is a later milestone.
 - Bounding-box overlays are supported by the metadata shape but not rendered;
@@ -163,5 +211,5 @@ hardware, GPIO, or motors. A missing or broken camera yields `503` or an
 ---
 
 **Source:** `raspberry_pi/amr/camera/frame.py` ·
-**Tests:** `raspberry_pi/tests/test_camera_frame.py` (46), camera cases in
+**Tests:** `raspberry_pi/tests/test_camera_frame.py` (60), camera cases in
 `test_telemetry.py` and `test_web_server.py`
