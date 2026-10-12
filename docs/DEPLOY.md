@@ -34,6 +34,32 @@ It finds a Python that can run the stack, checks the camera, and starts the
 console in mock mode. It uses **no sudo**, touches no GPIO, and installs nothing
 system-wide. Ctrl-C stops it, and it is safe to re-run.
 
+### Stopping it, and starting it again
+
+The console runs in the **foreground**, so your shell prompt does not come back
+while it is up. That is the normal, working state — not a hang.
+
+```bash
+# stop it: press Ctrl-C in the terminal that is running it.
+# if it was started in the background instead:
+pkill -f "amr.main" && echo "stopped"
+
+# check whether anything is still listening on the port:
+ss -ltnp 2>/dev/null | grep 8080 || echo "port 8080 is free"
+
+# start it again (same one command — it is idempotent):
+cd ~/amr && ./tools/pi_quickstart.sh
+```
+
+To pick up new code before starting, pull first:
+
+```bash
+cd ~/amr
+rm -f .git/index.lock          # only if a previous pull was interrupted
+git pull
+./tools/pi_quickstart.sh
+```
+
 Then, from another machine on the same network:
 
 | Want | Use | Why |
