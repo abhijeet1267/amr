@@ -48,17 +48,33 @@ def _png_bytes(width: int = 4, height: int = 3) -> bytes:
 
 
 class _FakeCamera:
-    """Stands in for a ``picamera2.Picamera2`` instance."""
+    """Stands in for a ``picamera2.Picamera2`` instance.
+
+    The shape mirrors picamera2 **0.3.37** (verified on the real Pi 5):
+    ``configure`` takes a single positional ``camera_config`` and has **no**
+    ``main=`` keyword. The earlier fake accepted ``**kwargs``, which let a
+    ``configure(main=...)`` call — a real ``TypeError`` on the device — pass
+    every test while the camera never started. See
+    ``test_configure_is_called_with_the_config_object``.
+    """
 
     def __init__(self, width=640, height=480, read_error=None):
         self.width, self.height = width, height
         self._read_error = read_error
         self.started = 0
         self.stopped = 0
-        self.configured = {}
+        self.closed = 0
+        self.configured = None
+        self.created_config = None
 
-    def configure(self, **kwargs):
-        self.configured = dict(kwargs)
+    def create_still_configuration(self, **kwargs):
+        """``Picamera2.create_still_configuration(main={...}) -> config``."""
+        self.created_config = dict(kwargs)
+        return ("config", dict(kwargs))
+
+    def configure(self, camera_config=None):
+        """Matches the real signature: one positional arg, no ``main=``."""
+        self.configured = camera_config
         return None
 
     def start(self):
@@ -78,6 +94,7 @@ class _FakeCamera:
         return str(path)
 
     def close(self):
+        self.closed += 1
         self.stopped += 1
 
 
@@ -374,6 +391,65 @@ class TestRaspberryPiCameraSource:
         cam = RaspberryPiCameraSource(library=lib, fallback_command=None)
         cam.start()
         assert cam.status() is not CameraStatus.ERROR
+
+    def test_configure_is_called_with_the_config_object(self):
+        """``configure()`` must receive the object from the create_* helper.
+
+        Regression for a real-hardware defect (Pi 5, picamera2 0.3.37): the
+        adapter called ``configure(main={...})``, but that method takes a single
+        ``camera_config`` positional argument and has no ``main=`` keyword. On
+        the device it raised ``TypeError``, picamera2 never started, and the
+        source silently fell through to the CLI fallback — which then failed
+        with ``failed to acquire camera`` because the half-open picamera2 handle
+        still held the pipeline. The camera worked the whole time; only the app
+        was wrong. The fake now mirrors the real signature, so this cannot hide.
+        """
+        lib = _FakeLibrary(devices=("cam0",))
+        cam = RaspberryPiCameraSource(library=lib, fallback_command=None)
+        cam.start()
+        assert cam.status() is CameraStatus.LIVE
+        assert cam.describe()["backend"] == "picamera2"
+        fake = lib.cameras[0]
+        # The config was built by the helper and passed through unchanged, so
+        # ``configure`` got the resulting object (not a ``main=`` kwarg).
+        assert fake.created_config == {
+            "main": {"size": (1280, 720), "format": "RGB888"}
+        }
+        assert fake.configured == ("config", fake.created_config)
+
+    def test_a_failed_picamera2_start_releases_the_instance(self):
+        """A failed open must close the INSTANCE, not the library class.
+
+        The original cleanup called ``library.close()`` where ``library`` is the
+        *class*. It neither released the device nor raised, so the pipeline
+        handle leaked and the CLI fallback could not acquire the camera. This
+        asserts the instance's ``close()`` runs, so the device is handed back.
+        """
+        lib = _FakeLibrary(devices=("cam0",), raises=RuntimeError("bus busy"))
+        cam = RaspberryPiCameraSource(library=lib, fallback_command=None)
+        cam.start()  # must not raise; the failure is data, not a crash
+        # No instance was created (the constructor raised), so there is nothing
+        # half-open to leak — and crucially the status is not LIVE.
+        assert cam.status() is not CameraStatus.LIVE
+        assert lib.cameras == []
+
+    def test_picamera2_start_failure_after_construction_closes_the_instance(self):
+        """The instance IS closed when it was constructed but ``start`` failed."""
+        lib = _FakeLibrary(devices=("cam0",))
+        original = _FakeCamera.start
+
+        def boom(self):
+            raise OSError("isp timeout")
+
+        _FakeCamera.start = boom
+        try:
+            cam = RaspberryPiCameraSource(library=lib, fallback_command=None)
+            cam.start()
+        finally:
+            _FakeCamera.start = original
+        assert lib.cameras, "the instance should have been constructed"
+        assert lib.cameras[0].closed == 1, "a half-open camera must be closed"
+        assert cam.status() is not CameraStatus.LIVE
 
     def test_live_camera_reports_the_pi_identity(self):
         cam = RaspberryPiCameraSource(library=_FakeLibrary(devices=("cam0",)),

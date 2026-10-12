@@ -413,19 +413,40 @@ class RaspberryPiCameraSource:
         return self._library
 
     def _open_picamera2(self, library: Any) -> None:
-        """Acquire the device through the modern Pi stack, if it is usable."""
+        """Acquire the device through the modern Pi stack, if it is usable.
+
+        Two defects found on real hardware (Pi 5, picamera2 0.3.37, 2026-10-13):
+
+        1. ``Picamera2.configure`` takes a single ``camera_config`` argument —
+           it has **no** ``main=`` keyword. Passing one raised ``TypeError``, so
+           picamera2 never started and the code silently fell through to the CLI
+           fallback.
+        2. The failure path called ``library.close()`` — ``library`` is the
+           *Picamera2 class*, not the instance. That neither released the device
+           nor raised usefully, so the half-opened camera kept the pipeline
+           handle and the CLI fallback then failed with
+           ``failed to acquire camera``. It must close the **instance**.
+
+        Fixed together because (1) caused (2) to run on every start, which is
+        exactly the "camera works but the app says capture failed" symptom.
+        """
+        camera = None
         try:
             camera = library()
-            camera.configure(
+            # picamera2's own helper builds the config; ``configure`` accepts
+            # only that single positional argument on this version.
+            config = camera.create_still_configuration(
                 main={"size": (self.width, self.height), "format": "RGB888"}
             )
+            camera.configure(config)
             camera.start()
         except Exception as exc:  # noqa: BLE001 - no camera / bad config
             self._reason = f"picamera2 could not start: {exc}"
-            closer = getattr(library, "close", None)
-            if callable(closer):
+            # Release the INSTANCE so the device is not left held by a
+            # half-open handle (which would break the CLI fallback below).
+            if camera is not None:
                 try:
-                    closer()
+                    camera.close()
                 except Exception:  # noqa: BLE001 - best-effort cleanup
                     pass
             return
