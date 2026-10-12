@@ -91,11 +91,43 @@ generated, but **nothing is sent to hardware**. That is exactly what you want
 while the robot is unbuilt: it proves the app, the network and the camera work
 before any wiring is involved.
 
+It also means the **camera** is simulated — `--mock` picks the simulated source,
+so the Camera panel shows a generated test pattern, not your lens. That is
+deliberate, but the two halves of the stack are built at different times, so it
+is often wrong.
+
+### Using the real camera while the controller is still mocked
+
+If the Pi camera is mounted and working but the Arduino is still in its box, ask
+for the real camera explicitly:
+
+```bash
+cd ~/amr/raspberry_pi
+python3 -m amr.main --mock --web --camera real
+```
+
+`--camera real` uses the hardware camera under `--mock`; `--camera sim` forces
+the test pattern; `--camera auto` (the default) follows `--mock`. The panel's
+status still reports honestly what answered — `LIVE` for real frames,
+`UNAVAILABLE` with a reason if nothing did.
+
+Before blaming the software, prove the hardware directly:
+
+```bash
+rpicam-hello --list-cameras                 # is the sensor even seen?
+rpicam-still -n -t 500 -o /tmp/test.jpg     # does it capture?
+```
+
+If `--list-cameras` prints nothing, it is physical: the ribbon (the Pi 5 uses a
+**22-pin mini-CSI** connector, so a Pi 4 ribbon will not fit), the latch, or the
+connector. No software change will help.
+
 ### Only install what you need
 
-The stack's **only** dependency is **PyYAML**, which Raspberry Pi OS already
-ships as `python3-yaml`. `pyserial` is needed only once the Arduino is attached
-(`pip install -e ".[serial]"` in a venv).
+The stack's **only** dependency for mock mode is **PyYAML**, which Raspberry Pi
+OS already ships as `python3-yaml`. `pyserial` is needed only once the Arduino
+is attached (`pip install -e ".[serial]"` in a venv) — running without `--mock`
+requires it, and also requires a controller that actually answers.
 
 It does **not** use FastAPI, uvicorn, websockets or starlette. Installing those
 system-wide with `pip install --break-system-packages` is unnecessary and

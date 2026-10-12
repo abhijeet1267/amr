@@ -447,6 +447,30 @@ class TestConfigAndFactory:
         assert cam.describe()["simulated"] is False
         assert cam.name == "RaspberryPiCamera"
 
+    def test_camera_real_overrides_mock(self, config_dir):
+        """A builder can have the Pi camera mounted while the Arduino is still
+        in its box. Mocking the controller must not also blind the camera, or
+        the one piece of hardware that IS attached cannot be checked."""
+        from amr.main import build_camera
+        from amr.utils.config import load_config
+        cam = build_camera(load_config(config_dir), mock=True, camera="real")
+        assert cam.describe()["simulated"] is False
+        assert cam.name == "RaspberryPiCamera"
+
+    def test_camera_sim_overrides_hardware(self, config_dir):
+        from amr.main import build_camera
+        from amr.utils.config import load_config
+        cam = build_camera(load_config(config_dir), mock=False, camera="sim")
+        assert cam.describe()["simulated"] is True
+
+    def test_camera_auto_still_follows_mock(self, config_dir):
+        """The default must not quietly change what --mock means."""
+        from amr.main import build_camera
+        from amr.utils.config import load_config
+        cfg = load_config(config_dir)
+        assert build_camera(cfg, mock=True, camera=None).describe()["simulated"]
+        assert not build_camera(cfg, mock=False, camera=None).describe()["simulated"]
+
     def test_frame_detector_wraps_the_camera(self, config_dir):
         from amr.main import build_camera, build_frame_detector
         from amr.utils.config import load_config

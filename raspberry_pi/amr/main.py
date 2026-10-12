@@ -108,16 +108,25 @@ def parse_resolution(value: Any, default: Tuple[int, int] = (640, 480)
     return width, height
 
 
-def build_camera(config: AppConfig, mock: bool) -> Any:
+def build_camera(config: AppConfig, mock: bool,
+                 camera: Optional[str] = None) -> Any:
     """Camera source for the web UI / telemetry; always degrades gracefully.
 
     C8: returns a :class:`CameraSource` from :mod:`amr.camera.frame`, so the
     dashboard and the C7 telemetry collector read one stable contract. The
     choice is explicit and honest about what is behind it:
 
-    * ``--mock`` -> :class:`SimulatedCameraSource` (status ``SIMULATION``)
-    * hardware  -> :class:`RaspberryPiCameraSource` (``LIVE`` / ``UNAVAILABLE``
-      / ``ERROR`` depending on what the Pi actually offers)
+    * ``--mock``        -> :class:`SimulatedCameraSource` (status ``SIMULATION``)
+    * hardware          -> :class:`RaspberryPiCameraSource` (``LIVE`` /
+      ``UNAVAILABLE`` / ``ERROR`` depending on what the Pi actually offers)
+    * ``--camera real`` -> the real source even under ``--mock``
+
+    That third case exists because the two halves of the stack are built at
+    different times. A builder can have the Pi camera mounted and working while
+    the Arduino is still in its box, and mocking the *controller* must not also
+    blind the camera — otherwise the one piece of hardware that is actually
+    attached cannot be checked at all. It is opt-in and the status still reports
+    honestly what answered.
 
     Nothing here opens a device, so a missing camera cannot stop the runtime
     from starting; the backend reports the failure through its status instead.
@@ -129,9 +138,9 @@ def build_camera(config: AppConfig, mock: bool) -> Any:
     """
     cam_cfg = config.robot.camera
     width, height = parse_resolution(getattr(cam_cfg, "resolution", None))
-    if mock:
-        return SimulatedCameraSource(width=width, height=height)
-    return RaspberryPiCameraSource(width=width, height=height)
+    if camera == "real" or (camera is None and not mock):
+        return RaspberryPiCameraSource(width=width, height=height)
+    return SimulatedCameraSource(width=width, height=height)
 
 
 def build_frame_detector(camera: Any, config: AppConfig) -> Any:
@@ -282,7 +291,13 @@ def run_demo(mgr: RobotManager, out=print) -> int:
 # --------------------------------------------------------------------------- #
 def run_web(mgr: RobotManager, config: AppConfig, args: argparse.Namespace) -> int:
     """Run the web control panel until Ctrl-C. Returns a process exit code."""
-    camera = build_camera(config, args.mock)
+    # getattr: a programmatic caller may build a partial Namespace (the tests
+    # do), and the camera choice is an optional preference, not a required
+    # input — the same reasoning as args.mission_demo below.
+    camera_choice = getattr(args, "camera", "auto")
+    camera = build_camera(
+        config, args.mock, None if camera_choice == "auto" else camera_choice
+    )
     # C8: own the camera lifecycle here so the device is opened once and — more
     # importantly — released on exit. `start()` never raises, so a camera that
     # fails to open degrades to UNAVAILABLE/ERROR instead of blocking the panel.
@@ -485,6 +500,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="run against the in-process mock controller (no hardware)",
     )
     parser.add_argument(
+        "--camera",
+        choices=("auto", "real", "sim"),
+        default="auto",
+        help=("camera source. 'auto' (default) follows --mock; 'real' uses the "
+              "hardware camera even under --mock, so the Pi camera can be "
+              "checked while the controller is still mocked; 'sim' forces the "
+              "simulated test pattern"),
+    )
+    parser.add_argument(
         "--demo",
         action="store_true",
         help="run a scripted demo sequence and exit (implies no input)",
@@ -549,6 +573,28 @@ def main(argv: Optional[List[str]] = None) -> int:
     except ConnectionError as exc:
         print(f"could not reach controller: {exc}", file=sys.stderr)
         return 3
+    except ModuleNotFoundError as exc:
+        # Hardware mode needs pyserial, which is an optional extra — mock mode
+        # deliberately does not. Without this the user gets a bare
+        # ModuleNotFoundError traceback that says nothing about what to do.
+        print(
+            f"hardware mode needs pyserial, which is not installed ({exc}).\n"
+            f"  install it:            pip install -e \".[serial]\"\n"
+            f"  or run without hardware: --mock",
+            file=sys.stderr,
+        )
+        return 4
+    except OSError as exc:
+        # ConnectionError is an OSError and is handled above, so this is the
+        # link failing to open at all: no device, wrong port, or no permission.
+        print(
+            f"could not open the controller link: {exc}\n"
+            f"  is the Arduino connected, and does config/serial.yaml name the "
+            f"right port?\n"
+            f"  or run without hardware: --mock",
+            file=sys.stderr,
+        )
+        return 4
 
     # Opt-in hazard layer (honours config.hazard.enabled; default off).
     attach_hazard_layer(mgr, config)

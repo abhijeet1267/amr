@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
 **Last verified:** 2026-10-09, C19 spatial heat map merged — full suite
-**1614 passed, 2 skipped, 0 failed**.
+**1617 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,7 +10,7 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check                                                       | Result                                                                                                                                                                                                                                                                                                                                 |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cd raspberry_pi && python -m pytest`                       | **1614 passed, 2 skipped, 0 failed**                                                                                                                                                                                                                                                                                                   |
+| `cd raspberry_pi && python -m pytest`                       | **1617 passed, 2 skipped, 0 failed**                                                                                                                                                                                                                                                                                                   |
 | Test files                                                  | 39 (`tests/test_*.py`)                                                                                                                                                                                                                                                                                                                 |
 | `python -m compileall amr`                                  | clean                                                                                                                                                                                                                                                                                                                                  |
 | Orphan scan (every module imported by prod or tests)        | none — no dead modules                                                                                                                                                                                                                                                                                                                 |
@@ -31,14 +31,14 @@ those are installed and skip gracefully otherwise. They are the only conditional
 tests.
 
 Per-file test counts (regenerated from `pytest --collect-only -q` — 39 files,
-1616 tests: 1614 run + 2 skipped):
+1619 tests: 1617 run + 2 skipped):
 
 ```
 test_app_registry.py           46    test_mode_controller.py        13
 test_applications_hub.py       27    test_motor_controller.py       21
 test_auto_record.py            27    test_navigation.py             50
 test_avoidance.py              76    test_ops_projection.py         52
-test_camera_backend.py         47    test_protocol.py               37
+test_camera_backend.py         50    test_protocol.py               37
 test_camera_frame.py           56    test_replay.py                 59
 test_camera_manager.py          9    test_replay_control.py         68
 test_camera_overlay.py         40    test_rfid.py                   63
