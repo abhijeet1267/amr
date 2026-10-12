@@ -34,6 +34,41 @@ It finds a Python that can run the stack, checks the camera, and starts the
 console in mock mode. It uses **no sudo**, touches no GPIO, and installs nothing
 system-wide. Ctrl-C stops it, and it is safe to re-run.
 
+### Use the real Pi camera
+
+Mock mode defaults to a **simulated** camera. Now that the `imx219` is fitted and
+`rpicam-still` produces a real JPEG, ask for the hardware — the controller stays
+mocked, so no Arduino is needed:
+
+```bash
+./tools/pi_quickstart.sh --camera real
+```
+
+The banner shows which source is in use, and the Camera panel reports `LIVE`
+when the camera answers, or `UNAVAILABLE`/`ERROR` when it does not — it never
+shows a stale frame as if it were live.
+
+The same choice works via the environment: `CAMERA=real ./tools/quickstart.sh`.
+Valid values are `auto` (the default, which follows mock mode), `real` and `sim`.
+
+### Where `python3 -m amr.main` must be run from
+
+The Python package is **not** at the repo root. It is one level down:
+
+```
+~/amr/                        ← `python3 -m amr.main` fails here
+~/amr/raspberry_pi/amr/       ← the package actually lives here
+```
+
+Running it from `~/amr` fails with `No module named 'amr'` — that error means
+"wrong directory", not "not installed". Use the script, which `cd`s for you:
+
+```bash
+./tools/pi_quickstart.sh --camera real
+```
+
+or `cd ~/amr/raspberry_pi` first if you want to run `python3 -m amr.main` by hand.
+
 ### Stopping it, and starting it again
 
 The console runs in the **foreground**, so your shell prompt does not come back

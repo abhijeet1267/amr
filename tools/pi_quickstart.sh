@@ -19,6 +19,8 @@
 # Usage:
 #   ./pi_quickstart.sh              # check, then run the console
 #   ./pi_quickstart.sh --setup      # check only, do not run
+#   ./pi_quickstart.sh --camera real  # use the Pi camera (still mocked controller)
+#   CAMERA=real ./pi_quickstart.sh    # same, via the environment
 #   PORT=8081 ./pi_quickstart.sh    # another port
 # ============================================================================
 set -uo pipefail
@@ -26,16 +28,36 @@ set -uo pipefail
 REPO="${AMR_REPO:-$HOME/amr}"
 PKG="$REPO/raspberry_pi"
 PORT="${PORT:-8080}"
+# The camera choice. `auto` follows --mock, which is the simulated source; the
+# hardware camera requires `real`. It is passed through to amr.main so the
+# operator never has to know that the package lives in raspberry_pi/ — running
+# `python3 -m amr.main` from $REPO fails with "No module named amr", because
+# the package is at $REPO/raspberry_pi/amr.
+CAMERA="${CAMERA:-auto}"
 SETUP_ONLY=0
-[ "${1:-}" = "--setup" ] && SETUP_ONLY=1
-
+# The helpers must be defined before they are used, and the argument parsing
+# below uses die() — so it comes after this block, not before.
 say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 ok()  { printf '   \033[32mOK\033[0m   %s\n' "$*"; }
 warn(){ printf '   \033[33mWARN\033[0m %s\n' "$*"; }
 die() { printf '   \033[31mFAIL\033[0m %s\n' "$*" >&2; exit 1; }
 
+case "${1:-}" in
+  --setup) SETUP_ONLY=1 ;;
+  --camera)
+    [ "${2:-}" != "" ] || die "--camera needs a value: auto, real or sim"
+    CAMERA="$2"; shift 2 ;;
+  --camera=*) CAMERA="${1#--camera=}"; shift ;;
+  "") : ;;
+  *) die "unknown option: $1  (try --setup, or --camera real)" ;;
+esac
+case "$CAMERA" in
+  auto|real|sim) : ;;
+  *) die "--camera must be auto, real or sim — got '$CAMERA'" ;;
+esac
+
 printf '\033[1mAMR Pi bring-up — app + camera only, no robot hardware needed\033[0m\n'
-printf 'repo: %s\nport: %s\n' "$REPO" "$PORT"
+printf 'repo: %s\nport: %s\ncamera: %s\n' "$REPO" "$PORT" "$CAMERA"
 
 # ---------------------------------------------------------------- 1. layout --
 say "1/4  Checking the code is in place"
@@ -171,6 +193,11 @@ if [ -n "${STALE:-}" ]; then
 fi
 
 say "4/4  Starting the control stack in MOCK mode"
+if [ "$CAMERA" = "auto" ]; then
+  printf '   Camera: simulated (pass --camera real to use the Pi camera)\n'
+else
+  printf '   Camera: %s\n' "$CAMERA"
+fi
 # `hostname -I` is Linux-only; never let its absence abort the script.
 IP=""
 if command -v hostname >/dev/null 2>&1; then
@@ -181,4 +208,10 @@ printf '\n   Console : http://localhost:%s/command-center\n' "$PORT"
 printf '   App     : enter %s and port %s in the AMR app\n' "${IP:-<pi-ip>}" "$PORT"
 printf '\n   MOCK MODE — no hardware is touched. Ctrl-C to stop.\n\n'
 cd "$PKG" || die "cannot cd into $PKG"
-exec "$PY" -m amr.main --mock --web --port "$PORT"
+# Only pass --camera when it is not the default, so an untouched default stays
+# on the auto path and amr.main keeps its own resolution rule.
+if [ "$CAMERA" = "auto" ]; then
+  exec "$PY" -m amr.main --mock --web --port "$PORT"
+else
+  exec "$PY" -m amr.main --mock --web --camera "$CAMERA" --port "$PORT"
+fi
