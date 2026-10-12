@@ -890,28 +890,35 @@ class AMRWebApp:
         is served — no history is buffered, so repeated polling cannot grow
         memory. A camera that cannot produce a frame yields ``503`` with a
         machine-readable reason rather than a fabricated placeholder.
+
+        A live source is re-read on every request. Serving the cached frame
+        *instead* of reading froze the image on real hardware (2026-10-13): the
+        camera captured once at startup and ``frame_id`` stayed at 1 forever, so
+        the browser showed a single still picture that never changed. The cache
+        is now only a fallback for a camera object that has no ``read()``.
         """
         with self._lock:
             cam = self._camera
             if cam is None:
                 return None, None, 503
-            frame = _cached_frame(cam)
-            if frame is not None and frame.data is not None:
-                return frame.data, _image_content_type(frame.format), 200
-            # A C8 source can capture on demand; fall back to that only when no
-            # cached frame exists, so a polling dashboard does not re-capture
-            # on every request.
+
+            # Prefer a fresh capture: this is what makes the feed live.
             reader = getattr(cam, "read", None)
             if callable(reader):
                 try:
                     got = reader()
                 except Exception as exc:  # noqa: BLE001
                     self.log.warning("camera.read() failed: %s", exc)
-                    return None, None, 503
+                    got = None
                 if isinstance(got, CameraFrame) and got.data is not None:
                     _cache_frame(cam, got)
                     return got.data, _image_content_type(got.format), 200
-                return None, None, 503
+                # A failed read may still have a usable earlier frame; fall
+                # through to the cache rather than blanking the panel.
+            frame = _cached_frame(cam)
+            if frame is not None and frame.data is not None:
+                return frame.data, _image_content_type(frame.format), 200
+
             # Legacy CameraManager exposes capture_jpeg().
             capture = getattr(cam, "capture_jpeg", None)
             if callable(capture):

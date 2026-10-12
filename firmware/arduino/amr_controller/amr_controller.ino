@@ -187,10 +187,14 @@ void loop() {
   }
 
   // 2) Communication watchdog: stop if the Pi went silent.
+  //    The watchdog's job is to STOP THE MOTORS. It deliberately does not sound
+  //    the buzzer: a link that flaps (a command arriving just after each
+  //    timeout) re-arms the watchdog every cycle, so an alert tone there would
+  //    buzz continuously on real hardware instead of warning once. The buzzer
+  //    is command-driven only (`BUZZ`), which keeps it predictable.
   if (Safety::shouldStop(now)) {
     if (!watchdogTripped) {
       MotorControl::stop();
-      Buzzer::beepFor(2000, 500);   // audible alert on safety stop
       watchdogTripped = true;
       Serial.println(F("WATCHDOG TRIGGERED"));
       refreshLcd();

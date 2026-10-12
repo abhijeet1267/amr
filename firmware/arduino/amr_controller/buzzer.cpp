@@ -22,7 +22,8 @@ void Buzzer::beep(int freqHz) {
   if (freqHz > 20000) freqHz = 20000;   // keep the half-period sane
   _freqHz = freqHz;
   _halfPeriodUs = 1000000UL / (2UL * (unsigned long)freqHz);
-  _stopAtMs = 0;
+  // Default to a bounded tone; beepFor() overrides with its own deadline.
+  _stopAtMs = millis() + BUZZER_MAX_TONE_MS;
   _pinState = true;
   digitalWrite(PIN_BUZZER, HIGH);
   _lastToggleUs = micros();
@@ -43,7 +44,16 @@ void Buzzer::stop() {
 bool Buzzer::isOn() { return _freqHz > 0; }
 
 void Buzzer::poll(unsigned long now) {
-  if (_freqHz <= 0) return;
+  if (_freqHz <= 0) {
+    // Defensive: an "active" buzzer sounds whenever the pin is HIGH, so an
+    // idle buzzer must hold the pin LOW. Guarantees silence even if a command
+    // left the pin high, and costs nothing when already low.
+    if (_pinState) {
+      _pinState = false;
+      digitalWrite(PIN_BUZZER, LOW);
+    }
+    return;
+  }
   if (_stopAtMs != 0 && now >= _stopAtMs) { stop(); return; }
   unsigned long us = micros();
   if ((unsigned long)(us - _lastToggleUs) >= _halfPeriodUs) {

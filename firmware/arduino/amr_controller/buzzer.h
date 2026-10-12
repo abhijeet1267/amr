@@ -21,6 +21,10 @@
 //: A0 used as a digital output (analog pin 0 == digital pin 14).
 #define PIN_BUZZER A0
 
+//: Absolute cap on one continuous tone, even if the stop time is lost. Prevents
+//: a "buzzer stuck on" failure from ever being permanent.
+#define BUZZER_MAX_TONE_MS 10000UL
+
 class Buzzer {
  public:
   static void begin();
