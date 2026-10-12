@@ -424,6 +424,34 @@ class TestRaspberryPiCameraSource:
         assert cam.describe()["backend"] == "rpicam-still"
         assert cam.status() is CameraStatus.LIVE
 
+    def test_the_cli_is_told_a_valid_encoding(self, monkeypatch):
+        """rpicam-still accepts jpg/png/bmp/rgb/yuv420 — never "jpeg".
+
+        Passing jpeg makes the binary abort with
+        "*** invalid encoding format jpeg ***" and write nothing to stdout, so a
+        working camera is reported as a capture failure. The envelope still
+        calls the bytes jpeg, because that is what they really are.
+        """
+        seen = {}
+
+        def fake_run(argv, **kwargs):  # noqa: ANN001 - stand-in for subprocess
+            seen["argv"] = argv
+            return subprocess.CompletedProcess(argv, 0, stdout=_png_bytes(),
+                                               stderr=b"")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        monkeypatch.setattr(shutil, "which",
+                            lambda name: "/usr/bin/rpicam-still")
+        cam = RaspberryPiCameraSource(library=None,
+                                     fallback_command=("rpicam-still",))
+        cam.start()
+        frame = cam.read()
+        argv = seen.get("argv") or []
+        assert frame.data == _png_bytes()
+        # The value after --encoding= must be one libcamera actually accepts.
+        enc = [a.split("=", 1)[1] for a in argv if a.startswith("--encoding=")]
+        assert enc == ["jpg"], f"invalid encoding passed to the CLI: {argv}"
+
     def test_stop_is_idempotent_and_releases_the_device(self):
         lib = _FakeLibrary(devices=("cam0",))
         cam = RaspberryPiCameraSource(library=lib, fallback_command=None)

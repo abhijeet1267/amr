@@ -445,8 +445,14 @@ class RaspberryPiCameraSource:
             return png, self.width, self.height, "png"
         cli = self._capture_cli()
         if cli is not None:
+            # rpicam-still/libcamera-still accept jpg, png, bmp, rgb or yuv420 —
+            # NOT "jpeg". Passing "jpeg" aborts the process with
+            # "*** invalid encoding format jpeg ***" and an empty stdout, which
+            # the CLI fallback then reports as a capture failure even though the
+            # camera is working. The frame envelope still says "jpeg", because
+            # that is the container the bytes really are.
             out = subprocess.run(  # noqa: S603 - fixed argv, no shell
-                [cli, "--encoding=jpeg", "-"],
+                [cli, "--encoding=jpg", "-"],
                 capture_output=True, timeout=self._capture_timeout_s,
             )
             if out.returncode != 0 or not out.stdout:
