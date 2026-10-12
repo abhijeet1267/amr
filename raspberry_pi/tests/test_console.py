@@ -344,3 +344,50 @@ class TestDashboardJavaScriptSyntax:
         for panel_id in ("o-source", "o-robot", "o-nav", "o-safety", "o-mission",
                          "o-hazards", "m-state", "g-name", "health"):
             assert f'id="{panel_id}"' in html, f"missing C11 panel {panel_id}"
+
+
+# --------------------------------------------------------------------------- #
+# Sensor rows — the readings must actually reach the panel
+# --------------------------------------------------------------------------- #
+class TestSensorRows:
+    """Real readings must surface, in whichever shape they arrive.
+
+    The runtime publishes the four ultrasonic distances as flat
+    ``front_cm``/``left_cm``/``right_cm``/``rear_cm`` keys. Only a nested
+    ``ultrasonic`` list was ever read, so the flat form — the one the runtime
+    actually emits — produced no rows at all, and a robot reporting 200 cm on
+    every face looked exactly like one with no sensors wired.
+    """
+
+    def test_flat_distance_keys_produce_rows(self):
+        t = _telemetry()
+        t["sensors"] = {"front_cm": 120, "left_cm": 80, "right_cm": 90,
+                        "rear_cm": 200, "source": "SIMULATION"}
+        rows = build_console_state(t)["sensors"]["rows"]
+        assert [r["sensor"] for r in rows] == [
+            "ultrasonic_front", "ultrasonic_left",
+            "ultrasonic_right", "ultrasonic_rear"]
+        assert [r["value"] for r in rows] == [120, 80, 90, 200]
+        assert {r["unit"] for r in rows} == {"cm"}
+
+    def test_a_face_with_no_reading_is_omitted_never_zeroed(self):
+        t = _telemetry()
+        t["sensors"] = {"front_cm": 120, "source": "SIMULATION"}
+        rows = build_console_state(t)["sensors"]["rows"]
+        assert [r["sensor"] for r in rows] == ["ultrasonic_front"]
+        assert all(r["value"] is not None for r in rows)
+
+    def test_the_nested_form_wins_when_both_are_present(self):
+        t = _telemetry()
+        t["sensors"] = {
+            "ultrasonic": [{"position": "front", "distance_cm": 42}],
+            "front_cm": 999,
+            "source": "SIMULATION",
+        }
+        rows = build_console_state(t)["sensors"]["rows"]
+        assert [r["value"] for r in rows] == [42]
+
+    def test_no_sensor_data_produces_no_rows(self):
+        t = _telemetry()
+        t["sensors"] = {"source": "UNAVAILABLE"}
+        assert build_console_state(t)["sensors"]["rows"] == []

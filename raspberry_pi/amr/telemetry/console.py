@@ -344,9 +344,19 @@ def _safety_panel(t: Dict[str, Any], hazards: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _sensor_panel(t: Dict[str, Any]) -> Dict[str, Any]:
-    """Sensor rows. Ultrasonic readings are listed only when actually read."""
+    """Sensor rows. Ultrasonic readings are listed only when actually read.
+
+    Two shapes reach this function and both are real: the flat
+    ``front_cm``/``left_cm``/``right_cm``/``rear_cm`` keys that the telemetry
+    projection actually publishes, and a nested ``ultrasonic`` list of
+    ``{position, distance_cm}``. Only the nested form used to be read, so the
+    flat form — the one the runtime emits — produced no rows at all and every
+    real distance was invisible in the console.
+    """
     s = t.get("sensors") if isinstance(t.get("sensors"), dict) else {}
+    src = source_of(s)
     rows: List[Dict[str, Any]] = []
+
     readings = s.get("ultrasonic") or []
     if isinstance(readings, list):
         for r in readings:
@@ -356,11 +366,26 @@ def _sensor_panel(t: Dict[str, Any]) -> Dict[str, Any]:
                 "sensor": str(r.get("position") or "unknown"),
                 "value": r.get("distance_cm"),
                 "unit": "cm",
-                "source": r.get("source") or source_of(s),
-                "availability": _availability(r.get("source") or source_of(s)),
+                "source": r.get("source") or src,
+                "availability": _availability(r.get("source") or src),
             })
-    return {"rows": rows, "source": source_of(s),
-            "availability": _availability(source_of(s))}
+
+    if not rows:
+        # The flat form the runtime emits: one key per face, a number in cm.
+        for face in ("front", "left", "right", "rear"):
+            cm = s.get(face + "_cm")
+            if cm is None:
+                continue
+            rows.append({
+                "sensor": "ultrasonic_" + face,
+                "value": cm,
+                "unit": "cm",
+                "source": src,
+                "availability": _availability(src),
+            })
+
+    return {"rows": rows, "source": src,
+            "availability": _availability(src)}
 
 
 def _battery_panel(t: Dict[str, Any]) -> Dict[str, Any]:

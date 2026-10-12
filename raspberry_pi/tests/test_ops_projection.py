@@ -391,3 +391,85 @@ class TestOpsIntegration:
             assert isinstance(ops["sensors"], list)
 
 
+# --------------------------------------------------------------------------- #
+# Charts — counts, never scores
+# --------------------------------------------------------------------------- #
+class TestHealthCounts:
+    """The health chart is a tally of the scorecard, not a grade of it."""
+
+    def test_the_bars_sum_to_the_rows_an_operator_can_count(self, con):
+        h = build_ops_state(con)["health"]
+        counts = h["counts"]["counts"]
+        assert counts[HEALTHY] == sum(
+            1 for c in h["components"] if c["state"] == HEALTHY)
+        assert sum(counts.values()) == len(h["components"])
+
+    def test_every_state_gets_a_bar_even_when_it_holds_nothing(self, con):
+        counts = build_ops_state(con)["health"]["counts"]
+        assert set(counts["counts"]) == {HEALTHY, DEGRADED, WARNING, FAULT}
+        assert counts["order"] == [HEALTHY, DEGRADED, WARNING, FAULT]
+
+    def test_no_percentage_is_offered_anywhere(self, con):
+        """A percentage would be an invented weighting — the module refuses one.
+
+        Asserted on the *data*, not on the wording: the note deliberately says
+        "not a score", so a text search would fail on the very sentence that
+        makes the point.
+        """
+        counts = build_ops_state(con)["health"]["counts"]
+        for banned in ("percent", "percentage", "score", "share", "ratio"):
+            assert banned not in counts, banned
+        # Counts, not shares: integers that sum to the component total. A set of
+        # percentages would sum to 100 instead.
+        assert all(isinstance(v, int) for v in counts["counts"].values())
+        assert sum(counts["counts"].values()) == counts["total"]
+
+
+class TestRiskFrequency:
+    """A histogram of real SAFETY events; nothing is extrapolated from it."""
+
+    NOW = 1_000_000.0
+
+    def _ops(self, events, **over):
+        over.setdefault("timestamp", self.NOW)
+        con = _console(history={"events": {"events": events}}, **over)
+        return build_ops_state(con)["risk_frequency"]
+
+    def test_only_safety_events_are_counted(self):
+        rf = self._ops([
+            {"category": "SAFETY", "level": "WARNING", "t": self.NOW - 5,
+             "message": "a"},
+            {"category": "SAFETY", "level": "CRITICAL", "t": self.NOW - 4,
+             "message": "b"},
+            {"category": "MISSION", "level": "INFO", "t": self.NOW - 3,
+             "message": "not a risk"},
+        ])
+        assert rf["total"] == 2
+        assert rf["levels"] == {"WARNING": 1, "CRITICAL": 1}
+
+    def test_an_empty_log_is_an_empty_series_not_a_baseline(self):
+        rf = self._ops([])
+        assert rf["total"] == 0
+        assert rf["levels"] == {}
+        assert set(rf["buckets"]) == {0}
+        assert rf["note"], "an empty chart must say why it is empty"
+
+    def test_recent_events_land_in_the_last_bucket(self):
+        rf = self._ops([{"category": "SAFETY", "level": "WARNING",
+                         "t": self.NOW - 1, "message": "recent"}])
+        assert rf["buckets"][-1] == 1
+        assert sum(rf["buckets"]) == 1
+
+    def test_an_old_event_counts_in_the_total_but_not_in_the_bars(self):
+        rf = self._ops([{"category": "SAFETY", "level": "WARNING",
+                         "t": self.NOW - 99999, "message": "ancient"}])
+        assert rf["total"] == 1
+        assert sum(rf["buckets"]) == 0
+
+    def test_the_bucket_count_is_the_declared_bucket_count(self):
+        rf = self._ops([{"category": "SAFETY", "level": "WARNING",
+                         "t": self.NOW - 1, "message": "x"}])
+        assert len(rf["buckets"]) == 12
+        assert rf["bucket_s"] == pytest.approx(rf["window_s"] / 12)
+
+

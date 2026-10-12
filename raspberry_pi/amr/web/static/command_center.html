@@ -673,6 +673,15 @@
             <span class="health-big" id="h-state">&mdash;</span>
             <span class="health-why" id="h-why">awaiting telemetry</span>
           </div>
+          <!-- How many subsystems sit in each state. Counts, not a score: the
+               bars sum to the number of rows in the table below, which is the
+               only "weighting" this project is willing to claim. -->
+          <div
+            class="bars"
+            id="health-chart"
+            role="img"
+            aria-label="Subsystem counts by health state"
+          ></div>
           <table class="matrix">
             <caption class="sr-only">
               Per-subsystem health and the reason for each state
@@ -691,6 +700,16 @@
             </tbody>
           </table>
           <p class="mini" id="health-note"></p>
+          <!-- How often safety actually intervened. A plain histogram of real
+               SAFETY events — no rate is extrapolated from it. -->
+          <h3 class="sub-h">Risk frequency</h3>
+          <div
+            class="freq"
+            id="risk-chart"
+            role="img"
+            aria-label="Frequency of safety events across the recent window"
+          ></div>
+          <p class="mini" id="risk-note"></p>
         </section>
 
         <!-- SENSOR MATRIX: what is actually wired, and what is not. -->

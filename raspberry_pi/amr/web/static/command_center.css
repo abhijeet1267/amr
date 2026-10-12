@@ -1199,6 +1199,100 @@ a.icon-btn.hub-link {
 .st-current {
   color: var(--accent);
 }
+
+/* --------------------------------------------------------------------------
+   Health bars and the risk histogram.
+
+   Both are drawn from COUNTS, never from a score. The project defines no
+   weighting between subsystems (see amr/telemetry/ops.py), so a percentage
+   would be an invented number. A count is not invented: the bars sum to the
+   number of rows in the table beside them, and every bar carries its own
+   figure so it can never be read as more than it is.
+
+   Colours are the same tokens the .st-* states above use, so a green bar and a
+   green state cell cannot mean different things.
+   -------------------------------------------------------------------------- */
+.sub-h {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.bars {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.bars .row {
+  display: grid;
+  grid-template-columns: 78px 1fr 30px;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.bars .lbl {
+  color: var(--muted);
+  letter-spacing: 0.03em;
+}
+.bars .track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--card-2);
+  overflow: hidden;
+}
+.bars .fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--muted);
+  transition: width 0.25s ease;
+}
+.bars .row.ok .fill {
+  background: var(--ok);
+}
+.bars .row.warn .fill {
+  background: var(--warn);
+}
+.bars .row.crit .fill {
+  background: var(--crit);
+}
+.bars .n {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* The histogram: one column per time bucket, oldest on the left. A bucket with
+   no events keeps a visible 2px stub, so "no events" is a drawn zero rather
+   than a gap that could be mistaken for a rendering fault. */
+.freq {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: end;
+  gap: 3px;
+  height: 46px;
+  padding-top: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.freq .col {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+.freq .col i {
+  display: block;
+  width: 100%;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--warn);
+}
+.freq .col.zero i {
+  background: var(--card-2);
+}
 .layers {
   list-style: none;
   margin: 0 0 8px;

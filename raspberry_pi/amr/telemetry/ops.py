@@ -214,13 +214,46 @@ def _sensor_matrix(console: Dict[str, Any]) -> List[Dict[str, Any]]:
         if not name:
             continue
         seen.add(name)
+        if name.startswith("ultrasonic"):
+            # Any per-face reading means the ultrasonic group IS wired, so the
+            # generic NOT CONNECTED placeholder below must not also be listed.
+            seen.add("ultrasonic")
+        raw = row.get("value")
+        unit = _txt(row.get("unit"))
         rows.append({
             "sensor": name,
             "state": AVAILABLE,
             "source": _txt(sensors.get("source")) or "UNAVAILABLE",
-            "value": row.get("value"),
+            # Keep the unit: a bare "200" could be cm, mm or a raw count, and a
+            # distance without a unit is not a measurement an operator can use.
+            "value": (f"{raw:g} {unit}"
+                      if isinstance(raw, (int, float)) and not isinstance(raw, bool)
+                      and unit else raw),
             "detail": _txt(row.get("detail")) or "",
         })
+
+    # The four ultrasonic distances are real telemetry, not placeholders: the
+    # console publishes them as front_cm / left_cm / right_cm / rear_cm. They
+    # used to be collapsed into one "ultrasonic: NOT CONNECTED" row, so a robot
+    # reporting 200 cm on all four faces looked exactly like an unwired one —
+    # an operator could not tell a working sensor from a missing one.
+    us_source = _txt(sensors.get("source")) or "UNAVAILABLE"
+    us_seen = False
+    for face in ("front", "left", "right", "rear"):
+        cm = _num(sensors.get(face + "_cm"))
+        if cm is None:
+            continue
+        us_seen = True
+        rows.append({
+            "sensor": "ultrasonic_" + face,
+            "state": AVAILABLE,
+            "source": us_source,
+            "value": f"{cm:g} cm",
+            "detail": "ultrasonic range",
+        })
+    if us_seen:
+        # One sensor, one row: suppress the generic NOT CONNECTED placeholder.
+        seen.add("ultrasonic")
 
     camera = _section(console, "camera")
     cam_state = _txt(camera.get("status"))
@@ -575,6 +608,74 @@ def _replay_summary(replay: Any) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Charts — counts, never scores
+# --------------------------------------------------------------------------- #
+#: Bar order for the health chart, best first. Every state gets a bar even when
+#: it holds nothing, so the chart cannot silently change shape as subsystems
+#: appear and disappear.
+HEALTH_BAR_ORDER: List[str] = [HEALTHY, DEGRADED, WARNING, FAULT]
+
+
+def _health_counts(components: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """How many components sit in each state — a tally, not a score.
+
+    The module defines no weighting between subsystems, so a percentage would
+    be invented. A *count* is not invented: it is how many rows the scorecard
+    below actually contains, and the bars sum to a number an operator can check
+    by counting the table for themselves.
+    """
+    counts = {state: 0 for state in HEALTH_BAR_ORDER}
+    for c in components:
+        state = str(c.get("state") or "").upper()
+        counts[state] = counts.get(state, 0) + 1
+    return {
+        "counts": counts,
+        "order": list(HEALTH_BAR_ORDER),
+        "total": len(components),
+        "note": ("component counts by state; not a score — the project defines "
+                 "no weighting that would justify one"),
+    }
+
+
+def _risk_frequency(events: Sequence[Dict[str, Any]], now: Optional[float],
+                    buckets: int = 12, window_s: float = 600.0) -> Dict[str, Any]:
+    """How often SAFETY events actually occurred, as a plain histogram.
+
+    Counts only: nothing is extrapolated into a rate and no severity is
+    weighted. An empty log yields an empty series rather than a fabricated
+    baseline, and ``total`` plus the note travel with the bars so that "no
+    events occurred" cannot be mistaken for "the feed is broken".
+    """
+    safety = [e for e in events
+              if isinstance(e, dict) and str(e.get("category")) == "SAFETY"]
+    levels: Dict[str, int] = {}
+    for e in safety:
+        level = str(e.get("level") or "UNKNOWN").upper()
+        levels[level] = levels.get(level, 0) + 1
+
+    series = [0] * buckets
+    if safety and now is not None:
+        width = window_s / buckets
+        start = now - window_s
+        for e in safety:
+            t = _num(e.get("t"))
+            if t is None or t < start:
+                continue
+            i = min(buckets - 1, max(0, int((t - start) / width)))
+            series[i] += 1
+
+    return {
+        "total": len(safety),
+        "levels": levels,
+        "buckets": series,
+        "bucket_s": (window_s / buckets) if (safety and now is not None) else None,
+        "window_s": window_s if (safety and now is not None) else None,
+        "note": ("counts of real SAFETY events in the window; an empty series "
+                 "means none occurred, not that the feed is broken"),
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Entry point
 # --------------------------------------------------------------------------- #
 def build_ops_state(console: Any, *, history: Any = None, replay: Any = None,
@@ -609,6 +710,8 @@ def build_ops_state(console: Any, *, history: Any = None, replay: Any = None,
         "score_note": ("no numeric score: the project defines no weighting "
                        "that would justify one"),
         "components": components,
+        # The chart data. Counts of the rows above, not a grade of them.
+        "counts": _health_counts(components),
     }
     mission = _section(con, "mission")
     safety = _section(con, "safety")
@@ -626,6 +729,9 @@ def build_ops_state(console: Any, *, history: Any = None, replay: Any = None,
             "statistics": _mission_stats(mission, safety, hazards, events),
         },
         "hazards": _hazard_centre(con, events),
+        # How often safety actually intervened, from the same SAFETY events the
+        # history list below is built from — one source, two views.
+        "risk_frequency": _risk_frequency(events, _num(con.get("timestamp"))),
         "safety_history": [
             {"t": _num(e.get("t")), "level": _txt(e.get("level")),
              "message": _txt(e.get("message"))}

@@ -91,6 +91,26 @@ so the UI's filter buttons cannot drift from the server.
 | `SIMULATION` is never shown as `LIVE` | a banner appears whenever the backend is mock-backed                           |
 | Replay never overwrites live          | replay status is a separate field; `/telemetry` keeps serving live             |
 | A missing camera is not a detection   | `has_frame: false` shows "camera unavailable" and no detections                |
+| A real reading is never hidden        | each ultrasonic face is its own row with its own cm value; a per-face reading suppresses the generic `NOT CONNECTED` placeholder |
+| Charts are counts, never scores       | the health bars tally the scorecard rows; no percentage or grade is produced   |
+
+### The health bars and the risk histogram
+
+Two charts sit in the **Robot Health** card. Both are built from counts, because
+the project defines no weighting between subsystems and a percentage would
+therefore be an invented number:
+
+- **Health bars** — how many subsystems sit in each state (`HEALTHY`,
+  `DEGRADED`, `WARNING`, `FAULT`). Every state gets a bar even at zero, so the
+  chart cannot silently change shape, and each bar prints its own figure so the
+  bar is never the only carrier of the number. The bars sum to the number of
+  rows in the table beside them, which an operator can count for themselves.
+- **Risk frequency** — a plain histogram of real `SAFETY` events over a
+  10-minute window, from the same event stream the safety history list uses.
+  Nothing is extrapolated into a rate. A bucket with no events still draws a
+  2px stub, so an empty window is a *drawn zero* rather than a gap that could be
+  read as a rendering fault, and the note says in words when the log is empty —
+  "no events occurred" and "the feed is broken" must not look alike.
 
 ## Safety
 

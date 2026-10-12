@@ -2099,6 +2099,8 @@ function renderOps(s) {
   if (!ops) return;
   renderIdentity(ops.identity);
   renderHealth(ops.health);
+  renderHealthChart(ops.health && ops.health.counts);
+  renderRiskChart(ops.risk_frequency);
   renderSensors(ops.sensors);
   renderSystem(ops, s);
   renderTimeline(ops.mission);
@@ -2152,9 +2154,89 @@ function renderHealth(h) {
   txt("health-note", h.score === null ? h.score_note || "" : "");
 }
 
+/* -- health bars ---------------------------------------------------------- */
+/* Counts, not a score. The project defines no weighting between subsystems, so
+   a percentage would be an invented number; how many subsystems sit in each
+   state is not. The bars are scaled against the largest count on screen and
+   each one prints its own figure, so no bar is ever the only carrier of the
+   number it represents. */
+var HEALTH_TONE = {
+  HEALTHY: "ok",
+  DEGRADED: "warn",
+  WARNING: "warn",
+  FAULT: "crit",
+};
+
+function renderHealthChart(counts) {
+  var el = $("health-chart");
+  if (!el) return;
+  var c = (counts && counts.counts) || {};
+  var order =
+    (counts && counts.order) || ["HEALTHY", "DEGRADED", "WARNING", "FAULT"];
+  var max = 1;
+  order.forEach(function (k) {
+    if (isNum(c[k]) && c[k] > max) max = c[k];
+  });
+  el.innerHTML = order
+    .map(function (k) {
+      var n = isNum(c[k]) ? c[k] : 0;
+      return (
+        '<div class="row ' +
+        (HEALTH_TONE[k] || "") +
+        '"><span class="lbl">' +
+        esc(k) +
+        '</span><span class="track"><i class="fill" style="width:' +
+        Math.round((n / max) * 100) +
+        '%"></i></span><span class="n">' +
+        n +
+        "</span></div>"
+      );
+    })
+    .join("");
+}
+
+/* -- risk frequency ------------------------------------------------------- */
+/* A plain histogram of real SAFETY events. Nothing is extrapolated into a rate
+   and no severity is weighted. A bucket with no events still draws a 2px stub,
+   so an empty window is a drawn zero rather than a gap that could be mistaken
+   for a rendering fault — and the note says in words when the log is empty. */
+function renderRiskChart(rf) {
+  var el = $("risk-chart");
+  if (!el) return;
+  rf = rf || {};
+  var buckets = rf.buckets || [];
+  var max = 1;
+  buckets.forEach(function (v) {
+    if (isNum(v) && v > max) max = v;
+  });
+  el.innerHTML = buckets
+    .map(function (v) {
+      var n = isNum(v) ? v : 0;
+      var h = n === 0 ? 2 : Math.max(4, Math.round((n / max) * 100));
+      return (
+        '<span class="col' +
+        (n === 0 ? " zero" : "") +
+        '"><i style="height:' +
+        h +
+        '%"></i></span>'
+      );
+    })
+    .join("");
+  var bits = [];
+  if (rf.total) {
+    bits.push(rf.total + (rf.total === 1 ? " event" : " events"));
+    var levels = rf.levels || {};
+    Object.keys(levels).forEach(function (k) {
+      bits.push(k + " " + levels[k]);
+    });
+  } else {
+    bits.push("no safety events recorded");
+  }
+  txt("risk-note", bits.join(" \u00b7 ") + " \u2014 " + (rf.note || ""));
+}
+
 function renderSensors(rows) {
-  var body = $("sensor-rows");
-  if (!body || !rows) return;
+  var body = $("sensor-rows");  if (!body || !rows) return;
   body.innerHTML =
     rows
       .map(function (r) {
