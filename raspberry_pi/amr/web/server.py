@@ -743,13 +743,6 @@ class AMRWebApp:
                         "status": "NOT_CONFIGURED"}
             return self._camera.describe()
 
-    def image(self) -> Optional[bytes]:
-        """One JPEG frame, or ``None`` when the camera is unusable."""
-        with self._lock:
-            if self._camera is None:
-                return None
-            return self._camera.capture_jpeg()
-
     # ------------------------------------------------------------------ #
     # C8 — camera monitoring (read-only; no browser → hardware path)
     # ------------------------------------------------------------------ #
@@ -1396,8 +1389,14 @@ class _Handler(BaseHTTPRequestHandler):
     def _send_html(self, html: str) -> None:
         self._send_body(html.encode("utf-8"), "text/html; charset=utf-8")
 
-    def _send_image(self, jpeg: bytes) -> None:
-        self._send_bytes(jpeg, "image/jpeg")
+    def _send_image(self, data: bytes, content_type: str = "image/jpeg") -> None:
+        """Send an encoded frame with its real content type.
+
+        The type is a parameter, not a constant: the C8 sources emit PNG and the
+        legacy manager emits JPEG, so hardcoding ``image/jpeg`` served PNG bytes
+        under a JPEG label and left the browser to sniff its way out.
+        """
+        self._send_bytes(data, content_type)
 
     def _send_bytes(self, body: bytes, content_type: str) -> None:
         """Send a binary body with an explicit content type and no caching."""
@@ -1575,11 +1574,11 @@ class _Handler(BaseHTTPRequestHandler):
         elif path == "/dashboard":
             self._send_html(DASHBOARD_HTML)
         elif path == "/image":
-            jpeg = self.app.image()
-            if jpeg is None:
+            data, ctype, status = self.app.camera_frame()
+            if status != 200 or data is None:
                 self._send_json({"error": "camera unavailable"}, 503)
             else:
-                self._send_image(jpeg)
+                self._send_image(data, ctype or "image/jpeg")
         else:
             self._send_json({"error": "not found"}, 404)
 

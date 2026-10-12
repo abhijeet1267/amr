@@ -28,6 +28,7 @@ from amr.camera.frame import (
     RaspberryPiCameraSource,
     SimulatedCameraSource,
     UnavailableCameraSource,
+    pattern_png,
 )
 
 
@@ -537,3 +538,53 @@ class TestBuildCameraWiring:
         assert frame.data is not None
         assert frame.status is CameraStatus.SIMULATION
         assert frame.simulated is True
+
+
+# --------------------------------------------------------------------------- #
+# The simulated frame must look like a live feed, not a blank panel
+# --------------------------------------------------------------------------- #
+def _decompressed_pixels(png: bytes) -> bytes:
+    """Pull the raw scanlines back out of a PNG, for content assertions."""
+    i = png.index(b"IDAT")
+    length = struct.unpack(">I", png[i - 4: i])[0]
+    return zlib.decompress(png[i + 4: i + 4 + length])
+
+
+class TestTestPattern:
+    """A solid colour is indistinguishable from a preview that failed to load.
+
+    The simulated source used to emit a flat frame, so the camera panel showed
+    a featureless rectangle and an operator could not tell a working simulated
+    feed from a broken one. These pin the properties that make it readable.
+    """
+
+    def test_it_is_a_valid_png_at_the_requested_size(self):
+        data = pattern_png(64, 48, 1)
+        assert data[:8] == b"\x89PNG\r\n\x1a\n"
+        assert struct.unpack(">II", data[16:24]) == (64, 48)
+
+    def test_it_is_deterministic_for_a_frame_id(self):
+        assert pattern_png(64, 48, 7) == pattern_png(64, 48, 7)
+
+    def test_consecutive_frames_differ(self):
+        """A still image cannot show that the feed is live."""
+        assert pattern_png(64, 48, 1) != pattern_png(64, 48, 2)
+
+    def test_consecutive_frames_differ_even_on_a_tiny_frame(self):
+        """The marker must still move at 8x8, or the two frames match."""
+        assert pattern_png(8, 8, 1) != pattern_png(8, 8, 2)
+
+    def test_it_is_not_flat(self):
+        raw = _decompressed_pixels(pattern_png(64, 48, 1))
+        colours = {raw[i: i + 3] for i in range(1, len(raw) - 3, 3)}
+        assert len(colours) > 3, f"the pattern is effectively flat: {colours}"
+
+    def test_the_simulated_source_uses_it(self):
+        cam = SimulatedCameraSource(width=64, height=48)
+        cam.start()
+        first = cam.read()
+        second = cam.read()
+        assert first.data is not None and second.data is not None
+        assert first.data != second.data, "two frames must be visually distinct"
+        raw = _decompressed_pixels(first.data)
+        assert len({raw[i: i + 3] for i in range(1, len(raw) - 3, 3)}) > 3

@@ -506,6 +506,72 @@ def solid_png(width: int, height: int, rgb: Tuple[int, int, int]) -> bytes:
             + _png_chunk(b"IEND", b""))
 
 
+def pattern_png(width: int, height: int, frame_id: int = 0) -> bytes:
+    """Build a valid PNG test pattern — pure standard library.
+
+    A flat colour is indistinguishable from a panel that failed to load: the
+    preview looks blank either way, so an operator cannot tell a working
+    simulated feed from a broken one. This draws something readable at a glance
+    — a grid, a centre crosshair, corner ticks, and a marker that steps across
+    the frame with the counter — while staying byte-for-byte reproducible for a
+    given ``frame_id`` and size (no RNG, no wall-clock dependence).
+
+    It is still **not** a camera, and the frame it goes into stays ``SIMULATION``.
+
+    Named ``pattern_png`` rather than ``test_pattern_png`` on purpose: a
+    ``test_`` prefix would make pytest collect it as a test case the moment a
+    test module imports it.
+    """
+    width, height = max(1, int(width)), max(1, int(height))
+    bg = (18, 24, 34)
+    grid_c = (44, 84, 128)
+    ink = (96, 170, 230)
+    marker = (232, 162, 40)
+
+    step = 40
+    # One repeating unit of a normal row: `step` pixels, the leftmost a grid
+    # line. Building the row by repetition keeps this O(height) rather than
+    # O(width * height) in Python, which matters at 1280x720 per frame.
+    unit = bytearray()
+    for i in range(step):
+        unit += bytes(grid_c if i == 0 else bg)
+    unit = bytes(unit)
+    normal = (unit * (width // step + 2))[: width * 3]
+    solid = bytes(grid_c) * width
+
+    # Clamped to the frame, not to a fixed minimum: a `tick` wider than the
+    # frame would paint every row with the corner bars, and would push the
+    # marker band below the bottom edge so it never drew at all — which is how
+    # two 8x8 frames came out byte-identical.
+    tick = max(2, min(width, height) // 10)
+    cx, cy = width // 2, height // 2
+    # Steps with the counter, and wraps by width rather than by width-8 so it
+    # still moves on a tiny frame — two consecutive frames must never be
+    # identical, or a still image would be indistinguishable from a live feed.
+    mx = (frame_id * 5) % max(1, width)
+
+    rows = []
+    for y in range(height):
+        row = bytearray(solid if y % step == 0 else normal)
+        if abs(y - cy) <= 1:  # crosshair: the horizontal bar
+            row[0: width * 3] = bytes(ink) * width
+        elif abs(y - cy) <= tick:  # crosshair: the vertical bar
+            row[(cx - 1) * 3: (cx + 2) * 3] = bytes(ink) * 3
+        if y < 3 or y >= height - 3:  # corner ticks, so the frame has edges
+            row[0: tick * 3] = bytes(ink) * tick
+            row[(width - tick) * 3: width * 3] = bytes(ink) * tick
+        if tick <= y < tick * 2:  # the marker that proves the feed is live
+            lo, hi = max(0, mx - 3), min(width, mx + 4)
+            row[lo * 3: hi * 3] = bytes(marker) * (hi - lo)
+        rows.append(b"\x00" + bytes(row))
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)  # 8-bit RGB
+    return (b"\x89PNG\r\n\x1a\n"
+            + _png_chunk(b"IHDR", ihdr)
+            + _png_chunk(b"IDAT", zlib.compress(b"".join(rows), 6))
+            + _png_chunk(b"IEND", b""))
+
+
 class SimulatedCameraSource:
     """Deterministic in-process camera stand-in (C8) — **not** a camera.
 
@@ -560,9 +626,10 @@ class SimulatedCameraSource:
                 metadata={"reason": self._reason or "not started"},
             )
         self._frame_id += 1
-        # Hue rotates per frame so consecutive previews are visually distinct,
-        # but deterministically: no RNG, no wall-clock dependence.
-        shade = (self._frame_id * 7) % 256
+        # A test pattern rather than a flat colour: a solid frame is
+        # indistinguishable from a preview that failed to load, and the marker
+        # steps with the counter, so two consecutive frames are visibly
+        # different. Deterministic either way: no RNG, no wall-clock dependence.
         frame = CameraFrame(
             timestamp=float(self._clock()),
             source=self.name,
@@ -570,10 +637,10 @@ class SimulatedCameraSource:
             height=self.height,
             format="png",
             frame_id=self._frame_id,
-            data=solid_png(self.width, self.height, (shade, 64, 128)),
+            data=pattern_png(self.width, self.height, self._frame_id),
             status=CameraStatus.SIMULATION,
             metadata={"simulated": True,
-                      "note": "generated placeholder, not a camera"},
+                      "note": "generated test pattern, not a camera"},
         )
         # Retain only the latest frame: telemetry and the dashboard can report
         # real metadata without re-capturing, and no history accumulates.

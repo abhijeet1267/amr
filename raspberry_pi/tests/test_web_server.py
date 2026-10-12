@@ -485,6 +485,37 @@ def test_image_endpoint_query_string(web):
     assert body[:2] == b"\xff\xd8"
 
 
+def test_image_endpoint_works_with_a_c8_camera_source(config_dir):
+    """``GET /image`` must work for the C8 sources, not only the legacy manager.
+
+    The handler called ``capture_jpeg()`` directly, but C8 sources expose
+    ``read()``. So ``/image`` raised ``AttributeError`` and returned an empty
+    reply — not even a 503 — for the simulated source and for a real Pi camera
+    alike. The ``web`` fixture wires the legacy ``CameraManager``, which is the
+    one case that happened to work, so nothing caught it.
+    """
+    from amr.camera.frame import SimulatedCameraSource
+    from amr.robot import RobotManager
+    from amr.utils.config import load_config
+    from amr.web import AMRWebApp
+
+    mgr, _transport = RobotManager.create_mock(load_config(config_dir))
+    cam = SimulatedCameraSource(width=64, height=48)
+    cam.start()
+    app = AMRWebApp(mgr, tick_hz=10.0, camera=cam, simulated=True)
+    port = app.start(host="127.0.0.1", port=0)
+    try:
+        status, ctype, body = _get(port, "/image")
+        assert status == 200
+        assert body[:8] == b"\x89PNG\r\n\x1a\n", "a C8 source emits PNG"
+        assert "image/png" in ctype, (
+            f"the content type must match the bytes, got {ctype!r}")
+    finally:
+        app.stop()
+        cam.stop()
+        mgr.shutdown()
+
+
 def test_camera_endpoints_without_camera(web_no_camera):
     _app, port, _mgr = web_no_camera
     status, _ctype, body = _get(port, "/camera")

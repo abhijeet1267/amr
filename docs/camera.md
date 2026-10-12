@@ -94,10 +94,16 @@ Every source implements `start()` / `read()` / `stop()`.
 `SimulatedCameraSource` generates a real, correctly-sized PNG using only the
 standard library (`zlib` + `struct`) — no OpenCV, no NumPy, no Pillow.
 
-- Deterministic: the same configuration always produces byte-identical output,
-  so tests never flake.
+- Deterministic: the same `frame_id` and size always produce byte-identical
+  output, so tests never flake.
 - Advertised dimensions are real. A `640x480` source produces a genuine
   `640x480` image, not a 1×1 upscaled placeholder.
+- The frame is a **test pattern** — a grid, a centre crosshair, corner ticks and
+  a marker that steps across with the frame counter — not a flat colour. A solid
+  frame is indistinguishable from a preview that failed to load, so an operator
+  could not tell a working simulated feed from a broken panel. Consecutive
+  frames are always visibly different, which is what shows the feed is live.
+  It is still not a camera, and the status stays `SIMULATION`.
 
 ## 6. Raspberry Pi backend
 
@@ -117,8 +123,16 @@ to the next candidate and records the reason. Nothing is initialised until
 | -------------------- | ------------------------------------------------ |
 | `GET /camera/status` | JSON status/metadata — never pixels              |
 | `GET /camera/frame`  | The latest encoded frame, `503` when unavailable |
+| `GET /image`         | The same frame, for the legacy dashboard preview |
 | `GET /telemetry`     | The C7 snapshot including a `camera` section     |
 | `GET /dashboard`     | The dashboard with the camera panel              |
+
+Both frame routes serve the **same** cached frame through the same code path,
+and each sends the content type that matches the bytes — the C8 sources emit
+PNG, the legacy `CameraManager` emits JPEG. `/image` used to call
+`capture_jpeg()` directly, which C8 sources do not implement: it raised
+`AttributeError` and returned an empty reply (not even a `503`) for the
+simulated source and for a real Pi camera alike.
 
 These are `GET`-only. There is no `POST` path from the browser to camera
 hardware, GPIO, or motors. A missing or broken camera yields `503` or an
