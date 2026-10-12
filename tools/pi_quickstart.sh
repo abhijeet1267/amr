@@ -110,6 +110,66 @@ if [ "$SETUP_ONLY" = "1" ]; then
   exit 0
 fi
 
+# ------------------------------------------------------- 3b. stale server --
+# A console left running from an earlier build holds :$PORT. Without this the
+# new process dies with `OSError: [Errno 98] Address already in use` and the
+# operator keeps looking at the OLD code — the new build never starts. So clear
+# the port first, but only for programs running THIS module: an unrelated
+# service on the port is left alone and the operator is asked to pick another.
+port_pid() {
+  if command -v ss >/dev/null 2>&1; then
+    ss -lptnH "sport = :$PORT" 2>/dev/null \
+      | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null | head -1
+  fi
+}
+
+cmdline_of() {
+  # /proc is Linux-only; `ps -o command=` is the portable fallback and still
+  # prints the full command line on both Linux and macOS.
+  if [ -r "/proc/$1/cmdline" ]; then
+    tr '\0' ' ' < "/proc/$1/cmdline" 2>/dev/null
+  else
+    ps -p "$1" -o command= 2>/dev/null
+  fi
+}
+
+STALE="$(port_pid)"
+if [ -n "${STALE:-}" ]; then
+  CMDLINE="$(cmdline_of "$STALE")"
+  if printf '%s' "$CMDLINE" | grep -q 'amr\.main'; then
+    warn "a console from an earlier build is still running (pid $STALE)"
+    warn "it holds :$PORT, and leaving it up would keep serving the OLD code"
+    kill "$STALE" 2>/dev/null
+    sleep 1
+    if [ -n "$(port_pid)" ]; then
+      kill -9 "$STALE" 2>/dev/null
+      sleep 1
+    fi
+    if [ -n "$(port_pid)" ]; then
+      die ":$PORT is still held by pid $STALE and would not stop — try PORT=$((PORT + 1)) ./pi_quickstart.sh"
+    fi
+    ok "old console stopped — :$PORT is free for the current build"
+  elif [ -z "$CMDLINE" ]; then
+    # Neither proof that it is ours, nor proof that it is not. Guessing either
+    # way is wrong: killing an unknown process is destructive, and refusing
+    # would leave the operator unable to start the app at all.
+    # NOTE: warn() is not printf — interpolate the values into the text.
+    warn ":$PORT is held by pid $STALE, and its command line could not be read,"
+    warn "so it cannot be shown to be this app. To inspect it yourself:"
+    printf '        ps -p %s -o command=\n' "$STALE"
+    printf '        sudo ss -lptn "sport = :%s"\n' "$PORT"
+    warn "if it IS an old amr.main, free it with:  kill $STALE"
+    warn "otherwise start on another port:  PORT=$((PORT + 1)) ./pi_quickstart.sh"
+    exit 1
+  else
+    warn ":$PORT is held by something that is not this app (pid $STALE)"
+    warn "leaving it alone. Pick another port:  PORT=$((PORT + 1)) ./pi_quickstart.sh"
+    exit 1
+  fi
+fi
+
 say "4/4  Starting the control stack in MOCK mode"
 # `hostname -I` is Linux-only; never let its absence abort the script.
 IP=""

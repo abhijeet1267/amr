@@ -51,6 +51,29 @@ ss -ltnp 2>/dev/null | grep 8080 || echo "port 8080 is free"
 cd ~/amr && ./tools/pi_quickstart.sh
 ```
 
+### Stale console holding the port
+
+`pi_quickstart.sh` now handles this itself: before starting, it checks the port
+and, if the holder is another `amr.main`, stops it and says so — because that
+process is serving the **old** code, so leaving it up means the new build never
+starts and the console keeps looking out of date.
+
+It deliberately does **not** kill a process it cannot prove is this app. If an
+unrelated program holds the port it refuses and tells you how to inspect it or
+pick another port:
+
+```bash
+PORT=8081 ./tools/pi_quickstart.sh
+```
+
+To check and stop it by hand:
+
+```bash
+sudo ss -ltnp | grep ':8080'      # shows which process owns the port
+pkill -f "amr.main" && echo "stopped"
+sudo ss -ltnp | grep ':8080' || echo "port 8080 is free"
+```
+
 If starting it fails with **`OSError: [Errno 98] Address already in use`**, an
 earlier copy is still running and holding the port. It is serving the *old* code,
 so the console will look out of date until it is replaced:
