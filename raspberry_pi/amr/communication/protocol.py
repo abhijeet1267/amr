@@ -17,6 +17,10 @@ Protocol overview (newline-terminated, verbs are case-insensitive):
         SENSOR
         MOVE L=<int> R=<int>          # -255 .. +255
         F | B | L | R | S             # legacy baseline commands (back-compat)
+        ENV                           # DHT11 temperature/humidity
+        GAS                           # MQ gas sensor raw ADC reading
+        LCD <line0>|<line1>           # set the 16x2 I2C LCD
+        BUZZ <freqHz> [<ms>]          # buzzer (freq 0 = stop), optional duration
 
     Arduino -> Pi (responses)
         PONG
@@ -24,6 +28,8 @@ Protocol overview (newline-terminated, verbs are case-insensitive):
         ERR <code> [message...]       # e.g. "ERR RANGE out of range"
         STATUS L=<int> R=<int> MODE=<str>
         SENSOR F=<int> L=<int> R=<int> B=<int>
+        ENV T=<int> H=<int>           # degC / %RH; -1 == invalid/unmeasured
+        GAS RAW=<int>                 # 0..1023; -1 == no pin assigned
         VERSION <semver>
         WATCHDOG TRIGGERED            # unsolicited safety event
 """
@@ -35,11 +41,15 @@ from dataclasses import dataclass
 from typing import Optional
 
 #: Protocol version reported by the firmware and expected by the Pi.
-PROTOCOL_VERSION = "1.0"
+PROTOCOL_VERSION = "1.1"
 
 #: Allowed speed range. Positive = forward, negative = reverse, 0 = stop.
 MIN_SPEED = -255
 MAX_SPEED = 255
+
+#: Allowed buzzer frequency range (Hz). 0 is a special "stop" value.
+MIN_BUZZ_HZ = 20
+MAX_BUZZ_HZ = 20000
 
 # --- command verbs --------------------------------------------------------- #
 PING = "PING"
@@ -48,6 +58,10 @@ STOP = "STOP"
 VERSION = "VERSION"
 MOVE = "MOVE"
 SENSOR = "SENSOR"
+ENV = "ENV"
+GAS = "GAS"
+LCD = "LCD"
+BUZZ = "BUZZ"
 
 # --- legacy single-character commands (existing F/B/L/R/S baseline) -------- #
 LEGACY_FORWARD = "F"
@@ -92,8 +106,8 @@ class ProtocolParseError(ProtocolError):
 class Response:
     """A parsed line received from the Arduino.
 
-    ``kind`` is one of: ``PONG`` ``ACK`` ``ERR`` ``STATUS`` ``SENSOR``
-    ``VERSION`` ``WATCHDOG`` ``UNKNOWN`` ``EMPTY``.
+    ``kind`` is one of: ``PONG`` ``ACK`` ``ERR`` ``STATUS`` ``SENSOR`` ``ENV``
+    ``GAS`` ``VERSION`` ``WATCHDOG`` ``UNKNOWN`` ``EMPTY``.
     ``ok`` is ``False`` only for ``ERR`` and ``UNKNOWN``.
     The optional fields are populated depending on ``kind``.
     """
@@ -110,6 +124,12 @@ class Response:
     front: Optional[int] = None
     rear: Optional[int] = None
     version: Optional[str] = None
+
+    #: ``ENV``: temperature (degC) and humidity (%RH). ``-1`` == invalid.
+    temperature_c: Optional[int] = None
+    humidity_pct: Optional[int] = None
+    #: ``GAS``: raw ADC count (0..1023). ``-1`` == no pin assigned.
+    gas_raw: Optional[int] = None
 
     # convenience predicates ------------------------------------------------ #
     def is_ack(self) -> bool:
@@ -200,6 +220,23 @@ def parse_response(line: str) -> Response:
             rear=_extract_int(text, "B="),
         )
 
+    if upper.startswith("ENV"):
+        return Response(
+            kind="ENV",
+            raw=line,
+            ok=True,
+            temperature_c=_extract_int(text, "T="),
+            humidity_pct=_extract_int(text, "H="),
+        )
+
+    if upper.startswith("GAS"):
+        return Response(
+            kind="GAS",
+            raw=line,
+            ok=True,
+            gas_raw=_extract_int(text, "RAW="),
+        )
+
     return Response(kind="UNKNOWN", raw=line, ok=False)
 
 
@@ -241,6 +278,47 @@ def build_version() -> str:
 def build_sensor() -> str:
     """Request an immediate sensor report."""
     return SENSOR
+
+
+def build_env() -> str:
+    """Request a DHT11 temperature/humidity reading."""
+    return ENV
+
+
+def build_gas() -> str:
+    """Request an MQ gas sensor raw reading."""
+    return GAS
+
+
+def build_lcd(line0: str = "", line1: str = "") -> str:
+    """Build an ``LCD`` command: two lines joined by ``|``.
+
+    The firmware splits on the first ``|``. Newlines are stripped because the
+    protocol is line-based; a ``|`` inside the text is not supported.
+    """
+    a = (line0 or "").replace("\r", " ").replace("\n", " ")
+    b = (line1 or "").replace("\r", " ").replace("\n", " ")
+    return f"{LCD} {a}|{b}"
+
+
+def build_buzz(freq_hz: int = 0, duration_ms: Optional[int] = None) -> str:
+    """Build a ``BUZZ`` command.
+
+    ``freq_hz`` 0 stops the buzzer. A non-zero frequency must be within
+    ``[MIN_BUZZ_HZ, MAX_BUZZ_HZ]``. ``duration_ms`` (optional) auto-stops the
+    tone after that many milliseconds; ``None`` leaves it running.
+    """
+    f = int(freq_hz)
+    if f != 0 and (f < MIN_BUZZ_HZ or f > MAX_BUZZ_HZ):
+        raise ProtocolRangeError(
+            f"buzzer frequency {f} out of range [0 or {MIN_BUZZ_HZ}..{MAX_BUZZ_HZ}]"
+        )
+    if duration_ms is None:
+        return f"{BUZZ} {f}"
+    ms = int(duration_ms)
+    if ms < 0:
+        raise ProtocolRangeError(f"buzzer duration {ms} must be >= 0")
+    return f"{BUZZ} {f} {ms}"
 
 
 def legacy_command(char: str) -> str:

@@ -33,15 +33,15 @@ off-by-one in a bin index is invisible in a picture and silent in a test.
 
 ## 2. The two grids
 
-| Grid | One sample is | Value |
-| --- | --- | --- |
-| `hazard` | one recorded hazard event **that carries a world location** | severity-weighted (below) |
-| `traffic` | one point on the travelled path | 1 per sample |
+| Grid      | One sample is                                               | Value                     |
+| --------- | ----------------------------------------------------------- | ------------------------- |
+| `hazard`  | one recorded hazard event **that carries a world location** | severity-weighted (below) |
+| `traffic` | one point on the travelled path                             | 1 per sample              |
 
 **Severity weighting** (`severity_weights` is published in the payload, so a
 client never guesses): `INFO` 1, `WARNING` 2, `CRITICAL` 4, and an unrecognised
 severity 2 — an unknown severity must not vanish from the picture. The weighting
-is a *display* convention. It never feeds a safety decision: the hazard verdict
+is a _display_ convention. It never feeds a safety decision: the hazard verdict
 is computed from raw readings, not from this grid.
 
 **Traffic is time, not distance.** The path is appended by the control loop, so
@@ -52,7 +52,7 @@ sampling rate is the clock, not the odometer.
 
 ## 3. The rules that keep it honest
 
-1. **A stable extent.** The grid covers the *configured* geometry (waypoints and
+1. **A stable extent.** The grid covers the _configured_ geometry (waypoints and
    hazard zones, padded by `margin_m`), snapped outwards to whole square cells.
    The robot's pose and the data are deliberately **excluded** from the extent: a
    heat map is read by comparing polls, and a frame that rescales every second
@@ -84,13 +84,19 @@ sampling rate is the clock, not the odometer.
   "y_axis": "up",
   "severity_weights": { "INFO": 1.0, "WARNING": 2.0, "CRITICAL": 4.0 },
   "hazard": {
-    "cols": 20, "rows": 16, "cell_m": 0.25,
+    "cols": 20,
+    "rows": 16,
+    "cell_m": 0.25,
     "extent": { "x_min": -0.5, "x_max": 4.5, "y_min": -0.5, "y_max": 3.5 },
     "cells": [0.0, 4.0, 0.0, "..."],
     "row_order": "row 0 is y_min (bottom); index = row * cols + col",
-    "max_value": 4.0, "total": 4.0,
-    "samples": 1, "clipped": 0, "unlocated": 2,
-    "source": "SIMULATION", "note": "..."
+    "max_value": 4.0,
+    "total": 4.0,
+    "samples": 1,
+    "clipped": 0,
+    "unlocated": 2,
+    "source": "SIMULATION",
+    "note": "..."
   },
   "traffic": { "...": "same shape" },
   "notes": ["2 recorded hazard event(s) carried no world location ..."]
@@ -98,7 +104,7 @@ sampling rate is the clock, not the odometer.
 ```
 
 **`row_order` is load-bearing.** The repository frame is y-up, so row 0 is the
-*bottom* row. A client that assumed row 0 was the top would draw every map
+_bottom_ row. A client that assumed row 0 was the top would draw every map
 vertically mirrored — which looks entirely plausible and would never fail a
 "does it render" check. Both clients are held to the published rule.
 
@@ -110,10 +116,10 @@ equality, exactly as it does for `map` and `twin`.
 
 ## 5. Where it is shown
 
-| Surface | Where |
-| --- | --- |
+| Surface        | Where                                                                         |
+| -------------- | ----------------------------------------------------------------------------- |
 | Command Center | the **Heat map** view — two graphs, plus a scale legend and per-grid readouts |
-| Flutter client | the **Heat map** destination (`lib/features/heatmap/heatmap_screen.dart`) |
+| Flutter client | the **Heat map** destination (`lib/features/heatmap/heatmap_screen.dart`)     |
 
 Both draw the scene on a **dark stage** (the console) or the app's white panel
 (the client) and read the ramps from the palette, so a theme change repaints

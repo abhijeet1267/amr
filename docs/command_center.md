@@ -81,18 +81,18 @@ so the UI's filter buttons cannot drift from the server.
 
 ## Honesty rules (enforced by tests, not just convention)
 
-| Rule                                  | How it is enforced                                                             |
-| ------------------------------------- | ------------------------------------------------------------------------------ |
-| A missing value is never `0`          | `extract_metrics` keeps `None`; a test asserts `0` never appears               |
-| `None` is not a number                | booleans, `NaN` and `inf` are rejected by `_is_num`                            |
-| No timestamp, no sample               | skipped rather than backdated (same rule as C14)                               |
-| No image-to-world conversion          | only `MapSnapshot.hazards` reaches map/twin; the panel says "image-space only" |
-| No invented warehouse                 | the map draws the data extent and labels it as such                            |
-| `SIMULATION` is never shown as `LIVE` | a banner appears whenever the backend is mock-backed                           |
-| Replay never overwrites live          | replay status is a separate field; `/telemetry` keeps serving live             |
-| A missing camera is not a detection   | `has_frame: false` shows "camera unavailable" and no detections                |
+| Rule                                  | How it is enforced                                                                                                               |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| A missing value is never `0`          | `extract_metrics` keeps `None`; a test asserts `0` never appears                                                                 |
+| `None` is not a number                | booleans, `NaN` and `inf` are rejected by `_is_num`                                                                              |
+| No timestamp, no sample               | skipped rather than backdated (same rule as C14)                                                                                 |
+| No image-to-world conversion          | only `MapSnapshot.hazards` reaches map/twin; the panel says "image-space only"                                                   |
+| No invented warehouse                 | the map draws the data extent and labels it as such                                                                              |
+| `SIMULATION` is never shown as `LIVE` | a banner appears whenever the backend is mock-backed                                                                             |
+| Replay never overwrites live          | replay status is a separate field; `/telemetry` keeps serving live                                                               |
+| A missing camera is not a detection   | `has_frame: false` shows "camera unavailable" and no detections                                                                  |
 | A real reading is never hidden        | each ultrasonic face is its own row with its own cm value; a per-face reading suppresses the generic `NOT CONNECTED` placeholder |
-| Charts are counts, never scores       | the health bars tally the scorecard rows; no percentage or grade is produced   |
+| Charts are counts, never scores       | the health bars tally the scorecard rows; no percentage or grade is produced                                                     |
 
 ### The health bars and the risk histogram
 
@@ -108,7 +108,7 @@ therefore be an invented number:
 - **Risk frequency** — a plain histogram of real `SAFETY` events over a
   10-minute window, from the same event stream the safety history list uses.
   Nothing is extrapolated into a rate. A bucket with no events still draws a
-  2px stub, so an empty window is a *drawn zero* rather than a gap that could be
+  2px stub, so an empty window is a _drawn zero_ rather than a gap that could be
   read as a rendering fault, and the note says in words when the log is empty —
   "no events occurred" and "the feed is broken" must not look alike.
 

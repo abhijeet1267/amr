@@ -416,11 +416,19 @@ class TelemetryCollector:
         also accepted so a richer runtime can supply the same section. A
         missing echo is ``None`` (the runtime's own "no valid echo" sentinel),
         never a fabricated zero distance.
+
+        The SENSORS section now includes DHT11 and MQ gas telemetry:
+        - ``temperature_c``, ``humidity_pct``, ``gas_raw`` come from the
+          manager's last poll when ``run_warehouse=True``; otherwise they stay
+          ``UNAVAILABLE``. This keeps the loop simple: one poll per tick when
+          telemetry is enabled.
         """
         sensor = state.get("sensors")
         if not isinstance(sensor, dict):
             sensor = state
-        values = {}
+
+        # Ultrasonic distances — top-level or nested, with both key variants.
+        values: Dict[str, Optional[int]] = {}
         for key, field_name in (
             ("front_cm", "front_cm"), ("front", "front_cm"),
             ("left_cm", "left_cm"), ("left", "left_cm"),
@@ -431,9 +439,35 @@ class TelemetryCollector:
                 continue
             raw = sensor.get(key)
             if _is_number(raw):
-                # Distances are centimetres in the existing sensor contract.
                 values[field_name] = int(float(raw))
-        return SensorTelemetry(source=self._src(bool(values)), **values)
+
+        # Environment readings (DHT11 + gas) live in the same nested mapping
+        # (``RobotState.to_dict()`` puts every sensor under ``sensors``). The
+        # keys are double-prefixed ("front_cm"), so the loop above reads them.
+        temperature_c: Optional[float] = None
+        humidity_pct: Optional[int] = None
+        gas_raw: Optional[int] = None
+
+        raw_temp = sensor.get("temperature_c")
+        raw_hum = sensor.get("humidity_pct")
+        raw_gas = sensor.get("gas_raw")
+        if _is_number(raw_temp):
+            temperature_c = float(raw_temp)
+        if _is_number(raw_hum):
+            humidity_pct = int(float(raw_hum))
+        if _is_number(raw_gas):
+            gas_raw = int(float(raw_gas))
+
+        return SensorTelemetry(
+            source=self._src(any(v is not None for v in (*values.values(),
+                                                         temperature_c,
+                                                         humidity_pct,
+                                                         gas_raw))),
+            **values,
+            temperature_c=temperature_c,
+            humidity_pct=humidity_pct,
+            gas_raw=gas_raw,
+        )
 
     def _mission(self) -> MissionTelemetry:
         """Mission section from the warehouse manager, or UNAVAILABLE.

@@ -13,43 +13,56 @@ to prove it works before the Pi is involved. This is Stage 1 of
 
 ## 1. What you are flashing
 
-| File | Role |
-| --- | --- |
-| `amr_controller.ino` | `setup()` / `loop()`: read a line, dispatch, run the watchdog, poll the ultrasonics |
-| `protocol.h` / `protocol.cpp` | Command parser — mirrors `raspberry_pi/amr/communication/protocol.py` |
-| `motor_control.h` / `motor_control.cpp` | L298N PWM + direction HAL |
-| `safety.h` / `safety.cpp` | Communication watchdog (default 1000 ms) |
-| `ultrasonic.h` / `ultrasonic.cpp` | 4× HC-SR04 polling, `SENSOR F= L= R= B=` |
+| File                                    | Role                                                                                |
+| --------------------------------------- | ----------------------------------------------------------------------------------- |
+| `amr_controller.ino`                    | `setup()` / `loop()`: read a line, dispatch, run the watchdog, poll the ultrasonics |
+| `protocol.h` / `protocol.cpp`           | Command parser — mirrors `raspberry_pi/amr/communication/protocol.py`               |
+| `motor_control.h` / `motor_control.cpp` | L298N PWM + direction HAL                                                           |
+| `safety.h` / `safety.cpp`               | Communication watchdog (default 1000 ms)                                            |
+| `ultrasonic.h` / `ultrasonic.cpp`       | 4× HC-SR04 polling, `SENSOR F= L= R= B=`                                            |
+| `dht11.h` / `dht11.cpp`                 | Bit-banged DHT11 on `A1`, `ENV T= H=` (no library)                                    |
+| `gas_sensor.h` / `gas_sensor.cpp`       | MQ gas raw ADC. **No pin assigned**, so `GAS RAW=-1`                                  |
+| `lcd_i2c.h` / `lcd_i2c.cpp`              | 16×2 HD44780 over PCF8574 using the core's `Wire` (no library)                      |
+| `buzzer.h` / `buzzer.cpp`               | Timer-free buzzer on `A0` (deliberately not `tone()`)                                 |
 
 Properties you can rely on:
 
 - **Boots stopped.** It only moves on an explicit `MOVE`/legacy command.
-- **Watchdog.** After `DEFAULT_WATCHDOG_MS` (1000 ms) of silence it stops and
-  emits `WATCHDOG TRIGGERED` once.
+- **Watchdog.** After `DEFAULT_WATCHDOG_MS` (1000 ms) of silence it stops, beeps,
+  and emits `WATCHDOG TRIGGERED` once.
 - **Proximity stop.** A *valid* reading below its threshold stops the motors.
-- **No PWM yet.** `MOTOR_PWM_ENABLED 0` → any non-zero speed is full speed.
-- **No sensors yet.** `ULTRASONIC_ENABLED 0` → readings are `-1` and no stop.
+- **Sensors and PWM are enabled** (`ULTRASONIC_ENABLED 1`, `MOTOR_PWM_ENABLED 1`)
+  because the applied pin map puts both ENA/ENB on real PWM pins (`D10`/`D11`).
+  **Neither is verified on hardware.**
+- **`dht11.cpp` and `lcd_i2c.cpp` are hand-rolled** — no third-party library, so
+  `DHT11` and `LCD` need no library install. Neither is hardware-tested.
+- **The buzzer avoids `tone()`** (Timer2 drives `D11` = ENB) and toggles the pin
+  directly instead.
 
-Two compile-time switches you will flip during bring-up (both default `0`):
+Compile-time switches, and what each now ships as:
 
 ```c
-// motor_control.h
-#define MOTOR_PWM_ENABLED   0   // set 1 ONLY after verifying ENA/ENB wiring
+// motor_control.h — 1 because ENA(D10)/ENB(D11) are PWM-capable
+#define MOTOR_PWM_ENABLED   1
 // ultrasonic.h
-#define ULTRASONIC_ENABLED  0   // set 1 after wiring the sensors
-#define ULTRASONIC_TELEMETRY 0  // 1 = also emit unsolicited SENSOR lines
+#define ULTRASONIC_ENABLED  1
+#define ULTRASONIC_TELEMETRY 0   // 1 = also emit unsolicited SENSOR lines
+// gas_sensor.h — 0 with NO PIN: the pin chart leaves the MQ analog output
+// unassigned, so GAS reports -1 and the Pi shows UNAVAILABLE (never 0 ppm).
+#define GAS_ENABLED         0
+#define PIN_GAS_AO          (-1)
 ```
 
 ---
 
 ## 2. Prerequisites
 
-| Tool | Version | Why |
-| --- | --- | --- |
-| Arduino IDE | 2.x | Easiest path; bundles the toolchain |
-| — *or* — `arduino-cli` | 0.35+ | Scriptable / headless |
-| `arduino:avr` core | latest | Provides the **UNO** board definition |
-| USB data cable | — | Charge-only cables cannot upload |
+| Tool                   | Version | Why                                   |
+| ---------------------- | ------- | ------------------------------------- |
+| Arduino IDE            | 2.x     | Easiest path; bundles the toolchain   |
+| — _or_ — `arduino-cli` | 0.35+   | Scriptable / headless                 |
+| `arduino:avr` core     | latest  | Provides the **UNO** board definition |
+| USB data cable         | —       | Charge-only cables cannot upload      |
 
 Install with `arduino-cli` (Linux/macOS):
 
@@ -104,7 +117,7 @@ arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:avr:uno .
 
 Or, in the IDE, press the **→ Upload** button.
 
-> On Linux, if upload says *"Permission denied"*, add yourself to `dialout`:
+> On Linux, if upload says _"Permission denied"_, add yourself to `dialout`:
 > `sudo usermod -aG dialout $USER` and log out/in. On macOS the port is usually
 > `/dev/cu.usbmodem*`.
 
@@ -117,18 +130,23 @@ Or, in the IDE, press the **→ Upload** button.
 Open the serial monitor at **9600 baud** (IDE: `Tools → Serial Monitor`), with
 line ending set to **Newline**. Then type each command and check the reply.
 
-| You type | You should see |
-| --- | --- |
-| `PING` | `PONG` |
-| `VERSION` | `VERSION 1.0` |
-| `STATUS` | `STATUS L=0 R=0 MODE=STOPPED` |
-| `SENSOR` | `SENSOR F=-1 L=-1 R=-1 B=-1` (no sensors wired yet) |
-| `MOVE L=1 R=1` | `ACK MOVE L=1 R=1` (then `STATUS` shows `MODE=RUNNING`) |
-| `STOP` | `ACK STOP` |
-| `MOVE L=300 R=0` | `ERR RANGE invalid` |
-| `XYZ` | `ERR UNKNOWN invalid` |
+| You type         | You should see                                          |
+| ---------------- | ------------------------------------------------------- |
+| `PING`           | `PONG`                                                  |
+| `VERSION`        | `VERSION 1.1`                                           |
+| `STATUS`         | `STATUS L=0 R=0 MODE=STOPPED`                           |
+| `SENSOR`         | `SENSOR F=-1 L=-1 R=-1 B=-1` until sensors are wired     |
+| `MOVE L=1 R=1`   | `ACK MOVE L=1 R=1` (then `STATUS` shows `MODE=RUNNING`) |
+| `STOP`           | `ACK STOP`                                              |
+| `MOVE L=300 R=0` | `ERR RANGE invalid`                                     |
+| `XYZ`            | `ERR UNKNOWN invalid`                                   |
+| `ENV`            | `ENV T=-1 H=-1` (until the DHT11 reads cleanly)        |
+| `GAS`            | `GAS RAW=-1` (**no pin assigned** — the shipped state)  |
+| `LCD MODE IDLE|ready` | `ACK LCD` (check the display, if connected)         |
+| `BUZZ 1200 150`  | `ACK BUZZ 1200`, then ~150 ms of tone                  |
+| `BUZZ 99`        | `ERR RANGE invalid` (minimum is 20 Hz)                 |
 
-The very first line after opening the monitor is `AMR FW READY v1.0` (the boot
+The very first line after opening the monitor is `AMR FW READY v1.1` (the boot
 banner). That is expected; the Pi's read loop tolerates it.
 
 ### Watchdog check
@@ -196,17 +214,17 @@ The protocol itself is versioned: if you change any command/response, bump
 
 ## 8. Common issues
 
-| Symptom | Cause / fix |
-| --- | --- |
-| `avrdude: programmer is not responding` | Wrong board/port, or a charge-only cable. Try another cable and port. |
-| Port disappears right after upload | Normal — the UNO resets. Reopen the monitor. |
-| Compile error: `Arduino.h` not found | The sketch was opened as a single file; open the whole folder in the IDE. |
-| `PONG` never arrives from the Pi | Baud mismatch (9600), or the port is held by another program. |
-| Garbage characters | Wrong baud, or the monitor's line-ending is not Newline. |
+| Symptom                                    | Cause / fix                                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `avrdude: programmer is not responding`    | Wrong board/port, or a charge-only cable. Try another cable and port.                                        |
+| Port disappears right after upload         | Normal — the UNO resets. Reopen the monitor.                                                                 |
+| Compile error: `Arduino.h` not found       | The sketch was opened as a single file; open the whole folder in the IDE.                                    |
+| `PONG` never arrives from the Pi           | Baud mismatch (9600), or the port is held by another program.                                                |
+| Garbage characters                         | Wrong baud, or the monitor's line-ending is not Newline.                                                     |
 | Motors don't move though `ACK` is returned | ENA/ENB jumpers still fitted, no motor battery, or no common ground — see [`hardware.md`](hardware.md) §4.1. |
-| `ERR RANGE` for `MOVE L=1 R=1` | You are not running this firmware (legacy build?). Re-flash. |
-| Watchdog fires while you are testing | You paused > 1 s. Send a command to keep it fed. |
-| `SENSOR` always `-1` | `ULTRASONIC_ENABLED` is still `0`, or the sensors are unwired. |
+| `ERR RANGE` for `MOVE L=1 R=1`             | You are not running this firmware (legacy build?). Re-flash.                                                 |
+| Watchdog fires while you are testing       | You paused > 1 s. Send a command to keep it fed.                                                             |
+| `SENSOR` always `-1`                       | `ULTRASONIC_ENABLED` is still `0`, or the sensors are unwired.                                               |
 
 ---
 

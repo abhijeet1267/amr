@@ -122,6 +122,10 @@ class ArduinoSerial:
         self.log = logger or get_logger("serial")
         #: Most recent sensor report seen (polling or unsolicited).
         self.last_sensor: Optional[P.Response] = None
+        #: Most recent DHT11 environment report seen (polling or unsolicited).
+        self.last_env: Optional[P.Response] = None
+        #: Most recent gas report seen (polling or unsolicited).
+        self.last_gas: Optional[P.Response] = None
 
     # --- lifecycle --------------------------------------------------------- #
     def connect(self) -> None:
@@ -154,6 +158,22 @@ class ArduinoSerial:
     def sensor(self) -> P.Response:
         """Request and return an immediate sensor report."""
         return self._send_and_read(P.build_sensor(), {"SENSOR"})
+
+    def env(self) -> P.Response:
+        """Request a DHT11 temperature/humidity reading."""
+        return self._send_and_read(P.build_env(), {"ENV"})
+
+    def gas(self) -> P.Response:
+        """Request an MQ gas sensor raw reading."""
+        return self._send_and_read(P.build_gas(), {"GAS"})
+
+    def lcd(self, line0: str = "", line1: str = "") -> P.Response:
+        """Set the 16x2 I2C LCD to two lines of text."""
+        return self._send_and_read(P.build_lcd(line0, line1), {"ACK"})
+
+    def buzz(self, freq_hz: int = 0, duration_ms: Optional[int] = None) -> P.Response:
+        """Drive the buzzer. ``freq_hz`` 0 stops it."""
+        return self._send_and_read(P.build_buzz(freq_hz, duration_ms), {"ACK"})
 
     def move(self, left: int, right: int) -> P.Response:
         cmd = P.build_move(left, right)
@@ -192,6 +212,20 @@ class ArduinoSerial:
             if resp.kind == "SENSOR":
                 self.last_sensor = resp
                 if "SENSOR" in expected:
+                    return resp
+                continue
+
+            # Environment telemetry: buffer, same rule as SENSOR.
+            if resp.kind == "ENV":
+                self.last_env = resp
+                if "ENV" in expected:
+                    return resp
+                continue
+
+            # Gas telemetry: buffer, same rule as SENSOR.
+            if resp.kind == "GAS":
+                self.last_gas = resp
+                if "GAS" in expected:
                     return resp
                 continue
 

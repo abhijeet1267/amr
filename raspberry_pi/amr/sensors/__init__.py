@@ -14,5 +14,11 @@ validates/normalises the readings:
 """
 
 from .ultrasonic import UltrasonicManager, UltrasonicReading
+from .environment import EnvironmentManager, EnvironmentReading
 
-__all__ = ["UltrasonicManager", "UltrasonicReading"]
+__all__ = [
+    "UltrasonicManager",
+    "UltrasonicReading",
+    "EnvironmentManager",
+    "EnvironmentReading",
+]

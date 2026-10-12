@@ -50,7 +50,7 @@ Each layer depends only on the layers below it.
 | 2   | `amr.control`       | Motor driver + differential-drive vocabulary                             | `MotorDriver`, `ArduinoMotorDriver`, `DifferentialDrive`, `clamp_speed`                                      |
 | 3   | `amr.safety`        | Deterministic proximity policy                                           | `SafetyManager`, `SafetyDecision`, `SafetyAction`                                                            |
 | 3.5 | `amr.hazard`        | Context-aware multi-hazard aggregation + read-side spatial visualisation | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `render_map_svg`                           |
-| 4   | `amr.sensors`       | Ultrasonic read + validation                                             | `UltrasonicManager`, `UltrasonicReading`                                                                     |
+| 4   | `amr.sensors`       | Ultrasonic + environment read + validation                               | `UltrasonicManager`, `UltrasonicReading`, `EnvironmentManager`, `EnvironmentReading`                       |
 | 5   | `amr.robot`         | The gated runtime owner                                                  | `RobotManager`, `RobotState`, `ModeController`, `RobotMode`                                                  |
 | 6   | `amr.camera`        | Camera facade (libcamera / V4L2 / mock)                                  | `CameraManager`                                                                                              |
 | 7   | `amr.navigation`    | Odometry + waypoint planning                                             | `Navigator`, `LocalNavigator`, `Pose`, `Goal`, `NavResult`                                                   |
@@ -73,6 +73,9 @@ the motors.
   motion **and** the safety decision is `PROCEED` **and** (when attached) the
   hazard verdict does not block.
 - `stop()` / `estop()` are **never** gated — you must always be able to stop.
+- `read_environment()`, `lcd()` and `beep()` are also ungated: they are
+  telemetry / on-board display only and have no path to the motors. The gas and
+  DHT11 readings never reach `SafetyManager`, `HazardManager` or `_gate()`.
 - `tick()` is one control-loop iteration: poll sensors → evaluate Layer 3 →
   enforce `STOP` → evaluate Layer 3.5 (if attached) → enforce its veto.
 - `request_mode()` enforces the mode machine; entering `AUTONOMOUS` additionally

@@ -43,6 +43,7 @@ from ..control.motor_controller import MotorError
 from ..logging import get_logger, log_event
 from ..safety import SafetyAction, SafetyDecision, SafetyManager
 from ..sensors import UltrasonicManager, UltrasonicReading
+from ..sensors.environment import EnvironmentManager, EnvironmentReading
 from ..utils.config import AppConfig
 from .mode_controller import ModeController, ModeTransitionError
 from .robot_state import RobotMode, RobotState
@@ -76,11 +77,15 @@ class RobotManager:
         self.drive = DifferentialDrive(
             driver, max_speed=config.robot.motors.max_speed
         )
+        # Environmental sensors (DHT11 + gas). Telemetry only — never gates motion.
+        self.environment = EnvironmentManager(serial)
 
         self.version: Optional[str] = None
         self._last_reading: Optional[UltrasonicReading] = None
         self._last_decision: Optional[SafetyDecision] = None
         self._last_ok: Optional[float] = None
+        #: Throttle timestamp for the environmental poll (see _refresh_environment).
+        self._last_env_poll: Optional[float] = None
 
         # Optional hazard layer (Layer 3.5). ``None`` means "not attached", in
         # which case every behaviour in this class is exactly as it was before
@@ -244,6 +249,10 @@ class RobotManager:
         self.state.mode = self.mode_ctrl.mode
         self.state.updated_at = time.time()
 
+        # Environmental telemetry (DHT11 / gas), throttled to its own interval.
+        # Read-only and never gated: it cannot stop, slow, or steer the robot.
+        self._refresh_environment()
+
         # Only *enforce* a STOP while the link is up: a never-connected
         # manager must not lock the mode to SAFETY_STOP before start()
         # (the gate already rejects motion when disconnected, and a real
@@ -374,6 +383,35 @@ class RobotManager:
         self.state.updated_at = time.time()
 
     # ------------------------------------------------------------------ #
+    # Environmental telemetry + on-board display/actuator (never gated)
+    # ------------------------------------------------------------------ #
+    def read_environment(self) -> "object":
+        """One validated DHT11 + gas snapshot. Telemetry only — no motion.
+
+        Returns an :class:`~amr.sensors.environment.EnvironmentReading` (imported
+        lazily to keep ``amr.robot`` free of a hard dependency on ``amr.sensors``
+        at import time; the manager holds it via ``self.environment``).
+        """
+        if self.environment is None:
+            from ..sensors.environment import EnvironmentReading
+            return EnvironmentReading()
+        return self.environment.poll()
+
+    def lcd(self, line0: str = "", line1: str = "") -> None:
+        """Set the 16x2 I2C LCD. Never gated — display cannot move the robot."""
+        try:
+            self._serial.lcd(line0, line1)
+        except (SerialTimeout, ConnectionError) as exc:
+            self.log.warning("LCD write failed: %s", exc)
+
+    def beep(self, freq_hz: int = 0, duration_ms: Optional[int] = None) -> None:
+        """Sound the buzzer. ``freq_hz`` 0 stops it. Never gated."""
+        try:
+            self._serial.buzz(freq_hz, duration_ms)
+        except (SerialTimeout, ConnectionError) as exc:
+            self.log.warning("buzzer command failed: %s", exc)
+
+    # ------------------------------------------------------------------ #
     # Modes (Phase 9 state machine)
     # ------------------------------------------------------------------ #
     def request_mode(self, target: RobotMode) -> RobotMode:
@@ -440,6 +478,28 @@ class RobotManager:
         self.state.left_cm = reading.left
         self.state.right_cm = reading.right
         self.state.rear_cm = reading.rear
+
+    def _refresh_environment(self) -> None:
+        """Refresh the DHT11 / gas readings, at most every `poll_interval_ms`.
+
+        Telemetry only: a failed or absent reading leaves the previous value
+        intact rather than clearing it to an invented number, and no exception
+        can escape — the control loop must never be stopped by a sensor.
+        """
+        if self.environment is None or not self.state.connected:
+            return
+        interval = self._config.robot.environment.poll_interval_ms / 1000.0
+        now = time.monotonic()
+        if self._last_env_poll is not None and (now - self._last_env_poll) < interval:
+            return
+        self._last_env_poll = now
+        try:
+            reading = self.environment.poll()
+        except Exception:  # noqa: BLE001 - telemetry must never break the loop
+            return
+        self.state.temperature_c = reading.temperature_c
+        self.state.humidity_pct = reading.humidity_pct
+        self.state.gas_raw = reading.gas_raw
 
     def _note_ok(self) -> None:
         self._last_ok = time.monotonic()

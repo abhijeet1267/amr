@@ -59,12 +59,12 @@ python -m amr.main --mock --web     # prints http://localhost:8080
 
 The platform runners are committed, so each target builds on its own OS:
 
-| Target | Host | Needs |
-| ------ | ---- | ----- |
-| macOS | macOS | Full **Xcode** (`xcode-select --install` is *not* enough) + CocoaPods |
-| Windows | Windows | **Visual Studio** with the "Desktop development with C++" workload |
-| Linux | Linux | `clang cmake ninja-build pkg-config libgtk-3-dev` |
-| iOS | macOS | Full Xcode + an Apple signing identity |
+| Target  | Host    | Needs                                                                 |
+| ------- | ------- | --------------------------------------------------------------------- |
+| macOS   | macOS   | Full **Xcode** (`xcode-select --install` is _not_ enough) + CocoaPods |
+| Windows | Windows | **Visual Studio** with the "Desktop development with C++" workload    |
+| Linux   | Linux   | `clang cmake ninja-build pkg-config libgtk-3-dev`                     |
+| iOS     | macOS   | Full Xcode + an Apple signing identity                                |
 
 Flutter cannot cross-compile these: a macOS `.app` cannot be produced on
 Windows or Linux, and a Windows `.exe` cannot be produced on macOS.
@@ -79,9 +79,9 @@ Linux and the web:
    the safety rules, before anything is touched.
 2. **Connect** — enter the robot's address and run a **connection test**. Every
    endpoint (`/health`, `/status`, `/telemetry`, `/map`, `/heatmap`,
-   `/camera/status`, …) is probed **individually**, so a failure says *which*
+   `/camera/status`, …) is probed **individually**, so a failure says _which_
    part of the robot is down and how to fix it, instead of one opaque "failed".
-3. **Checks** — a **preflight** listing *fatal* conditions (no connection,
+3. **Checks** — a **preflight** listing _fatal_ conditions (no connection,
    Pi↔Arduino link down, E-STOP latched, obstacle too close, battery critical)
    and warnings (camera offline, high latency), then **live sensor readings**:
    front/left/right/rear, battery, mode, speed. "Next" is blocked while a fatal
@@ -104,8 +104,8 @@ The client speaks the robot's real HTTP contract, verified against
 | `GET`  | `/telemetry`          | battery / speed / ultrasonic / mode                                                                     |
 | `GET`  | `/health`             | the ping / connection check                                                                             |
 | `GET`  | `/status`             | raw robot snapshot                                                                                      |
-| `GET`  | `/map`                | the Map screen: pose, route, trail, hazards, zones                                                       |
-| `GET`  | `/heatmap`            | the Heat map screen: hazard + traffic density grids (C19)                                                |
+| `GET`  | `/map`                | the Map screen: pose, route, trail, hazards, zones                                                      |
+| `GET`  | `/heatmap`            | the Heat map screen: hazard + traffic density grids (C19)                                               |
 | `POST` | `/command`            | `forward` / `backward` / `turn_left` / `turn_right` / `rotate_left` / `rotate_right` / `stop` / `estop` |
 
 Two honesty notes carried straight from the robot's own docs:

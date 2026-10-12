@@ -1,8 +1,8 @@
 # AMR Serial Protocol
 
-**Version:** `1.0` — **Transport:** USB CDC serial (Arduino UNO ↔ Raspberry Pi 5)
+**Version:** `1.1` — **Transport:** USB CDC serial (Arduino UNO ↔ Raspberry Pi 5)
 **Baud rate:** `9600` — **Framing:** one command per line, `\r\n` (or `\n`) terminated
-**Encoding:** ASCII/UTF-8, verbs are **case-insensitive**
+**Encoding:** ASCII/UTF-8, verbs are **case-insensitive** (LCD text keeps its case)
 
 This is the single source of truth for the text protocol. Two implementations
 must stay in sync:
@@ -14,6 +14,10 @@ must stay in sync:
 > (`F` `B` `L` `R` `S`). The legacy commands **remain supported** for backward
 > compatibility with the already-tested baseline, so the existing prototype
 > keeps working while the new structured protocol is adopted.
+
+> v1.1 adds the environmental/display commands (`ENV`, `GAS`, `LCD`, `BUZZ`).
+> They are additive: a v1.0 controller answers them with `ERR UNKNOWN`, which
+> the Pi tolerates as a failed read (values stay `UNAVAILABLE`, never invented).
 
 ---
 
@@ -28,6 +32,10 @@ must stay in sync:
 | `SENSOR`                    | `SENSOR`           | Request an immediate ultrasonic report    |
 | `WDT <ms>`                  | `WDT 1000`         | Set the communication watchdog timeout    |
 | `MOVE L=<int> R=<int>`      | `MOVE L=150 R=150` | Set left/right wheel-group speed          |
+| `ENV`                       | `ENV`              | DHT11 temperature + humidity reading      |
+| `GAS`                       | `GAS`              | MQ gas sensor raw ADC reading             |
+| `LCD <l0>\|<l1>`            | `LCD MODE RUNNING…`| Set the 16×2 I2C LCD (≤16 chars per line) |
+| `BUZZ <hz> [<ms>]`          | `BUZZ 1200 150`    | Buzzer tone; `0` stops, `<ms>` auto-stops |
 | `F` / `B` / `L` / `R` / `S` | `F`                | **Legacy** baseline commands (still work) |
 
 ### Speed semantics (`MOVE`)
@@ -64,7 +72,9 @@ must stay in sync:
 | `ERR <code> [msg]`                       | `ERR RANGE out of range`      | Command rejected                            |
 | `STATUS L=<int> R=<int> MODE=<str>`      | `STATUS L=1 R=1 MODE=RUNNING` | Motor + drive state                         |
 | `SENSOR F=<int> L=<int> R=<int> B=<int>` | `SENSOR F=82 L=45 R=91 B=120` | Ultrasonic distances (cm)                   |
-| `VERSION <semver>`                       | `VERSION 1.0`                 | Protocol version                            |
+| `ENV T=<int> H=<int>`                    | `ENV T=24 H=51`               | DHT11 degC / %RH; `-1` = invalid/unmeasured |
+| `GAS RAW=<int>`                          | `GAS RAW=312`                 | MQ gas raw ADC; `-1` = no pin assigned      |
+| `VERSION <semver>`                       | `VERSION 1.1`                 | Protocol version                            |
 | `WATCHDOG TRIGGERED`                     | `WATCHDOG TRIGGERED`          | Unsolicited: Pi went silent, motors stopped |
 
 ### `STATUS MODE` values (firmware drive state)
@@ -80,7 +90,7 @@ must stay in sync:
 | Code      | Cause                                   |
 | --------- | --------------------------------------- |
 | `PARSE`   | Malformed / missing fields              |
-| `RANGE`   | A speed value is outside `-255 .. +255` |
+| `RANGE`   | A value is outside its allowed range (speed ±255, buzzer 20–20000 Hz) |
 | `UNKNOWN` | Unrecognised command                    |
 
 ---
@@ -98,7 +108,33 @@ must stay in sync:
 
 ---
 
-## 4. Watchdog (`WATCHDOG TRIGGERED`)
+## 4. Environmental sensors (`ENV`, `GAS`)
+
+| Read | Values | Notes |
+| --- | --- | --- |
+| **DHT11** | `T` degC (int), `H` %RH (int) | `-1` = invalid/unmeasured. Sampling one-shot, on request. |
+| **MQ gas** | `RAW` ADC count (0..1023) | `-1` = *no pin assigned*, the shipped default. |
+
+**Honesty contract:** `-1` means "not measured". The Pi parser maps `-1` to
+`None` and telemetry surfaces `UNAVAILABLE` — it never invents `0 ppm`.
+
+**Safety contract:** neither value reaches `SafetyManager`, `HazardManager`, or
+`RobotManager._gate()`. There is no path from a gas reading to the motors. The
+buzzer/LCD are similarly actuation-free of *motion*: `LCD`/`BUZZ` are accepted
+in any mode and never reach `dispatch()`.
+
+### Buzzer (`BUZZ`)
+
+- `BUZZ <hz>` — tone frequency, 20–20000 Hz (0 = stop).
+- `BUZZ <hz> <ms>` — stops automatically after `<ms>` (prevents a stuck buzzer).
+- Frequency outside range → `ERR RANGE`; a non-numeric argument → `ERR PARSE`.
+- **The firmware does not use `tone()`.** `tone()` occupies Timer2, which also
+  drives D11 — the right motor's PWM pin (ENB). It would corrupt speed
+  control, so the buzzer is toggled with plain `digitalWrite()`.
+
+---
+
+## 5. Watchdog (`WATCHDOG TRIGGERED`)
 
 If no **valid** command is received for `watchdog_timeout_ms` (default **1000 ms**),
 the firmware stops all motors and emits `WATCHDOG TRIGGERED` once. See
@@ -106,18 +142,23 @@ the firmware stops all motors and emits `WATCHDOG TRIGGERED` once. See
 
 ---
 
-## 5. Worked session
+## 6. Worked session
 
 ```
 Pi                          Arduino
 --                          -------
 PING                        ->  PONG
-VERSION                     ->  VERSION 1.0
+VERSION                     ->  VERSION 1.1
 MOVE L=1 R=1                ->  ACK MOVE L=1 R=1
 STATUS                      ->  STATUS L=1 R=1 MODE=RUNNING
 SENSOR                      ->  SENSOR F=82 L=45 R=91 B=120
+ENV                         ->  ENV T=24 H=51
+GAS                         ->  GAS RAW=312
+LCD MODE RUNNING|T24 H51     ->  ACK LCD
+BUZZ 1200 150               ->  ACK BUZZ 1200
 STOP                        ->  ACK STOP
 MOVE L=300 R=0              ->  ERR RANGE out of range
+BUZZ 99                    ->  ERR RANGE out of range  (min 20 Hz)
 XYZ                         ->  ERR UNKNOWN XYZ
         (Pi goes silent > 1000 ms)
                             ->  WATCHDOG TRIGGERED   (motors stopped)
@@ -125,7 +166,7 @@ XYZ                         ->  ERR UNKNOWN XYZ
 
 ---
 
-## 6. Robustness rules (both sides)
+## 7. Robustness rules (both sides)
 
 - The Pi reads until it sees the expected response, an `ERR`, or a timeout.
 - Unsolicited `SENSOR`/`WATCHDOG` lines are tolerated and buffered, never fatal.
@@ -133,7 +174,7 @@ XYZ                         ->  ERR UNKNOWN XYZ
 - A serial timeout raises a typed error on the Pi; the robot manager decides the
   safe action (typically treat as disconnected and stop).
 
-## 7. Extensibility
+## 8. Extensibility
 
 New verbs should be **additive** (new command/response pairs) and must be added
 to **both** implementations plus this document and `PROTOCOL_VERSION` bumped on

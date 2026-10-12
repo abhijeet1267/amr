@@ -384,6 +384,25 @@ def _sensor_panel(t: Dict[str, Any]) -> Dict[str, Any]:
                 "availability": _availability(src),
             })
 
+    # Environmental readings (DHT11 / MQ gas). Same contract as above: a value
+    # is listed only when it was actually measured, so "no gas sensor wired"
+    # renders as an absent row rather than a fabricated 0.
+    for key, label, unit in (
+        ("temperature_c", "dht11_temperature", "degC"),
+        ("humidity_pct", "dht11_humidity", "%RH"),
+        ("gas_raw", "gas_sensor", "raw"),
+    ):
+        value = s.get(key)
+        if value is None:
+            continue
+        rows.append({
+            "sensor": label,
+            "value": value,
+            "unit": unit,
+            "source": src,
+            "availability": _availability(src),
+        })
+
     return {"rows": rows, "source": src,
             "availability": _availability(src)}
 

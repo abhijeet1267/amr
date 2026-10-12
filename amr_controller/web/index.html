@@ -9,7 +9,10 @@
 
     <meta charset="UTF-8" />
     <meta content="IE=Edge" http-equiv="X-UA-Compatible" />
-    <meta name="description" content="AMR Controller — operator client for the AMR robot." />
+    <meta
+      name="description"
+      content="AMR Controller — operator client for the AMR robot."
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- iOS meta tags & icons -->
@@ -27,33 +30,84 @@
     <style>
       /* Boot screen. Shown until Flutter paints its first frame, so a slow
          first load is visible progress instead of a blank page. */
-      html, body {
-        height: 100%; margin: 0; background: #F3F5F7;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #f3f5f7;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
+          sans-serif;
       }
       #boot {
-        position: fixed; inset: 0; display: flex; flex-direction: column;
-        align-items: center; justify-content: center; gap: 14px;
-        color: #182026; text-align: center; padding: 24px;
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        color: #182026;
+        text-align: center;
+        padding: 24px;
       }
       #boot .ring {
-        width: 34px; height: 34px; border: 3px solid #D8DEE5; border-top-color: #1A5FB4;
-        border-radius: 50%; animation: spin 0.9s linear infinite;
+        width: 34px;
+        height: 34px;
+        border: 3px solid #d8dee5;
+        border-top-color: #1a5fb4;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
       }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      #boot h1 { font-size: 17px; margin: 0; font-weight: 700; }
-      #boot .status { font-size: 13px; color: #51606E; max-width: 460px; line-height: 1.5; }
-      #boot .hint { font-size: 12px; color: #8592A0; max-width: 460px; line-height: 1.5; }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      #boot h1 {
+        font-size: 17px;
+        margin: 0;
+        font-weight: 700;
+      }
+      #boot .status {
+        font-size: 13px;
+        color: #51606e;
+        max-width: 460px;
+        line-height: 1.5;
+      }
+      #boot .hint {
+        font-size: 12px;
+        color: #8592a0;
+        max-width: 460px;
+        line-height: 1.5;
+      }
       #boot .err {
-        display: none; margin-top: 6px; padding: 12px 14px; text-align: left;
-        background: #FDECEA; border: 1px solid #C0392B; border-radius: 8px;
-        color: #7B241C; font-size: 12.5px; max-width: 540px; line-height: 1.55;
+        display: none;
+        margin-top: 6px;
+        padding: 12px 14px;
+        text-align: left;
+        background: #fdecea;
+        border: 1px solid #c0392b;
+        border-radius: 8px;
+        color: #7b241c;
+        font-size: 12.5px;
+        max-width: 540px;
+        line-height: 1.55;
       }
-      #boot .err b { display: block; margin-bottom: 4px; color: #C0392B; }
+      #boot .err b {
+        display: block;
+        margin-bottom: 4px;
+        color: #c0392b;
+      }
       #boot .err code {
-        background: #F7D9D5; padding: 1px 4px; border-radius: 3px; font-size: 12px;
+        background: #f7d9d5;
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-size: 12px;
       }
-      #boot.hidden { display: none; }
+      #boot.hidden {
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -72,59 +126,71 @@
       // actionable message: a slow load shows progress, and a missing file says
       // which file and the usual cause.
       (function () {
-        var boot = document.getElementById('boot');
-        var status = document.getElementById('boot-status');
-        var err = document.getElementById('boot-err');
+        var boot = document.getElementById("boot");
+        var status = document.getElementById("boot-status");
+        var err = document.getElementById("boot-err");
         var done = false;
 
         function hide() {
           if (done) return;
           done = true;
-          boot.classList.add('hidden');
+          boot.classList.add("hidden");
         }
 
         function fail(title, detail) {
           if (done) return;
-          status.textContent = 'Could not start.';
-          err.style.display = 'block';
-          err.innerHTML = '<b>' + title + '</b>' + detail;
-          var ring = document.querySelector('#boot .ring');
-          if (ring) ring.style.animation = 'none';
+          status.textContent = "Could not start.";
+          err.style.display = "block";
+          err.innerHTML = "<b>" + title + "</b>" + detail;
+          var ring = document.querySelector("#boot .ring");
+          if (ring) ring.style.animation = "none";
         }
 
         // Flutter signals its first painted frame with this event.
-        window.addEventListener('flutter-first-frame', hide, { once: true });
+        window.addEventListener("flutter-first-frame", hide, { once: true });
 
         // Fallback: if the event is missed, watch for the Flutter view element.
         var poll = setInterval(function () {
-          if (document.querySelector('flutter-view, flt-glass-pane')) {
+          if (document.querySelector("flutter-view, flt-glass-pane")) {
             hide();
             clearInterval(poll);
           }
         }, 400);
 
         setTimeout(function () {
-          if (!done) status.textContent = 'Still loading… this is taking longer than usual.';
+          if (!done)
+            status.textContent =
+              "Still loading… this is taking longer than usual.";
         }, 12000);
 
         setTimeout(function () {
           if (!done) {
-            fail('Taking too long',
-              'The app engine has not started after 45 seconds. Check that this folder is ' +
-              'served over HTTP from its own root (not opened as a file), then reload.');
+            fail(
+              "Taking too long",
+              "The app engine has not started after 45 seconds. Check that this folder is " +
+                "served over HTTP from its own root (not opened as a file), then reload.",
+            );
           }
         }, 45000);
 
-        window.addEventListener('error', function (e) {
-          var src = (e && e.target && e.target.src) || '';
-          if (src && /main\.dart\.js|canvaskit/.test(src)) {
-            fail('A required file failed to load',
-              'Could not load <code>' + src.split('/').pop() + '</code>. This folder must be ' +
-              'served over HTTP from its own root, and the server must send ' +
-              '<code>application/wasm</code> for <code>.wasm</code> files. ' +
-              'Run <code>serve.py</code> (included) and reload.');
-          }
-        }, true);
+        window.addEventListener(
+          "error",
+          function (e) {
+            var src = (e && e.target && e.target.src) || "";
+            if (src && /main\.dart\.js|canvaskit/.test(src)) {
+              fail(
+                "A required file failed to load",
+                "Could not load <code>" +
+                  src.split("/").pop() +
+                  "</code>. This folder must be " +
+                  "served over HTTP from its own root, and the server must send " +
+                  "<code>application/wasm</code> for <code>.wasm</code> files. " +
+                  "Run <code>serve.py</code> (included) and reload.",
+              );
+            }
+          },
+          true,
+        );
       })();
     </script>
 

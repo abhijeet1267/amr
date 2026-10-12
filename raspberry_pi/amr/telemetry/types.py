@@ -244,23 +244,30 @@ class BatteryTelemetry:
 
 @dataclass(frozen=True)
 class SensorTelemetry:
-    """Ultrasonic distances in centimetres.
+    """Ultrasonic distances in centimetres + environmental readings.
 
-    ``None`` means "no valid echo", which the existing ultrasonic layer already
-    normalises (``-1`` -> ``None``); it is not a distance of zero.
+    ``None`` means "no valid echo" (ultrasonic) or "invalid/unmeasured"
+    (DHT11/gas), which the runtime already normalises (`-1` → `None`). It is
+    not a distance of zero, nor a temperature of 0 °C.
     """
 
     front_cm: Optional[int] = None
     left_cm: Optional[int] = None
     right_cm: Optional[int] = None
     rear_cm: Optional[int] = None
+    #: DHT11 / MQ gas telemetry fields are opt-in; when absent they stay
+    #: `None` so the UI can show “not measured” instead of fabricating values.
+    temperature_c: Optional[float] = None
+    humidity_pct: Optional[int] = None
+    gas_raw: Optional[int] = None       # 0..1023 ADC count, or None
     source: DataSource = DataSource.UNAVAILABLE
 
     @property
     def any_available(self) -> bool:
         return any(
             v is not None
-            for v in (self.front_cm, self.left_cm, self.right_cm, self.rear_cm)
+            for v in (self.front_cm, self.left_cm, self.right_cm, self.rear_cm,
+                      self.temperature_c, self.humidity_pct, self.gas_raw)
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -269,6 +276,9 @@ class SensorTelemetry:
             "left_cm": self.left_cm,
             "right_cm": self.right_cm,
             "rear_cm": self.rear_cm,
+            "temperature_c": self.temperature_c,
+            "humidity_pct": self.humidity_pct,
+            "gas_raw": self.gas_raw,
             "source": self.source.value,
         }
 

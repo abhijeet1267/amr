@@ -13,7 +13,7 @@ You do **not** upload the app to the Pi. The Pi runs its own web console; the
 phone app connects to the Pi over Wi-Fi.
 
 > **Nothing here has been run on real hardware by this repository.** Every step  
-> has a validation so you can confirm it worked on *your* hardware.
+> has a validation so you can confirm it worked on _your_ hardware.
 
 ---
 
@@ -110,7 +110,7 @@ sudo ss -ltnp | grep ':8080' || echo "port 8080 is free"
 ```
 
 If starting it fails with **`OSError: [Errno 98] Address already in use`**, an
-earlier copy is still running and holding the port. It is serving the *old* code,
+earlier copy is still running and holding the port. It is serving the _old_ code,
 so the console will look out of date until it is replaced:
 
 ```bash
@@ -134,11 +134,11 @@ git pull
 
 Then, from another machine on the same network:
 
-| Want | Use | Why |
-| --- | --- | --- |
-| Drive/monitor from a phone | the **Android APK** | native apps are not subject to browser CORS |
-| Use it from a computer | the Pi's own console: `http://<pi-ip>:8080/command-center` | served by the Pi itself, so no cross-origin issue |
-| Preview the app UI | `dist/amr-controller-web/` | **cannot** drive the robot — the server sends no CORS headers |
+| Want                       | Use                                                        | Why                                                           |
+| -------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
+| Drive/monitor from a phone | the **Android APK**                                        | native apps are not subject to browser CORS                   |
+| Use it from a computer     | the Pi's own console: `http://<pi-ip>:8080/command-center` | served by the Pi itself, so no cross-origin issue             |
+| Preview the app UI         | `dist/amr-controller-web/`                                 | **cannot** drive the robot — the server sends no CORS headers |
 
 Enter the Pi's IP and port `8080` in the app's setup wizard.
 
@@ -211,7 +211,7 @@ pollutes the system Python on Raspberry Pi OS.
 
 Full detail: [`setup_raspberry_pi.md`](setup_raspberry_pi.md) §1.
 
-### A2. Get the code onto the Pi  ← the step people miss
+### A2. Get the code onto the Pi ← the step people miss
 
 The stack needs **two folders side by side**: `raspberry_pi/` and `config/`  
 (the config loader resolves `config/` from the repository root, so they must  
@@ -246,7 +246,7 @@ scp -r raspberry_pi config tools "$PI":~/amr/
 git clone https://github.com/abhijeet1267/amr.git ~/amr
 ```
 
-> ⚠️ **This only gives you *committed* code.** If you have local changes that  
+> ⚠️ **This only gives you _committed_ code.** If you have local changes that  
 > are not pushed, they will **not** be on the Pi. Use Option 1 for those.
 
 **Option 3 — USB stick.** Copy `raspberry_pi/`, `config/` and `tools/` onto a  

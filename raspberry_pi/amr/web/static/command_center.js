@@ -848,7 +848,13 @@ function hexToRgb(h) {
   h = String(h || "").trim();
   if (h.charAt(0) === "#") h = h.slice(1);
   if (h.length === 3) {
-    h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+    h =
+      h.charAt(0) +
+      h.charAt(0) +
+      h.charAt(1) +
+      h.charAt(1) +
+      h.charAt(2) +
+      h.charAt(2);
   }
   if (h.length !== 6) return null;
   var n = parseInt(h, 16);
@@ -862,9 +868,12 @@ function mixHex(a, b, t) {
   if (!A || !B) return a;
   return (
     "rgb(" +
-    Math.round(A[0] + (B[0] - A[0]) * t) + "," +
-    Math.round(A[1] + (B[1] - A[1]) * t) + "," +
-    Math.round(A[2] + (B[2] - A[2]) * t) + ")"
+    Math.round(A[0] + (B[0] - A[0]) * t) +
+    "," +
+    Math.round(A[1] + (B[1] - A[1]) * t) +
+    "," +
+    Math.round(A[2] + (B[2] - A[2]) * t) +
+    ")"
   );
 }
 
@@ -884,7 +893,11 @@ function heatRamp(stops, t) {
 
 /* Hazard intensity reads as severity: cool (present) -> amber (act) -> red. */
 function hazardRamp() {
-  return [token("info", "#3d8bfd"), token("warn", "#e8a33d"), token("crit", "#ef4d5a")];
+  return [
+    token("info", "#3d8bfd"),
+    token("warn", "#e8a33d"),
+    token("crit", "#ef4d5a"),
+  ];
 }
 
 /* Traffic intensity is not a severity, so it stays one hue: dark -> accent. */
@@ -919,8 +932,13 @@ function drawHeatGrid(svg, grid, ramp, ariaLabel) {
 
   var out = [];
   out.push(
-    '<rect x="0" y="0" width="' + HM_W + '" height="' + HM_H +
-      '" fill="' + token("stage", "#060a11") + '"/>',
+    '<rect x="0" y="0" width="' +
+      HM_W +
+      '" height="' +
+      HM_H +
+      '" fill="' +
+      token("stage", "#060a11") +
+      '"/>',
   );
 
   var peak = isNum(grid.max_value) ? grid.max_value : 0;
@@ -938,47 +956,74 @@ function drawHeatGrid(svg, grid, ramp, ariaLabel) {
       var y0 = ext.y_min + row * grid.cell_m;
       var t = peak > 0 ? v / peak : 0;
       out.push(
-        '<rect x="' + X(x0).toFixed(1) +
-          '" y="' + Y(y0 + grid.cell_m).toFixed(1) +
-          '" width="' + cellW.toFixed(1) +
-          '" height="' + cellH.toFixed(1) +
-          '" fill="' + heatRamp(ramp, t) +
-          '" fill-opacity="' + (0.10 + 0.85 * t).toFixed(2) + '"/>',
+        '<rect x="' +
+          X(x0).toFixed(1) +
+          '" y="' +
+          Y(y0 + grid.cell_m).toFixed(1) +
+          '" width="' +
+          cellW.toFixed(1) +
+          '" height="' +
+          cellH.toFixed(1) +
+          '" fill="' +
+          heatRamp(ramp, t) +
+          '" fill-opacity="' +
+          (0.1 + 0.85 * t).toFixed(2) +
+          '"/>',
       );
     }
   }
 
   /* Extent outline — explicitly a data frame, never a surveyed wall. */
   out.push(
-    '<rect x="' + X(ext.x_min).toFixed(1) +
-      '" y="' + Y(ext.y_max).toFixed(1) +
-      '" width="' + (spanX * scale).toFixed(1) +
-      '" height="' + (spanY * scale).toFixed(1) +
+    '<rect x="' +
+      X(ext.x_min).toFixed(1) +
+      '" y="' +
+      Y(ext.y_max).toFixed(1) +
+      '" width="' +
+      (spanX * scale).toFixed(1) +
+      '" height="' +
+      (spanY * scale).toFixed(1) +
       '" fill="none" stroke="#2f4258" stroke-width="1" stroke-dasharray="5 4"/>',
   );
 
   var st = map.warehouse || {};
   (st.waypoints || []).forEach(function (w) {
     out.push(
-      '<circle cx="' + X(w.x).toFixed(1) + '" cy="' + Y(w.y).toFixed(1) +
+      '<circle cx="' +
+        X(w.x).toFixed(1) +
+        '" cy="' +
+        Y(w.y).toFixed(1) +
         '" r="3.5" fill="none" stroke="#8fa3bd" stroke-width="1.5"/>',
     );
     out.push(
-      '<text x="' + (X(w.x) + 7).toFixed(1) + '" y="' + (Y(w.y) + 3).toFixed(1) +
+      '<text x="' +
+        (X(w.x) + 7).toFixed(1) +
+        '" y="' +
+        (Y(w.y) + 3).toFixed(1) +
         '" fill="#8fa3bd" font-size="11" font-family="system-ui, sans-serif">' +
-        esc(w.name || "") + "</text>",
+        esc(w.name || "") +
+        "</text>",
     );
   });
   if (map.robot) {
     out.push(
-      '<circle cx="' + X(map.robot.x).toFixed(1) + '" cy="' + Y(map.robot.y).toFixed(1) +
-        '" r="6" fill="' + token("accent", "#22d3ee") + '"/>',
+      '<circle cx="' +
+        X(map.robot.x).toFixed(1) +
+        '" cy="' +
+        Y(map.robot.y).toFixed(1) +
+        '" r="6" fill="' +
+        token("accent", "#22d3ee") +
+        '"/>',
     );
   }
   if (!drawn) {
     out.push(
-      '<text x="' + (HM_W / 2) + '" y="' + (HM_H / 2) +
-        '" fill="' + token("dim", "#64768c") +
+      '<text x="' +
+        HM_W / 2 +
+        '" y="' +
+        HM_H / 2 +
+        '" fill="' +
+        token("dim", "#64768c") +
         '" font-size="13" text-anchor="middle" font-family="system-ui, sans-serif">' +
         "no samples recorded</text>",
     );
@@ -1000,21 +1045,35 @@ function heatLegend(el, grid, ramp, unitWord) {
   for (var i = 0; i <= 4; i++) {
     var t = i / 4;
     swatch.push(
-      '<span class="hm-step" style="background:' + heatRamp(stops, t) +
-        ";opacity:" + (0.10 + 0.85 * t).toFixed(2) + '"></span>',
+      '<span class="hm-step" style="background:' +
+        heatRamp(stops, t) +
+        ";opacity:" +
+        (0.1 + 0.85 * t).toFixed(2) +
+        '"></span>',
     );
   }
   var bits = [
-    '<div class="hm-scale"><span class="hm-lab">0</span>' + swatch.join("") +
-      '<span class="hm-lab">' + na(peak, 0) + "</span></div>",
+    '<div class="hm-scale"><span class="hm-lab">0</span>' +
+      swatch.join("") +
+      '<span class="hm-lab">' +
+      na(peak, 0) +
+      "</span></div>",
     '<p class="hm-note">' + esc(unitWord) + "</p>",
     '<p class="hm-note">' + esc(grid.note || "") + "</p>",
-    '<p class="hm-note">samples ' + grid.samples +
-      " &middot; cells " + grid.cols + "&times;" + grid.rows +
-      " &middot; " + na(grid.cell_m, 2) + " m" +
+    '<p class="hm-note">samples ' +
+      grid.samples +
+      " &middot; cells " +
+      grid.cols +
+      "&times;" +
+      grid.rows +
+      " &middot; " +
+      na(grid.cell_m, 2) +
+      " m" +
       (grid.clipped ? " &middot; clipped " + grid.clipped : "") +
       (grid.unlocated ? " &middot; unlocated " + grid.unlocated : "") +
-      " &middot; " + esc(grid.source || "UNAVAILABLE") + "</p>",
+      " &middot; " +
+      esc(grid.source || "UNAVAILABLE") +
+      "</p>",
   ];
   el.innerHTML = bits.join("");
 }
@@ -1039,12 +1098,20 @@ function renderHeatmap(s) {
     trafficRamp,
     "Traffic density: path samples per cell, binned over the configured warehouse extent.",
   );
-  heatLegend($("hm-hazard-legend"), hazardGrid, hazardRamp,
-    "severity-weighted hazard events");
-  heatLegend($("hm-traffic-legend"), trafficGrid, trafficRamp,
-    "path samples (time spent, not distance)");
+  heatLegend(
+    $("hm-hazard-legend"),
+    hazardGrid,
+    hazardRamp,
+    "severity-weighted hazard events",
+  );
+  heatLegend(
+    $("hm-traffic-legend"),
+    trafficGrid,
+    trafficRamp,
+    "path samples (time spent, not distance)",
+  );
 
-  txt("hm-badge", hasAny ? (hz.source || "") : "NO DATA");
+  txt("hm-badge", hasAny ? hz.source || "" : "NO DATA");
   txt("hm-hazard-total", hazardGrid ? na(hazardGrid.total, 0) : "n/a");
   txt("hm-hazard-samples", hazardGrid ? String(hazardGrid.samples) : "n/a");
   txt("hm-traffic-samples", trafficGrid ? String(trafficGrid.samples) : "n/a");
@@ -1633,12 +1700,24 @@ function drawTwin(tw) {
     var step = 0.5,
       cap = 60,
       n = 0;
-    for (var lx = Math.floor(lo0 / step) * step; lx <= hi0 + 1e-9 && n < cap; lx += step, n++) {
-      parts.push(tBox(0.012, hi1 - lo1, 0.004, T_COL.grid, tTrans(lx, cy, 0.002)));
+    for (
+      var lx = Math.floor(lo0 / step) * step;
+      lx <= hi0 + 1e-9 && n < cap;
+      lx += step, n++
+    ) {
+      parts.push(
+        tBox(0.012, hi1 - lo1, 0.004, T_COL.grid, tTrans(lx, cy, 0.002)),
+      );
     }
     n = 0;
-    for (var ly = Math.floor(lo1 / step) * step; ly <= hi1 + 1e-9 && n < cap; ly += step, n++) {
-      parts.push(tBox(hi0 - lo0, 0.012, 0.004, T_COL.grid, tTrans(cx, ly, 0.002)));
+    for (
+      var ly = Math.floor(lo1 / step) * step;
+      ly <= hi1 + 1e-9 && n < cap;
+      ly += step, n++
+    ) {
+      parts.push(
+        tBox(hi0 - lo0, 0.012, 0.004, T_COL.grid, tTrans(cx, ly, 0.002)),
+      );
     }
   }
   (tw.waypoints || []).forEach(function (p) {
@@ -1723,7 +1802,15 @@ function drawTwin(tw) {
           wl.width + 0.014,
           12,
           T_COL.hub,
-          tMul(m, tAxle(wl.position[0], wl.position[1], wl.position[2], wl.width + 0.014)),
+          tMul(
+            m,
+            tAxle(
+              wl.position[0],
+              wl.position[1],
+              wl.position[2],
+              wl.width + 0.014,
+            ),
+          ),
         ),
       );
     });
@@ -1763,7 +1850,13 @@ function drawTwin(tw) {
       var cp = mo.camera.position,
         cs = mo.camera.size;
       parts.push(
-        tBox(cs[0], cs[1], cs[2], T_COL.camera, tMul(m, tTrans(cp[0], cp[1], cp[2]))),
+        tBox(
+          cs[0],
+          cs[1],
+          cs[2],
+          T_COL.camera,
+          tMul(m, tTrans(cp[0], cp[1], cp[2])),
+        ),
       );
       // Lens: a short barrel on the front face — the one part that should read
       // as glass rather than plastic.
@@ -1781,7 +1874,9 @@ function drawTwin(tw) {
       var sp = mo.sensor.position;
       // Mast up from the deck, then the head on top: a sensor floating with no
       // visible mount was the other thing that read as a diagram, not a robot.
-      parts.push(tCyl(0.012, sp[2], 8, T_COL.mast, tMul(m, tTrans(sp[0], sp[1], 0))));
+      parts.push(
+        tCyl(0.012, sp[2], 8, T_COL.mast, tMul(m, tTrans(sp[0], sp[1], 0))),
+      );
       parts.push(
         tCyl(
           mo.sensor.radius,
@@ -1812,7 +1907,14 @@ function drawTwin(tw) {
         0.01,
         10,
         T_COL.led,
-        tMul(m, tTrans(-ch.size[0] * 0.28, ch.size[1] * 0.28, ch.center_z + ch.size[2] / 2 + 0.032)),
+        tMul(
+          m,
+          tTrans(
+            -ch.size[0] * 0.28,
+            ch.size[1] * 0.28,
+            ch.center_z + ch.size[2] / 2 + 0.032,
+          ),
+        ),
       ),
     );
     parts.push(
@@ -2171,8 +2273,12 @@ function renderHealthChart(counts) {
   var el = $("health-chart");
   if (!el) return;
   var c = (counts && counts.counts) || {};
-  var order =
-    (counts && counts.order) || ["HEALTHY", "DEGRADED", "WARNING", "FAULT"];
+  var order = (counts && counts.order) || [
+    "HEALTHY",
+    "DEGRADED",
+    "WARNING",
+    "FAULT",
+  ];
   var max = 1;
   order.forEach(function (k) {
     if (isNum(c[k]) && c[k] > max) max = c[k];
@@ -2236,7 +2342,8 @@ function renderRiskChart(rf) {
 }
 
 function renderSensors(rows) {
-  var body = $("sensor-rows");  if (!body || !rows) return;
+  var body = $("sensor-rows");
+  if (!body || !rows) return;
   body.innerHTML =
     rows
       .map(function (r) {

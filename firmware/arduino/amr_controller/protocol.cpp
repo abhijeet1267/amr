@@ -46,6 +46,54 @@ ProtocolResult parseCommand(const String& line) {
   if (up == "STOP") { r.ok = true; r.isStop = true; return r; }
   if (up == "STATUS") { r.ok = true; r.isStatus = true; return r; }
   if (up == "SENSOR") { r.ok = true; r.isSensor = true; return r; }
+  if (up == "ENV") { r.ok = true; r.isEnv = true; return r; }
+  if (up == "GAS") { r.ok = true; r.isGas = true; return r; }
+
+  // LCD <line0>|<line1> : text is case-sensitive, split on the FIRST '|'.
+  if (up.startsWith("LCD")) {
+    String rest = s.substring(3);   // from the original (case-preserved) line
+    rest.trim();
+    int bar = rest.indexOf('|');
+    if (bar >= 0) {
+      r.lcdLine0 = rest.substring(0, bar);
+      r.lcdLine1 = rest.substring(bar + 1);
+    } else {
+      r.lcdLine0 = rest;
+      r.lcdLine1 = "";
+    }
+    r.lcdLine0.trim();
+    r.lcdLine1.trim();
+    r.ok = true; r.isLcd = true; return r;
+  }
+
+  // BUZZ <freqHz> [<ms>] : freq 0 stops; optional duration auto-stops.
+  if (up.startsWith("BUZZ")) {
+    String rest = s.substring(4);
+    rest.trim();
+    int sp = rest.indexOf(' ');
+    String freqTok = (sp < 0) ? rest : rest.substring(0, sp);
+    String msTok   = (sp < 0) ? String("") : rest.substring(sp + 1);
+    msTok.trim();
+    int freq = 0;
+    if (parseSignedInt(freqTok, freq) != 1) {
+      r.ok = false; r.errorCode = ERR_PARSE; return r;
+    }
+    if (freq != 0 && (freq < 20 || freq > 20000)) {
+      r.ok = false; r.errorCode = ERR_RANGE; return r;
+    }
+    long ms = 0;
+    if (msTok.length() > 0) {
+      int msInt = 0;
+      if (parseSignedInt(msTok, msInt) != 1) {
+        r.ok = false; r.errorCode = ERR_PARSE; return r;
+      }
+      if (msInt < 0) { r.ok = false; r.errorCode = ERR_RANGE; return r; }
+      ms = (long)msInt;
+    }
+    r.buzzFreqHz = freq;
+    r.buzzMs = ms;
+    r.ok = true; r.isBuzz = true; return r;
+  }
 
   // Legacy single-character baseline commands (F/B/L/R/S).
   if (up.length() == 1) {

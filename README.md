@@ -9,7 +9,7 @@ proximity stop). Every command is funneled through a single **gated** API so the
 robot _cannot_ move when safety says no.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/abhijeet1267/amr/ci.yml?label=ci)](https://github.com/abhijeet1267/amr/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-1618%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
+[![tests](https://img.shields.io/badge/tests-1636%20passed%20%C2%B7%202%20skipped-2ecc71)](raspberry_pi/tests)
 [![python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)](raspberry_pi/pyproject.toml)
 [![safety](https://img.shields.io/badge/safety-layered%2C%20deterministic-e74c3c)](docs/safety.md)
 [![license](https://img.shields.io/badge/license-MIT-0e6efc)](LICENSE)
@@ -53,7 +53,7 @@ Claims in this repo are tied to a reproducible, hardware-free test run.
 
 | Claim                     | Value                                  | Reproduce                                     |
 | ------------------------- | -------------------------------------- | --------------------------------------------- |
-| Test suite                | **1618 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest`         |
+| Test suite                | **1636 passed · 2 skipped · 0 failed** | `cd raspberry_pi && python -m pytest`         |
 | Python matrix             | 3.10 / 3.11 / 3.12                     | `.github/workflows/ci.yml`                    |
 | Safety thresholds         | _configurable test values_             | `config/safety.yaml` (`status: NOT_VERIFIED`) |
 | Geometry (wheel base/dia) | _not yet measured_                     | `config/robot.yaml` (`null`)                  |
@@ -513,7 +513,7 @@ own.
 | 3D Digital Twin                 | `GET /digital-twin` (C10), raw WebGL             |
 | Live Camera + detection overlay | `GET /camera/frame` (C8) + hazard metadata (C13) |
 | Warehouse Map                   | `GET /map` (C9), rendered as SVG in-browser      |
-| Spatial heat map                | `GET /heatmap` (C19), two density grids           |
+| Spatial heat map                | `GET /heatmap` (C19), two density grids          |
 | Robot Status / Safety / Mission | `/dashboard/state` (C7/C11/C12)                  |
 | Telemetry charts + Event Log    | `history` (C15c)                                 |
 | Record & Replay                 | C14 / C14b                                       |
@@ -562,7 +562,7 @@ client re-derives a bin index. The payload publishes `cell_m`, the extent,
   weighted by severity (INFO 1, WARNING 2, CRITICAL 4). An event with only
   image-space evidence is counted in `unlocated` and never placed — the C5 rule,
   enforced at this boundary too.
-- **Traffic density** counts path samples, so a cell is *time spent there*, not
+- **Traffic density** counts path samples, so a cell is _time spent there_, not
   distance travelled.
 
 The extent comes from the **configured** geometry, not from the current data, so
@@ -656,17 +656,17 @@ Nothing in this repository has been run on physical hardware yet. The guides
 below take it from a mock-tested stack to a working robot, and say how to prove
 each step:
 
-| Guide | Covers |
-| ----- | ------ |
-| [`docs/DEPLOY.md`](docs/DEPLOY.md) | **Start here.** The complete numbered checklist: what runs where, how to copy the code onto the Pi, install, flash, wire, verify, and use the app |
-| [`docs/WIRING_CHECK.md`](docs/WIRING_CHECK.md) | What to photograph of your build, the ten wiring faults to check before powering up, and the exact order of what to do next |
-| [`docs/COMPONENTS.md`](docs/COMPONENTS.md) | **Analysis of every component and connection**: inventory, wire-by-wire map, full Arduino pin allocation, interfaces, and the two blocking pin faults |
-| [`docs/BUILD_REVIEW.md`](docs/BUILD_REVIEW.md) | A review of a real build from photographs — what matched, what is missing, and what to fix first |
-| [`docs/hardware.md`](docs/hardware.md) | **Master bring-up**: bill of materials, wiring (power, motors, ultrasonic, camera), pin map (with two conflicts to fix), staged bring-up, per-component and end-to-end validation, common issues, and the `NOT_VERIFIED` → `VERIFIED` procedure |
-| [`docs/setup_arduino.md`](docs/setup_arduino.md) | Install the toolchain, compile, flash the UNO, and validate the firmware over serial |
-| [`docs/setup_raspberry_pi.md`](docs/setup_raspberry_pi.md) | Pi OS, venv + `pyserial`, serial-port discovery (`ttyACM0`/`ttyUSB0`, udev), camera enablement, running against hardware, and pointing the app at the robot |
-| [`tools/health_check.sh`](tools/health_check.sh) | One-shot check: serial port, firmware link (`PING`/`VERSION`/`STATUS`/`SENSOR`), camera, and the running web stack |
-| [`tools/pi_quickstart.sh`](tools/pi_quickstart.sh) | Bring the app up on a bare Pi — mock mode, camera check, no hardware, no sudo |
+| Guide                                                      | Covers                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md)                         | **Start here.** The complete numbered checklist: what runs where, how to copy the code onto the Pi, install, flash, wire, verify, and use the app                                                                                               |
+| [`docs/WIRING_CHECK.md`](docs/WIRING_CHECK.md)             | What to photograph of your build, the ten wiring faults to check before powering up, and the exact order of what to do next                                                                                                                     |
+| [`docs/COMPONENTS.md`](docs/COMPONENTS.md)                 | **Analysis of every component and connection**: inventory, wire-by-wire map, full Arduino pin allocation, interfaces, and the two blocking pin faults                                                                                           |
+| [`docs/BUILD_REVIEW.md`](docs/BUILD_REVIEW.md)             | A review of a real build from photographs — what matched, what is missing, and what to fix first                                                                                                                                                |
+| [`docs/hardware.md`](docs/hardware.md)                     | **Master bring-up**: bill of materials, wiring (power, motors, ultrasonic, camera), pin map (with two conflicts to fix), staged bring-up, per-component and end-to-end validation, common issues, and the `NOT_VERIFIED` → `VERIFIED` procedure |
+| [`docs/setup_arduino.md`](docs/setup_arduino.md)           | Install the toolchain, compile, flash the UNO, and validate the firmware over serial                                                                                                                                                            |
+| [`docs/setup_raspberry_pi.md`](docs/setup_raspberry_pi.md) | Pi OS, venv + `pyserial`, serial-port discovery (`ttyACM0`/`ttyUSB0`, udev), camera enablement, running against hardware, and pointing the app at the robot                                                                                     |
+| [`tools/health_check.sh`](tools/health_check.sh)           | One-shot check: serial port, firmware link (`PING`/`VERSION`/`STATUS`/`SENSOR`), camera, and the running web stack                                                                                                                              |
+| [`tools/pi_quickstart.sh`](tools/pi_quickstart.sh)         | Bring the app up on a bare Pi — mock mode, camera check, no hardware, no sudo                                                                                                                                                                   |
 
 ```bash
 tools/health_check.sh                 # from the repository root

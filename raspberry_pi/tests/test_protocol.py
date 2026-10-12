@@ -125,8 +125,8 @@ def test_parse_sensor():
 
 
 def test_parse_version():
-    r = parse_response("VERSION 1.0")
-    assert r.kind == "VERSION" and r.version == "1.0"
+    r = parse_response("VERSION 1.1")
+    assert r.kind == "VERSION" and r.version == PROTOCOL_VERSION
 
 
 def test_parse_watchdog():

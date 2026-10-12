@@ -15,7 +15,7 @@ This is the **master checklist** for taking the AMR from "runs on mocks" to
 ## 0. The honesty rule (read first)
 
 This project never invents a hardware fact. Three placeholder markers appear  
-throughout, and every one of them is an instruction to *you*:
+throughout, and every one of them is an instruction to _you_:
 
 | Marker         | Where                        | Means                                                 |
 | -------------- | ---------------------------- | ----------------------------------------------------- |
@@ -24,7 +24,7 @@ throughout, and every one of them is an instruction to *you*:
 | `NOT_VERIFIED` | `safety.yaml`, `hazard.yaml` | Thresholds are software defaults, never validated.    |
 
 **Definition of done for this whole document:** every component passes its own  
-validation *and* the end-to-end test passes, then you flip the statuses to  
+validation _and_ the end-to-end test passes, then you flip the statuses to  
 `VERIFIED` and record who/when/where (§11). Until then, treat the robot as  
 untrusted at any speed above a crawl.
 
@@ -38,18 +38,22 @@ The most important rule, and it is not negotiable:
 
 ## 1. Bill of materials
 
-| #  | Part                          | Notes that bite you if ignored                            |
-| -- | ----------------------------- | --------------------------------------------------------- |
-| 1  | Raspberry Pi 5 (or 4)         | Any Pi with a 40-pin header and a CSI port.               |
-| 2  | microSD card (≥ 16 GB, A2)    | Raspberry Pi OS **64-bit Bookworm** recommended.          |
-| 3  | Pi power supply               | Official PSU. Undervoltage causes random serial dropouts. |
-| 4  | Arduino UNO (+ USB cable)     | The cable must be a **data** cable, not charge-only.      |
-| 5  | L298N dual H-bridge module    | With **ENA/ENB jumper caps** (you will remove them).      |
-| 6  | 2× DC gear motor + wheels     | Differential drive, one per side.                         |
-| 7  | Separate motor battery pack   | e.g. 4–6× AA, or 2S Li-ion. Powers the L298N only.        |
-| 8  | 4× HC-SR04 ultrasonic         | 5 V logic. Front/Left/Right/Rear.                         |
-| 9  | Raspberry Pi Camera Module    | + the **correct ribbon** for your Pi's CSI connector.     |
-| 10 | Jumper wires, chassis, caster | Plus a multimeter.                                        |
+| #   | Part                          | Notes that bite you if ignored                            |
+| --- | ----------------------------- | --------------------------------------------------------- |
+| 1   | Raspberry Pi 5 (or 4)         | Any Pi with a 40-pin header and a CSI port.               |
+| 2   | microSD card (≥ 16 GB, A2)    | Raspberry Pi OS **64-bit Bookworm** recommended.          |
+| 3   | Pi power supply               | Official PSU. Undervoltage causes random serial dropouts. |
+| 4   | Arduino UNO (+ USB cable)     | The cable must be a **data** cable, not charge-only.      |
+| 5   | L298N dual H-bridge module    | With **ENA/ENB jumper caps** (you will remove them).      |
+| 6   | 2× DC gear motor + wheels     | Differential drive, one per side.                         |
+| 7   | Separate motor battery pack   | e.g. 4–6× AA, or 2S Li-ion. Powers the L298N only.        |
+| 8   | 4× HC-SR04 ultrasonic         | 5 V logic. Front/Left/Right/Rear.                         |
+| 9   | Raspberry Pi Camera Module    | + the **correct ribbon** for your Pi's CSI connector.     |
+| 10  | DHT11 temperature/humidity    | 3-pin module. `DATA` -> `A1`. **Pin order varies — read the silkscreen.**  |
+| 11  | MQ-series gas sensor (e.g. MQ-2) | Analog output. **No pin is free for it yet** — see §5.                 |
+| 12  | 16x2 I2C LCD (PCF8574)        | `SDA`->`A4`, `SCL`->`A5`. Address usually `0x27`, sometimes `0x3F`.    |
+| 13  | 2-wire buzzer                 | + -> `A0`. Passive makes a tone; active only clicks.                     |
+| 14  | Jumper wires, chassis, caster | Plus a multimeter.                                                        |
 
 > A Pi 5 uses a narrower **mini** CSI ribbon than a Pi 4. The wrong ribbon is  
 > the single most common "the camera doesn't work" cause.
@@ -92,8 +96,8 @@ never leave the robot driving.
 
 | Link              | Physical                                   | Protocol                                           | Where it is configured         |
 | ----------------- | ------------------------------------------ | -------------------------------------------------- | ------------------------------ |
-| Pi ↔ Arduino      | **USB** (USB CDC serial) — *not* GPIO UART | 9600 8N1, newline-terminated ASCII, protocol `1.0` | `config/serial.yaml`           |
-| Pi ↔ camera       | **CSI ribbon** — *not* USB                 | libcamera / picamera2 / V4L2                       | `config/robot.yaml` → `camera` |
+| Pi ↔ Arduino      | **USB** (USB CDC serial) — _not_ GPIO UART | 9600 8N1, newline-terminated ASCII, protocol `1.0` | `config/serial.yaml`           |
+| Pi ↔ camera       | **CSI ribbon** — _not_ USB                 | libcamera / picamera2 / V4L2                       | `config/robot.yaml` → `camera` |
 | Arduino ↔ L298N   | 6 GPIO (2 direction + 1 enable per side)   | —                                                  | `firmware/.../motor_control.h` |
 | Arduino ↔ HC-SR04 | 8 GPIO (4 trig + 4 echo)                   | 40 kHz pulses, `pulseIn`                           | `firmware/.../ultrasonic.h`    |
 | L298N ↔ motors    | 2 wires per motor + external power         | —                                                  | —                              |
@@ -133,7 +137,7 @@ before flashing**:
 | ------------- | ----------- | --------- | ------------------------------- |
 | Left forward  | `D5`        | `IN1`     |                                 |
 | Left reverse  | `D4`        | `IN2`     |                                 |
-| Left enable   | `D6`        | `ENA`     | PWM-capable ✅                   |
+| Left enable   | `D6`        | `ENA`     | PWM-capable ✅                  |
 | Right forward | `D10`       | `IN3`     |                                 |
 | Right reverse | `D9`        | `IN4`     |                                 |
 | Right enable  | `D8`        | `ENB`     | **NOT PWM-capable ⚠️ — see §5** |
@@ -156,7 +160,7 @@ with the motor pins; see §5 before you wire them**:
 
 Wiring each HC-SR04: `VCC → 5 V`, `GND → GND`, `Trig → Arduino trig pin`,  
 `Echo → Arduino echo pin`. The UNO is 5 V logic, so **no level shifter is  
-needed** on the Arduino side (you *would* need one if these were on the Pi's  
+needed** on the Arduino side (you _would_ need one if these were on the Pi's  
 3.3 V GPIO — which is exactly why the design puts them on the Arduino).
 
 ### 4.4 Camera ribbon
@@ -169,49 +173,50 @@ needed** on the Arduino side (you *would* need one if these were on the Pi's
 
 ---
 
-## 5. Pin map — resolve these two conflicts before wiring
+## 5. Pin map — **applied** (2026-10-12)
 
-The firmware pin numbers are **placeholders marked `TODO_VERIFY`**. Reading them  
-against the motor map exposes two real problems you must fix in  
-`firmware/arduino/amr_controller/ultrasonic.h` (and mirror in `config/robot.yaml`):
+The final AMR pin chart is implemented: both conflicts below are resolved in the
+firmware headers and mirrored in `config/robot.yaml`. **Nothing has been run on
+real hardware** — this is the map the code now expects, not a verified build.
 
-### Conflict 1 — the rear ultrasonic collides with the left motor
+| Function        | Pin           | Status                              |
+| --------------- | ------------- | ----------------------------------- |
+| `IN1` / `IN2`   | `D12` / `D13` | left motor (D13 also drives the LED) |
+| `ENA`           | `D10`         | **PWM ✅**                          |
+| `IN3` / `IN4`   | `A3` / `A2`   | right motor (analog pins as digital) |
+| `ENB`           | `D11`         | **PWM ✅** — the former D8 fault     |
+| Front trig/echo | `D2` / `D3`   |                                     |
+| Left trig/echo  | `D4` / `D5`   |                                     |
+| Right trig/echo | `D6` / `D7`   |                                     |
+| Rear trig/echo  | `D8` / `D9`   | moved off the motor's D4/D5        |
+| DHT11 `DATA`    | `A1`          | bit-banged, no library             |
+| Buzzer          | `A0`          | `digitalWrite` toggle — **no `tone()`** |
+| LCD `SDA`/`SCL` | `A4` / `A5`   | PCF8574 backpack, `0x27`           |
+| MQ gas `AO`     | **none**      | 🔴 no analog pin is free (see below) |
 
-```
-PIN_REAR_TRIG  = 4   ==   PIN_IN2 = 4   (left reverse)
-PIN_REAR_ECHO  = 5   ==   PIN_IN1 = 5   (left forward)
-```
+### The resolved conflicts (kept for the record)
 
-If you wire the rear sensor to D4/D5, driving the left motor will fight the  
-sensor and the reading will be garbage. **Re-assign the rear sensor to two free  
-pins** (e.g. `A0`/`A1`, which work fine as digital I/O) and update  
-`ultrasonic.h` + `robot.yaml` together.
+- **Rear ultrasonic vs left motor:** the rear sensor used to share `D4`/`D5`
+  with `PIN_IN1`/`PIN_IN2`. The rear sensor now sits on `D8`/`D9` and the motor
+  on `D12`/`D13`, so no pin is double-booked.
+- **`ENB` was not PWM-capable:** `D8` cannot do `analogWrite()`. `ENB` is now
+  `D11`, which can, and `MOTOR_PWM_ENABLED` is `1`.
 
-### Conflict 2 — `ENB = D8` cannot do PWM
+### 🔴 The gas sensor still has no pin
 
-On the UNO the PWM-capable pins are **3, 5, 6, 9, 10, 11**. `D8` is *not* one of  
-them, so `analogWrite(PIN_ENB, pwm)` silently degrades to on/off — the right  
-motor cannot be speed-controlled. This is harmless **today** because  
-`MOTOR_PWM_ENABLED` is `0` (direction-only, full speed), but it will bite the  
-moment you enable PWM. **Move `ENB` to a PWM pin** (e.g. `D3` or `D11`) before  
-enabling speed control, and re-check that the ultrasonic pins do not then clash.
+`A0`–`A5` are fully allocated (buzzer, DHT11, motor ×2, LCD ×2), so the MQ
+sensor's analog output has nowhere to go. The firmware ships
+`PIN_GAS_AO -1` / `GAS_ENABLED 0`, so a `GAS` command returns **`-1`** and the
+dashboard reports `UNAVAILABLE` — never a fabricated `0 ppm`.
 
-### Suggested clean map (one that avoids both problems)
+To wire it: free an analog pin (move the buzzer to an I²C expander on `A4`/`A5`,
+or drop the buzzer), set `PIN_GAS_AO` in `gas_sensor.h` and `GAS_ENABLED 1`, then
+re-flash.
 
-| Function        | Pin           | Why                          |
-| --------------- | ------------- | ---------------------------- |
-| IN1 / IN2       | `D5` / `D4`   | as shipped                   |
-| ENA             | `D6`          | PWM ✅                        |
-| IN3 / IN4       | `D10` / `D9`  | as shipped                   |
-| ENB             | `D11`         | **PWM ✅** (moved off D8)     |
-| Front trig/echo | `D12` / `D13` | as shipped                   |
-| Left trig/echo  | `D7` / `A0`   | moved echo off D11 (now ENB) |
-| Right trig/echo | `D2` / `D3`   | as shipped                   |
-| Rear trig/echo  | `A1` / `A2`   | **moved off D4/D5**          |
-
-
-> Any time you change a pin, change it in **both** `firmware/.../*.h` and  
-> `config/robot.yaml`, then re-run the firmware tests in §7. The two must agree.
+> **Rule:** when you change a pin, change it in **both**
+> `firmware/arduino/amr_controller/*.h` **and** `config/robot.yaml`. The two must
+> agree, and `ULTRASONIC_ENABLED` / `MOTOR_PWM_ENABLED` must be `1` for the
+> sensors and PWM speed to work at all.
 
 ---
 
@@ -255,7 +260,6 @@ can be done with the wheels off the ground; keep them that way until Stage 7.
 **Validation:** you can spin both wheels freely by hand.
 
 ### Stage 1 — Flash the firmware and prove the serial link
-
 
 Follow [`setup_arduino.md`](setup_arduino.md). Then, from the Pi:
 
@@ -324,7 +328,7 @@ PY
 ```
 
 **Validation:** hold a book ~30 cm in front of each sensor in turn and watch the
-matching number change; move it away and it grows. A `-1` means *no echo* (clear
+matching number change; move it away and it grows. A `-1` means _no echo_ (clear
 path), **not** an obstacle — this is deliberate and matches the safety logic.
 
 ### Stage 4 — Camera
@@ -381,16 +385,16 @@ you take after Stage 7 validation, not a flag.
 
 ## 8. Component validation summary
 
-| Component | Command | Pass looks like |
-| --- | --- | --- |
-| Serial link | `PING` / `VERSION` (§7 Stage 1) | `PONG`, `VERSION 1.0` |
-| Watchdog | send one command, wait > 1 s, send nothing | unsolicited `WATCHDOG TRIGGERED`, motors stop |
-| Motors | legacy `F/S/L/S/R/S` (§7 Stage 2) | each direction correct |
-| Ultrasonic | `SENSOR` while moving a target (§7 Stage 3) | distance tracks the target; `-1` = clear |
-| Camera | `libcamera-still …` (§7 Stage 4) | real JPEG; `/camera/status` = `LIVE` |
-| Pi stack | `python -m amr.main --web` (§7 Stage 5) | `/health` 200, `/status` connected |
-| App | Flutter Connection screen (§7 Stage 6) | Ping → Connected; screens populate |
-| Health script | `tools/health_check.sh` | all checks PASS |
+| Component     | Command                                     | Pass looks like                               |
+| ------------- | ------------------------------------------- | --------------------------------------------- |
+| Serial link   | `PING` / `VERSION` (§7 Stage 1)             | `PONG`, `VERSION 1.0`                         |
+| Watchdog      | send one command, wait > 1 s, send nothing  | unsolicited `WATCHDOG TRIGGERED`, motors stop |
+| Motors        | legacy `F/S/L/S/R/S` (§7 Stage 2)           | each direction correct                        |
+| Ultrasonic    | `SENSOR` while moving a target (§7 Stage 3) | distance tracks the target; `-1` = clear      |
+| Camera        | `libcamera-still …` (§7 Stage 4)            | real JPEG; `/camera/status` = `LIVE`          |
+| Pi stack      | `python -m amr.main --web` (§7 Stage 5)     | `/health` 200, `/status` connected            |
+| App           | Flutter Connection screen (§7 Stage 6)      | Ping → Connected; screens populate            |
+| Health script | `tools/health_check.sh`                     | all checks PASS                               |
 
 The watchdog test is worth doing deliberately: it is the safety property the
 whole design rests on.
@@ -432,7 +436,7 @@ makes the robot drive the wrong distance and turn the wrong angle.
 ### Thresholds — `config/safety.yaml`
 
 1. For each of the four directions, drive slowly toward an obstacle and record
-   the distance at which a stop is *actually* needed for your robot's mass and
+   the distance at which a stop is _actually_ needed for your robot's mass and
    speed.
 2. Set `front/rear/left/right_stop_distance_cm` to those measured values.
 3. Confirm `watchdog_timeout_ms` gives the Pi enough time to answer under load
@@ -480,28 +484,28 @@ Statuses flipped to VERIFIED:   [ ] safety.yaml   [ ] robot.yaml (pins)
 
 ## 12. Common issues, by stage
 
-| Stage | Symptom | Likely cause / fix |
-| --- | --- | --- |
-| Serial | No `/dev/ttyACM*` | Bad/charge-only USB cable; try another. |
-| Serial | Port name is `ttyUSB0`, not `ttyACM0` | Different USB-serial chip. Update `serial.yaml` `port` or use discovery. |
-| Serial | `Permission denied` | Add your user to `dialout`: `sudo usermod -aG dialout $USER` then re-login. |
-| Serial | Port vanishes a few seconds after opening | ModemManager grabbing it — see [`setup_raspberry_pi.md`](setup_raspberry_pi.md) (udev rule). |
-| Serial | Garbage / `ERR UNKNOWN` | Baud mismatch (must be 9600) or wrong firmware. |
-| Firmware | Upload fails, "programmer not responding" | Wrong board/port selected; try another USB cable/port. |
-| Motors | Wheels don't turn at all | ENA/ENB jumpers still fitted; battery not connected; missing common ground. |
-| Motors | Wheels turn the wrong way | Swap that motor's two leads, or its IN pins. |
-| Motors | Only one side works | Check that side's IN pair + enable pin; check the L298N terminal screws. |
-| Motors | Pi reboots when motors start | Motors drawing from the logic rail — give them the external pack. |
-| Motors | Speed control does nothing | `MOTOR_PWM_ENABLED` is 0, or `ENB` is on the non-PWM `D8` (§5). |
-| Ultrasonic | Always `-1` | Echo not wired; sensor not powered from 5 V; wrong pins. |
-| Ultrasonic | Random large values | Insufficient delay between sensors (they cross-talk) or a shared trig. |
-| Ultrasonic | Reading equals a motor command glitch | Rear sensor on `D4/D5`, colliding with the left motor (§5). |
-| Camera | `UNAVAILABLE` in `/camera/status` | Ribbon not seated / wrong ribbon / camera not enabled in `raspi-config`. |
-| Camera | `libcamera-still: command not found` | `libcamera` tools not installed; install them or use the `v4l2` path. |
-| App | Can't connect from the phone | Using `localhost` instead of the Pi's IP; Pi and phone on different networks. |
-| App | Connects but screens are empty | Server running with `--mock`; the robot is simulated, not live. |
-| App | Browser can't reach the robot cross-origin | By design — the server sends no CORS headers (a security choice). Use the client or same-origin. |
-| Watchdog | Motors stop ~1 s after you stop sending | Working as intended — the watchdog fired. Send commands to keep it fed. |
+| Stage      | Symptom                                    | Likely cause / fix                                                                               |
+| ---------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Serial     | No `/dev/ttyACM*`                          | Bad/charge-only USB cable; try another.                                                          |
+| Serial     | Port name is `ttyUSB0`, not `ttyACM0`      | Different USB-serial chip. Update `serial.yaml` `port` or use discovery.                         |
+| Serial     | `Permission denied`                        | Add your user to `dialout`: `sudo usermod -aG dialout $USER` then re-login.                      |
+| Serial     | Port vanishes a few seconds after opening  | ModemManager grabbing it — see [`setup_raspberry_pi.md`](setup_raspberry_pi.md) (udev rule).     |
+| Serial     | Garbage / `ERR UNKNOWN`                    | Baud mismatch (must be 9600) or wrong firmware.                                                  |
+| Firmware   | Upload fails, "programmer not responding"  | Wrong board/port selected; try another USB cable/port.                                           |
+| Motors     | Wheels don't turn at all                   | ENA/ENB jumpers still fitted; battery not connected; missing common ground.                      |
+| Motors     | Wheels turn the wrong way                  | Swap that motor's two leads, or its IN pins.                                                     |
+| Motors     | Only one side works                        | Check that side's IN pair + enable pin; check the L298N terminal screws.                         |
+| Motors     | Pi reboots when motors start               | Motors drawing from the logic rail — give them the external pack.                                |
+| Motors     | Speed control does nothing                 | `MOTOR_PWM_ENABLED` is 0, or `ENB` is on the non-PWM `D8` (§5).                                  |
+| Ultrasonic | Always `-1`                                | Echo not wired; sensor not powered from 5 V; wrong pins.                                         |
+| Ultrasonic | Random large values                        | Insufficient delay between sensors (they cross-talk) or a shared trig.                           |
+| Ultrasonic | Reading equals a motor command glitch      | Rear sensor on `D4/D5`, colliding with the left motor (§5).                                      |
+| Camera     | `UNAVAILABLE` in `/camera/status`          | Ribbon not seated / wrong ribbon / camera not enabled in `raspi-config`.                         |
+| Camera     | `libcamera-still: command not found`       | `libcamera` tools not installed; install them or use the `v4l2` path.                            |
+| App        | Can't connect from the phone               | Using `localhost` instead of the Pi's IP; Pi and phone on different networks.                    |
+| App        | Connects but screens are empty             | Server running with `--mock`; the robot is simulated, not live.                                  |
+| App        | Browser can't reach the robot cross-origin | By design — the server sends no CORS headers (a security choice). Use the client or same-origin. |
+| Watchdog   | Motors stop ~1 s after you stop sending    | Working as intended — the watchdog fired. Send commands to keep it fed.                          |
 
 ---
 

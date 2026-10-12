@@ -6,7 +6,7 @@ it fills in the "prefer discovery" note in `config/serial.yaml`.
 
 > **No part of this has been run against real hardware by this repository.**  
 > The commands below are the documented, standard ones; the validation steps tell  
-> you how to confirm each actually worked on *your* Pi.
+> you how to confirm each actually worked on _your_ Pi.
 
 ---
 
@@ -84,7 +84,7 @@ If your port differs, set it in `config/serial.yaml`:
 
 ```yaml
 serial:
-  port: "/dev/ttyACM0"   # change to your discovered port
+  port: "/dev/ttyACM0" # change to your discovered port
   baudrate: 9600
 ```
 
@@ -170,7 +170,7 @@ rpicam-hello --list-cameras # newer name for the detection tool
 # config/robot.yaml
 camera:
   enabled: true
-  device: "pi"          # "pi" (libcamera/picamera2) or "v4l2" (OpenCV)
+  device: "pi" # "pi" (libcamera/picamera2) or "v4l2" (OpenCV)
   resolution: "1280x720"
 ```
 
@@ -280,7 +280,7 @@ the first time; the E-STOP must be reachable (long-press to arm).
 > The browser-based console cannot reach the robot **cross-origin**, and that is  
 > deliberate: the Python server sends no CORS headers, because granting  
 > `Access-Control-Allow-Origin` would let any website an operator visits `POST
-> /command` and move the robot. The Flutter client connects directly (not via a  
+/command` and move the robot. The Flutter client connects directly (not via a  
 > browser origin), so it is unaffected.
 
 ---
@@ -322,7 +322,6 @@ means output is being discarded, which is a fault, not a style choice.
 | Can't reach the panel from another device        | Wrong IP, or firewall. Confirm `hostname -I` and that you are on the same LAN.  |
 
 ---
-
 
 **See also:** [`hardware.md`](hardware.md) (wiring + bring-up order) ·  
 [`setup_arduino.md`](setup_arduino.md) · [`camera.md`](camera.md) ·  

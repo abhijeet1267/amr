@@ -11,6 +11,9 @@ The mock tracks:
 * current left/right motor speeds
 * current robot mode (for ``STATUS``)
 * front/left/right/rear ultrasonic distances
+* DHT11 temperature/humidity and MQ gas readings
+* the last LCD text and buzzer command (records only — display/audio have no
+  effect the Pi can observe)
 * an optional *comm-loss* simulation (``drop_after``) to test the Pi-side
   reaction to a crashed / disconnected Arduino (see docs/safety.md).
 """
@@ -18,7 +21,7 @@ The mock tracks:
 from __future__ import annotations
 
 import re
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from ..communication import protocol as P
 
@@ -37,6 +40,15 @@ class MockSerialTransport:
         self._mode = "IDLE"
         # (front, left, right, rear) in cm
         self._dist: List[int] = list(start_distances)
+        # DHT11 reading; -1 == invalid / not measured (matches the firmware).
+        self._temp_c = 25
+        self._humidity_pct = 50
+        # MQ gas raw ADC count; -1 == no pin assigned (the shipped default).
+        self._gas_raw = -1
+        #: Last LCD line pair written (records only).
+        self.lcd_text: Optional[Tuple[str, str]] = None
+        #: Last buzzer command: (freq_hz, duration_ms_or_None).
+        self.buzzer: Optional[Tuple[int, Optional[int]]] = None
         self.drop_after = drop_after
         self._cmd_count = 0
         #: Every command line written by the Pi, in order (for assertions).
@@ -82,6 +94,15 @@ class MockSerialTransport:
     def set_distances(self, front: int, left: int, right: int, rear: int) -> None:
         self._dist = [front, left, right, rear]
 
+    def set_environment(self, temperature_c: int, humidity_pct: int) -> None:
+        """Set the DHT11 reading. Use -1 for "invalid / not measured"."""
+        self._temp_c = temperature_c
+        self._humidity_pct = humidity_pct
+
+    def set_gas(self, raw: int) -> None:
+        """Set the MQ gas raw ADC count. -1 == no pin assigned."""
+        self._gas_raw = raw
+
     # --- protocol emulation ----------------------------------------------- #
     def _respond(self, cmd: str) -> str:
         c = (cmd or "").strip()
@@ -100,6 +121,42 @@ class MockSerialTransport:
         if up == P.SENSOR:
             f, l, r, b = self._dist
             return f"SENSOR F={f} L={l} R={r} B={b}"
+        if up == P.ENV:
+            return f"ENV T={self._temp_c} H={self._humidity_pct}"
+        if up == P.GAS:
+            return f"GAS RAW={self._gas_raw}"
+
+        # LCD <line0>|<line1> : text is case-sensitive in the firmware, and the
+        # mock records it verbatim so a test can assert what was displayed.
+        if up.startswith(P.LCD):
+            rest = c[3:].strip()
+            if "|" in rest:
+                line0, line1 = rest.split("|", 1)
+            else:
+                line0, line1 = rest, ""
+            self.lcd_text = (line0.strip(), line1.strip())
+            return "ACK LCD"
+
+        # BUZZ <freqHz> [<ms>]
+        if up.startswith(P.BUZZ):
+            rest = c[4:].strip()
+            parts = rest.split()
+            try:
+                freq = int(parts[0]) if parts else 0
+            except ValueError:
+                return "ERR PARSE bad buzzer frequency"
+            if freq != 0 and (freq < P.MIN_BUZZ_HZ or freq > P.MAX_BUZZ_HZ):
+                return "ERR RANGE out of range"
+            ms: Optional[int] = None
+            if len(parts) > 1:
+                try:
+                    ms = int(parts[1])
+                except ValueError:
+                    return "ERR PARSE bad buzzer duration"
+                if ms < 0:
+                    return "ERR RANGE out of range"
+            self.buzzer = (freq, ms)
+            return f"ACK BUZZ {freq}"
 
         m = re.match(r"^MOVE\s+L=(-?\d+)\s+R=(-?\d+)$", up)
         if m:

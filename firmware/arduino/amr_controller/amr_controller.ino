@@ -8,10 +8,17 @@
 //   * Drive the L298N motor channels via the MotorControl HAL.
 //   * Enforce the communication watchdog (Safety) -> STOP when the Pi goes silent.
 //   * Poll the four ultrasonic sensors and enforce the Layer-1 hardware stop.
+//   * Read the DHT11 (temperature/humidity) and MQ gas sensor, drive the I2C
+//     LCD and the buzzer.
 //
 // SAFETY: the robot powers on in a stopped state and NEVER auto-drives. It only
 // moves in response to explicit MOVE/legacy commands, and always stops on
-// watchdog timeout or a close obstacle.
+// watchdog timeout or a close obstacle. The environmental sensors (DHT11, gas),
+// the LCD and the buzzer have NO path to the motors — they neither move the
+// robot nor gate its motion.
+//
+// PIN MAP: applied from the final AMR pin chart (2026-10-12). See motor_control.h,
+// ultrasonic.h, dht11.h, gas_sensor.h, lcd_i2c.h, buzzer.h.
 //
 // STATUS: IMPLEMENTED. Not compile-tested on this machine (no AVR toolchain);
 // requires flashing to the UNO and hardware testing. See docs/setup_arduino.md.
@@ -21,6 +28,10 @@
 #include "motor_control.h"
 #include "safety.h"
 #include "ultrasonic.h"
+#include "dht11.h"
+#include "gas_sensor.h"
+#include "lcd_i2c.h"
+#include "buzzer.h"
 
 // Watchdog default (ms) — mirrors config/safety.yaml. Changeable at runtime
 // with the `WDT <ms>` command.
@@ -52,6 +63,21 @@ static const char* driveMode() {
   return "STOPPED";
 }
 
+// Build the single-line status shown on the LCD (best-effort, read-only).
+static void refreshLcd() {
+  if (!LcdI2c::present()) return;
+  char line0[17];
+  char line1[17];
+  if (watchdogTripped) {
+    snprintf(line0, sizeof(line0), "SAFETY STOP");
+  } else {
+    snprintf(line0, sizeof(line0), "MODE %s", driveMode());
+  }
+  snprintf(line1, sizeof(line1), "T%d H%d", Dht11::lastTemperatureC(),
+           Dht11::lastHumidityPct());
+  LcdI2c::showLines(String(line0), String(line1));
+}
+
 static void handleCommand(const String& line) {
   ProtocolResult r = parseCommand(line);
 
@@ -78,6 +104,28 @@ static void handleCommand(const String& line) {
   } else if (r.isSensor) {
     Ultrasonic.readAll();
     Serial.println(Ultrasonic.format());
+  } else if (r.isEnv) {
+    int t = -1, h = -1;
+    Dht11::read(t, h);
+    Serial.print(F("ENV T="));
+    Serial.print(t);
+    Serial.print(F(" H="));
+    Serial.println(h);
+    refreshLcd();
+  } else if (r.isGas) {
+    Serial.print(F("GAS RAW="));
+    Serial.println(GasSensor::readRaw());
+  } else if (r.isLcd) {
+    LcdI2c::showLines(r.lcdLine0, r.lcdLine1);
+    Serial.println(F("ACK LCD"));
+  } else if (r.isBuzz) {
+    if (r.buzzMs > 0) {
+      Buzzer::beepFor(r.buzzFreqHz, (unsigned long)r.buzzMs);
+    } else {
+      Buzzer::beep(r.buzzFreqHz);
+    }
+    Serial.print(F("ACK BUZZ "));
+    Serial.println(r.buzzFreqHz);
   } else if (r.isMove) {
     MotorControl.setBoth(r.left, r.right);
     Serial.print(F("ACK MOVE L="));
@@ -117,7 +165,16 @@ void setup() {
   Ultrasonic::setThresholds(20, 15, 15, 20);
   Safety::begin(DEFAULT_WATCHDOG_MS);
   MotorControl.stop();           // explicit safe state at boot
+
+  Dht11::begin();
+  GasSensor::begin();
+  LcdI2c::begin();
+  Buzzer::begin();
+
   Serial.println(F("AMR FW READY v" PROTOCOL_VERSION));
+  if (LcdI2c::present()) {
+    LcdI2c::showLines("AMR READY", "v" PROTOCOL_VERSION);
+  }
 }
 
 void loop() {
@@ -133,8 +190,10 @@ void loop() {
   if (Safety::shouldStop(now)) {
     if (!watchdogTripped) {
       MotorControl.stop();
+      Buzzer::beepFor(2000, 500);   // audible alert on safety stop
       watchdogTripped = true;
       Serial.println(F("WATCHDOG TRIGGERED"));
+      refreshLcd();
     }
   }
 
@@ -146,6 +205,9 @@ void loop() {
       MotorControl.stop();
     }
   }
+
+  // 4) Buzzer: advance the toggle schedule (no timer, no D11 conflict).
+  Buzzer::poll(now);
 
   delay(1);  // small yield
 }

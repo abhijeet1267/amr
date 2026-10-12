@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
 **Last verified:** 2026-10-09, C19 spatial heat map merged — full suite
-**1618 passed, 2 skipped, 0 failed**.
+**1636 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,8 +10,8 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check                                                       | Result                                                                                                                                                                                                                                                                                                                                 |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cd raspberry_pi && python -m pytest`                       | **1618 passed, 2 skipped, 0 failed**                                                                                                                                                                                                                                                                                                   |
-| Test files                                                  | 39 (`tests/test_*.py`)                                                                                                                                                                                                                                                                                                                 |
+| `cd raspberry_pi && python -m pytest`                       | **1636 passed, 2 skipped, 0 failed**                                                                                                                                                                                                                                                                                                   |
+| Test files                                                  | 40 (`tests/test_*.py`)                                                                                                                                                                                                                                                                                                                 |
 | `python -m compileall amr`                                  | clean                                                                                                                                                                                                                                                                                                                                  |
 | Orphan scan (every module imported by prod or tests)        | none — no dead modules                                                                                                                                                                                                                                                                                                                 |
 | CI                                                          | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff`                                                                                                                                                                                                                                                  |
@@ -24,14 +24,14 @@ Re-verify with the commands below before trusting these numbers.
 | 3D twin smoke (C10, `--mock --web`)                         | `GET /digital-twin` → 200 `source:SIMULATION`, `robot` pose **identical** to `GET /map`, 5 config waypoints, `renderer.library: null`; `GET /dashboard` → 200 containing the 3D card and canvas; `/telemetry`, `/map.svg`, `/camera/status` all 200                                                                                    |
 | Console smoke (C12, `--mock --web --mission-demo`)          | `GET /dashboard/state` → 200 `read_only:true`, `source:SIMULATION`; mission `phase:NAVIGATE` → `DROP`, `destination:station`, `mission_progress:0.33`, `total_tasks:3`, `mission_id:web-run`; `mission` **no longer** in `degraded`; all prior endpoints still 200                                                                     |
 | Console smoke (C11, `--mock --web`)                         | `GET /dashboard/state` → 200 `read_only:true`, `source:SIMULATION`; `console["map"] == GET /map` and `console["twin"] == GET /digital-twin` **exactly**; battery `UNAVAILABLE` with `note: "no battery source in this build"`; mission `Mission data unavailable` when no warehouse runtime is attached; all prior endpoints still 200 |
-| Heat map smoke (C19, `--mock --web --mission-demo`)         | `GET /heatmap` → 200, both grids on one shared extent (20×16 @ 0.25 m); `console["heatmap"] == GET /heatmap` **exactly**; after a driven mission `traffic` reports 81 samples over 31 cells, `clipped: 0`; `hazard` is empty on the shipped config (no sensor exists) and says so; all prior endpoints still 200 |
+| Heat map smoke (C19, `--mock --web --mission-demo`)         | `GET /heatmap` → 200, both grids on one shared extent (20×16 @ 0.25 m); `console["heatmap"] == GET /heatmap` **exactly**; after a driven mission `traffic` reports 81 samples over 31 cells, `clipped: 0`; `hazard` is empty on the shipped config (no sensor exists) and says so; all prior endpoints still 200                       |
 
 The 2 skips are the camera tests that need `opencv-python`/`numpy`; they run when
 those are installed and skip gracefully otherwise. They are the only conditional
 tests.
 
-Per-file test counts (regenerated from `pytest --collect-only -q` — 39 files,
-1620 tests: 1618 run + 2 skipped):
+Per-file test counts (regenerated from `pytest --collect-only -q` — 40 files,
+1638 tests: 1636 run + 2 skipped):
 
 ```
 test_app_registry.py           46    test_mode_controller.py        13
@@ -48,8 +48,9 @@ test_connectivity.py           14    test_ros_bridge.py             25
 test_console.py                39    test_safety_manager.py         14
 test_differential_drive.py     25    test_startup_banner.py          2
 test_digital_twin.py           37    test_telemetry.py              52
-test_hazard.py                 48    test_ultrasonic.py              9
-test_hazard_visualisation.py   23    test_unified_demo.py           30
+test_environment.py            18    test_ultrasonic.py              9
+test_hazard.py                 48    test_unified_demo.py           30
+test_hazard_visualisation.py   23
 test_heatmap.py                35    test_vision.py                101
 test_logging.py                17    test_warehouse.py              61
 test_map.py                   111    test_web_server.py            113
@@ -75,6 +76,7 @@ regenerated from the same measured `pytest --collect-only -q` run.
 | `safety` (Layer 3, incl. C6 avoidance)                         | **Implemented, unit-tested, opt-in**                    | `test_safety_manager.py` (14), `test_avoidance.py` (76)                                                                                                                                    |
 | `hazard` (Layer 3.5, incl. `visualisation`, `vision`)          | **Implemented, unit-tested, opt-in**                    | `test_hazard.py` (48), `test_hazard_visualisation.py` (23), `test_vision.py` (101), `python -m amr.hazard`, `python -m amr.hazard.vision`                                                  |
 | `sensors` (ultrasonic validation)                              | **Implemented, unit-tested**                            | `test_ultrasonic.py`                                                                                                                                                                       |
+| `sensors` (DHT11 + MQ gas, telemetry-only)                      | **Implemented, unit-tested**                            | `test_environment.py` (18); **MQ gas is UNAVAILABLE — no analog pin is assigned**                                                                                                            |
 | `robot` (manager, modes, state)                                | **Implemented, unit-tested**                            | `test_robot_manager.py`, `test_mode_controller.py`, `test_robot_state.py`                                                                                                                  |
 | `camera`                                                       | **Implemented, partially tested** (2 tests need OpenCV) | `test_camera_manager.py`                                                                                                                                                                   |
 | `navigation` (incl. C6 avoidance gate)                         | **Implemented, unit-tested**                            | `test_navigation.py` (50), `test_avoidance.py` (76)                                                                                                                                        |
@@ -138,7 +140,7 @@ python -m amr.hazard.visualisation   # render the events JSONL onto the map (SVG
   only for its own link-loss detection (`robot_manager.py:221`), and nothing on
   the Pi ever sends the `WDT <ms>` verb the firmware implements and
   `docs/serial_protocol.md` documents. The Arduino therefore keeps its
-  compiled-in `DEFAULT_WATCHDOG_MS` (1000 ms), which today *happens* to equal
+  compiled-in `DEFAULT_WATCHDOG_MS` (1000 ms), which today _happens_ to equal
   `safety.yaml`. Raise the config and the two diverge silently: the Arduino
   stops the robot after 1 s of silence while the Pi still believes the link is
   healthy. Fix is additive (a `build_wdt` + a send at connect) but it changes

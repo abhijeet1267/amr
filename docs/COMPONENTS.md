@@ -11,40 +11,49 @@ reading the firmware and config side by side. Derived from the **actual source**
 
 ## 1. Component inventory
 
-| # | Component                 | Role                                                | Power source              | Interface                | Where it's configured              |
-| - | ------------------------- | --------------------------------------------------- | ------------------------- | ------------------------ | ---------------------------------- |
-| 1 | **Raspberry Pi 5**        | brain: web server, safety policy, navigation, tasks | its own official PSU      | —                        | `config/serial.yaml`               |
-| 2 | **Arduino UNO**           | reflexes: motor drive, watchdog, hardware stop      | 5 V via USB from the Pi   | USB CDC serial           | `firmware/.../*.h`                 |
-| 3 | **L298N H-bridge**        | drives the two motors (direction + PWM)             | **external battery pack** | 6 GPIO from the UNO      | `firmware/.../motor_control.h`     |
-| 4 | **2× DC gear motor**      | differential drive, one per side                    | via the L298N             | 2 wires each             | `config/robot.yaml`                |
-| 5 | **4× HC-SR04 ultrasonic** | front / left / right / rear ranging                 | 5 V from the UNO          | 8 GPIO (4 trig + 4 echo) | `firmware/.../ultrasonic.h`        |
-| 6 | **Raspberry Pi Camera**   | vision (optional)                                   | from the Pi               | CSI ribbon               | `config/robot.yaml` → `camera`     |
-| 7 | **Motor battery pack**    | motor power                                         | —                         | 2 wires to the L298N     | —                                  |
-| 8 | **Chassis + caster**      | mechanical                                          | —                         | —                        | `robot.wheel_track_m` (unmeasured) |
+| #   | Component                 | Role                                                | Power source              | Interface                | Where it's configured              |
+| --- | ------------------------- | --------------------------------------------------- | ------------------------- | ------------------------ | ---------------------------------- |
+| 1   | **Raspberry Pi 5**        | brain: web server, safety policy, navigation, tasks | its own official PSU      | —                        | `config/serial.yaml`               |
+| 2   | **Arduino UNO**           | reflexes: motor drive, watchdog, hardware stop      | 5 V via USB from the Pi   | USB CDC serial           | `firmware/.../*.h`                 |
+| 3   | **L298N H-bridge**        | drives the two motors (direction + PWM)             | **external battery pack** | 6 GPIO from the UNO      | `firmware/.../motor_control.h`     |
+| 4   | **2× DC gear motor**      | differential drive, one per side                    | via the L298N             | 2 wires each             | `config/robot.yaml`                |
+| 5   | **4× HC-SR04 ultrasonic** | front / left / right / rear ranging                 | 5 V from the UNO          | 8 GPIO (4 trig + 4 echo) | `firmware/.../ultrasonic.h`        |
+| 6   | **Raspberry Pi Camera**   | vision (optional)                                   | from the Pi               | CSI ribbon               | `config/robot.yaml` → `camera`     |
+| 7   | **Motor battery pack**    | motor power                                         | —                         | 2 wires to the L298N     | —                                  |
+| 8   | **Chassis + caster**      | mechanical                                          | —                         | —                        | `robot.wheel_track_m` (unmeasured) |
 
 **Not present** (no hardware exists in this repo, despite code paths): gripper,  
 RFID reader, gas/fire sensors. Those subsystems are simulated only.
 
 ---
 
-## 2. Connection map
+> **Pin map applied (2026-10-12).** The final AMR pin chart is now implemented
+> in the firmware headers *and* `config/robot.yaml`. **Nothing has been run on
+> real hardware** — the map is wired into code, not verified on a bench.
 
 ```
-        ┌───────────────────────────────┐
-        │  Raspberry Pi 5   (brain)     │
-        │  python -m amr.main --web     │
-        └───┬───────────────────────┬───┘
-            │ USB (CDC serial)      │ CSI ribbon
-            │ 9600 8N1              │
-    ┌───────▼────────┐      ┌───────▼────────┐
-    │ Arduino UNO    │      │ Camera module  │
-    │ (reflexes)     │      └────────────────┘
-    └──┬──────────┬──┘
-       │ 6 GPIO   │ 8 GPIO
-   ┌───▼───────┐ ┌▼──────────────┐
-   │  L298N    │ │ 4× HC-SR04    │
-   │ H-bridge  │ │ F / L / R / B │
-   └───┬───────┘ └───────────────┘
+        ┌───────────────────────────────────────────────────────────────┐
+        │  Raspberry Pi 5   (brain)                                     │
+        │  python -m amr.main --web                                     │
+        └───┬────────────────────────────┬──────────────────────────────┘
+            │ USB (CDC serial)           │ CSI ribbon
+            │ 9600 8N1                   │
+    ┌───────▼──────────────────────────┐ ┌▼────────────┐
+    │  Arduino UNO (reflexes)          │ │ imx219 cam  │
+    │                                  │ └─────────────┘
+    │  D2..D9   4× HC-SR04 (8 pins)    │
+    │  D10/D11  L298N ENA/ENB (PWM)    │
+    │  D12/D13  L298N IN1/IN2 (left)   │
+    │  A2/A3    L298N IN4/IN3 (right)  │
+    │  A1       DHT11 data             │
+    │  A0       buzzer                 │
+    │  A4/A5    I2C LCD (SDA/SCL)      │
+    │  MQ AO    NOT ASSIGNED           │
+    └──┬────────────────────────────────┴───┐
+       │ 6 GPIO                            │ 8 GPIO
+   ┌───▼──────────┐   ┌────────────────────▼──────────────┐
+   │  L298N       │   │ 4× HC-SR04 + DHT11 + LCD + buzzer │
+   └───┬──────────┘   └───────────────────────────────────┘
        │ OUT1/2, OUT3/4
    ┌───▼──────────────┐
    │ 2× DC gear motor │
@@ -61,7 +70,7 @@ RFID reader, gas/fire sensors. Those subsystems are simulated only.
 | Pi USB-A               | Arduino USB-B              | serial, 9600 8N1  | data cable required; also powers the UNO |
 | Arduino `D5`           | L298N `IN1`                | left forward      |                                          |
 | Arduino `D4`           | L298N `IN2`                | left reverse      | **also rear ultrasonic trig — see §5**   |
-| Arduino `D6`           | L298N `ENA`                | left enable (PWM) | PWM-capable ✅                            |
+| Arduino `D6`           | L298N `ENA`                | left enable (PWM) | PWM-capable ✅                           |
 | Arduino `D10`          | L298N `IN3`                | right forward     |                                          |
 | Arduino `D9`           | L298N `IN4`                | right reverse     |                                          |
 | Arduino `D8`           | L298N `ENB`                | right enable      | **not PWM-capable — see §5**             |
@@ -77,25 +86,31 @@ RFID reader, gas/fire sensors. Those subsystems are simulated only.
 
 ## 3. Arduino pin allocation — every pin, and what's on it
 
-| Pin       | Assigned to                                       | Kind                 | Source            |
-| --------- | ------------------------------------------------- | -------------------- | ----------------- |
-| `D0`      | USB RX                                            | serial               | reserved          |
-| `D1`      | USB TX                                            | serial               | reserved          |
-| `D2`      | RIGHT ultrasonic `TRIG`                           | output               | `ultrasonic.h`    |
-| `D3`      | RIGHT ultrasonic `ECHO`                           | input                | `ultrasonic.h`    |
-| **`D4`**  | **`IN2` (left reverse) + REAR ultrasonic `TRIG`** | **conflict**         | both headers      |
-| **`D5`**  | **`IN1` (left forward) + REAR ultrasonic `ECHO`** | **conflict**         | both headers      |
-| `D6`      | `ENA` (left PWM)                                  | PWM output ✅         | `motor_control.h` |
-| `D7`      | LEFT ultrasonic `TRIG`                            | output               | `ultrasonic.h`    |
-| `D8`      | `ENB` (right enable)                              | digital only ❌       | `motor_control.h` |
-| `D9`      | `IN4` (right reverse)                             | output               | `motor_control.h` |
-| `D10`     | `IN3` (right forward)                             | output               | `motor_control.h` |
-| `D11`     | LEFT ultrasonic `ECHO`                            | input                | `ultrasonic.h`    |
-| `D12`     | FRONT ultrasonic `TRIG`                           | output               | `ultrasonic.h`    |
-| `D13`     | FRONT ultrasonic `ECHO`                           | input                | `ultrasonic.h`    |
-| `A0`–`A5` | **free**                                          | analog / digital I/O | —                 |
+| Pin       | Assigned to               | Kind               | Source            |
+| --------- | ------------------------- | ------------------ | ----------------- |
+| `D0`      | USB RX                    | serial             | reserved          |
+| `D1`      | USB TX                    | serial             | reserved          |
+| `D2`      | FRONT ultrasonic `TRIG`   | output             | `ultrasonic.h`    |
+| `D3`      | FRONT ultrasonic `ECHO`   | input              | `ultrasonic.h`    |
+| `D4`      | LEFT ultrasonic `TRIG`    | output             | `ultrasonic.h`    |
+| `D5`      | LEFT ultrasonic `ECHO`    | input              | `ultrasonic.h`    |
+| `D6`      | RIGHT ultrasonic `TRIG`   | output             | `ultrasonic.h`    |
+| `D7`      | RIGHT ultrasonic `ECHO`   | input              | `ultrasonic.h`    |
+| `D8`      | REAR ultrasonic `TRIG`    | output             | `ultrasonic.h`    |
+| `D9`      | REAR ultrasonic `ECHO`    | input              | `ultrasonic.h`    |
+| `D10`     | `ENA` (left PWM)          | PWM output ✅      | `motor_control.h` |
+| `D11`     | `ENB` (right PWM)         | PWM output ✅      | `motor_control.h` |
+| `D12`     | `IN1` (left forward)      | output (+ LED)     | `motor_control.h` |
+| `D13`     | `IN2` (left reverse)      | output (+ LED)     | `motor_control.h` |
+| `A0`      | buzzer                    | digital output     | `buzzer.h`        |
+| `A1`      | DHT11 `DATA`              | digital I/O        | `dht11.h`         |
+| `A2`      | `IN4` (right reverse)     | output             | `motor_control.h` |
+| `A3`      | `IN3` (right forward)     | output             | `motor_control.h` |
+| `A4`      | LCD `SDA`                 | I2C data           | `lcd_i2c.h`       |
+| `A5`      | LCD `SCL`                 | I2C clock          | `lcd_i2c.h`       |
 
-So the firmware allocates **14 of 20** usable pins; `A0`–`A5` are spare.
+Every usable pin is allocated. **`A0`-`A5` are no longer spare** — which is
+exactly why the MQ gas sensor's analog output has no assignment (see F3).
 
 ---
 
@@ -114,82 +129,55 @@ serial; the firmware is the only code that knows about pins.
 
 ---
 
-## 5. Findings — the things that will bite
+## 5. Findings
 
-### 🔴 F1. `D4`/`D5` are double-booked (motor **and** rear sensor)
+### ✅ RESOLVED by the applied pin map (2026-10-12)
 
-```
-PIN_IN2 = 4   ==   PIN_REAR_TRIG = 4
-PIN_IN1 = 5   ==   PIN_REAR_ECHO = 5
-```
+| Old fault | What it was | How the chart fixes it |
+| --------- | ----------- | ---------------------- |
+| **F1** | `D4`/`D5` were double-booked (left motor **and** rear ultrasonic) | Rear ultrasonic moved to `D8`/`D9`; motor moved to `D12`/`D13`. No pin is shared. |
+| **F2** | `ENB = D8` is **not** PWM-capable, so the right motor could not be speed-controlled | `ENB = D11`, which is PWM-capable. `ENA = D10` likewise. |
+| **F3** | Ultrasonic pins in `config/robot.yaml` were `TODO_VERIFY` | Now match the firmware: `D2`/`D3` front, `D4`/`D5` left, `D6`/`D7` right, `D8`/`D9` rear. |
+| **F4** | `ULTRASONIC_ENABLED = 0` compiled the sensors out | Now `1` — **unverified on hardware.** |
+| **F5** | `MOTOR_PWM_ENABLED = 0` meant every speed was full speed | Now `1`, because both enable pins are on real PWM pins. **Unverified on hardware.** |
 
-Wire the rear sensor to `D4`/`D5` and the left motor drives the sensor's trig  
-line and reads the echo line — the wheel and the reading corrupt each other.  
-**Move the rear sensor** (e.g. `A1`/`A2`) in `ultrasonic.h` **and**  
-`config/robot.yaml`.
+### 🔴 F3 (new). The MQ gas sensor has no pin
 
-### 🔴 F2. `ENB = D8` cannot do PWM
+`A0` buzzer, `A1` DHT11, `A2`/`A3` motor, `A4`/`A5` LCD — **no analog input is
+free** for the MQ sensor's `AO`. The firmware therefore ships
+`PIN_GAS_AO -1` + `GAS_ENABLED 0`: a `GAS` command reports **`-1`** and the Pi
+shows `UNAVAILABLE`. It never reports a fake `0 ppm`.
 
-On the UNO the PWM pins are **`3, 5, 6, 9, 10, 11`**. `D8` is not one, so  
-`analogWrite(PIN_ENB, …)` degrades to on/off — the right motor can never be  
-speed-controlled. Harmless **today** (`MOTOR_PWM_ENABLED 0`), a wall the moment  
-you enable PWM.
+**Free an analog pin** — move the buzzer onto an I2C expander (sharing the LCD's
+`A4`/`A5` bus), or drop the buzzer — then set `PIN_GAS_AO` and `GAS_ENABLED 1`.
 
-**And there is no free PWM pin to move it to:**
+### 🟡 F4 (new). The buzzer must not use `tone()`
 
-| PWM pin | Currently used by          |
-| ------- | -------------------------- |
-| `D3`    | RIGHT ultrasonic ECHO      |
-| `D5`    | `IN1` + rear trig (see F1) |
-| `D6`    | `ENA`                      |
-| `D9`    | `IN4`                      |
-| `D10`   | `IN3`                      |
-| `D11`   | LEFT ultrasonic ECHO       |
+`tone()` occupies **Timer2**, which also drives **`D11` = ENB** (right-motor
+PWM). Using it would corrupt right-wheel speed control, so `buzzer.cpp` toggles
+the pin with `digitalWrite()` and no timer. A passive buzzer sounds at the
+toggled frequency; an active 3-wire module just clicks.
 
-To free one, move `LEFT_ECHO` off `D11` (to `A0`), then set `ENB = D11`.
+### 🟡 F5 (new). The DHT11 library is hand-rolled
 
-### 🟡 F3. All ultrasonic pins are `TODO_VERIFY`
+No third-party library: the DHT11 bit protocol is bit-banged on `A1`
+(`dht11.cpp`). **Not tested on hardware.** It updates at ~1 Hz, so the Pi only
+reads it on an explicit `ENV` command.
 
-`config/robot.yaml` still has `trig: "TODO_VERIFY"` for all four sensors — the  
-config does not yet agree with the firmware. Whichever pins you actually use,  
-set them in **both** places.
+### 🟡 F6 (new). The LCD driver is minimal
 
-### 🟡 F4. `ULTRASONIC_ENABLED = 0`
+A from-scratch HD44780-over-PCF8574 driver using the core's built-in `Wire`
+(lcd_i2c.cpp) — no `LiquidCrystal_I2C` dependency. Address defaults to `0x27`;
+some modules are `0x3F`. **Not tested on hardware.**
 
-Sensors are compiled **out**. Until you set it to `1`, `SENSOR` reports  
-`-1` for every direction and the Layer-1 proximity stop never fires.
+### 🟡 Still open (unchanged)
 
-### 🟡 F5. `MOTOR_PWM_ENABLED = 0`
-
-Any non-zero speed is **full speed**. Do the first motion tests with the wheels  
-off the ground.
-
-### 🟡 F6. Geometry is `null`
-
-`robot.wheel_track_m` / `wheel_diameter_m` are unmeasured, so odometry and  
-navigation cannot be trusted. Measure them (`hardware.md` §10).
-
-### 🟡 F7. Safety thresholds are `NOT_VERIFIED`
-
-Front/rear 20 cm, left/right 15 cm are software defaults, not measurements.
-
----
-
-## 6. A pin map that clears F1 and F2
-
-| Function             | Pin             | Why                    |
-| -------------------- | --------------- | ---------------------- |
-| `IN1` / `IN2`        | `D5` / `D4`     | unchanged              |
-| `ENA`                | `D6`            | PWM ✅                  |
-| `IN3` / `IN4`        | `D10` / `D9`    | unchanged              |
-| **`ENB`**            | **`D11`**       | PWM ✅ — moved off `D8` |
-| Front trig / echo    | `D12` / `D13`   | unchanged              |
-| Left trig / echo     | `D7` / **`A0`** | echo moved off `D11`   |
-| Right trig / echo    | `D2` / `D3`     | unchanged              |
-| **Rear trig / echo** | **`A1` / `A2`** | moved off `D4`/`D5`    |
-
-Change it in **both** `firmware/.../*.h` **and** `config/robot.yaml`, then  
-re-flash and re-verify.
+| Finding | Effect |
+| ------- | ------ |
+| Geometry `null` (`wheel_track_m`, `wheel_diameter_m`) | odometry / navigation cannot be trusted |
+| Safety thresholds `NOT_VERIFIED` | software defaults, not measurements |
+| `D13` is also the onboard LED | the LED flickers as the left motor reverses — harmless |
+| Everything on real hardware | **nothing has been flashed or run** |
 
 ---
 
@@ -214,12 +202,17 @@ on watchdog timeout or a close obstacle — so a Pi crash cannot leave it drivin
 **Structure: sound.** One serial link, one power rail for the motors, a common  
 ground, and a clean split between the Pi and the UNO.
 
-**Two blocking wiring faults** (`F1`, `F2`) that must be fixed before the motors  
-and sensors can both be trusted, plus five unverified values (`F3`–`F7`).
+**The two blocking wiring faults are resolved** in code (both enable pins are on
+real PWM pins, and no ultrasonic pin shares a line with a motor). What remains
+is **hardware verification**: nothing in this repository has been flashed or run
+on a real robot.
 
-**Fix order:** resolve `F1`/`F2` in the headers *and* the config → flash → then  
-work through [`WIRING_CHECK.md`](WIRING_CHECK.md) → [`DEPLOY.md`](DEPLOY.md) →  
-[`hardware.md`](hardware.md) §7.
+**Fix order:** install the AVR toolchain and compile (`docs/setup_arduino.md`)
+→ wire the sensors → photograph for [`WIRING_CHECK.md`](WIRING_CHECK.md) → flash
+→ staged bring-up, wheels off the ground (`docs/hardware.md` §7).
+
+> **One open decision:** the MQ gas sensor has no analog pin. Free one before
+> wiring it — or leave it off and the firmware reports `UNAVAILABLE` honestly.
 
 **See also:** [`WIRING_CHECK.md`](WIRING_CHECK.md) · [`hardware.md`](hardware.md) ·  
 [`DEPLOY.md`](DEPLOY.md) · [`serial_protocol.md`](serial_protocol.md)

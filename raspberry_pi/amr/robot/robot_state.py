@@ -56,6 +56,11 @@ class RobotState:
     left_cm: Optional[int] = None
     right_cm: Optional[int] = None
     rear_cm: Optional[int] = None
+    #: Environmental readings (DHT11 / MQ gas). ``None`` means "not measured",
+    #: matching the ultrasonic contract — never a fabricated 0.
+    temperature_c: Optional[float] = None
+    humidity_pct: Optional[int] = None
+    gas_raw: Optional[int] = None
     last_error: Optional[str] = None
     updated_at: float = field(default_factory=time.time)
 
@@ -65,7 +70,7 @@ class RobotState:
 
     def to_dict(self) -> dict:
         """JSON-friendly snapshot (for the web UI / logging)."""
-        return {
+        d = {
             "mode": self.mode.value,
             "connected": self.connected,
             "left_speed": self.left_speed,
@@ -74,7 +79,19 @@ class RobotState:
             "left_cm": self.left_cm,
             "right_cm": self.right_cm,
             "rear_cm": self.rear_cm,
+            # Environmental readings — nested under "sensors" so the telemetry
+            # collector reads one place, with the same absent-value contract.
+            "sensors": {
+                "front_cm": self.front_cm,
+                "left_cm": self.left_cm,
+                "right_cm": self.right_cm,
+                "rear_cm": self.rear_cm,
+                "temperature_c": self.temperature_c,
+                "humidity_pct": self.humidity_pct,
+                "gas_raw": self.gas_raw,
+            },
             "last_error": self.last_error,
             "is_moving": self.is_moving,
             "updated_at": self.updated_at,
         }
+        return d

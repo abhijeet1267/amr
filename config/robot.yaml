@@ -20,20 +20,33 @@ sensors:
   ultrasonic:
     # Poll interval on the Arduino (ms) for the periodic SENSOR telemetry.
     poll_interval_ms: 100
-    # Pin assignments. DO NOT INVENT — set after wiring is documented.
-    # Format: "D8" for a digital pin.
+    # Pin assignments per the final AMR pin chart (2026-10-12), now matching
+    # firmware/arduino/amr_controller/ultrasonic.h. Format: "D2" digital,
+    # "A1" analog-as-digital.
     front:
-      trig: "TODO_VERIFY"
-      echo: "TODO_VERIFY"
+      trig: "D2"
+      echo: "D3"
     left:
-      trig: "TODO_VERIFY"
-      echo: "TODO_VERIFY"
+      trig: "D4"
+      echo: "D5"
     right:
-      trig: "TODO_VERIFY"
-      echo: "TODO_VERIFY"
+      trig: "D6"
+      echo: "D7"
     rear:
-      trig: "TODO_VERIFY"
-      echo: "TODO_VERIFY"
+      trig: "D8"
+      echo: "D9"
+
+  # Environmental sensors + on-board display/actuator (firmware headers are
+  # the source of truth; these values mirror them for documentation).
+  # GAS: pin null = deliberately UNASSIGNED. The pin chart uses all 20 UNO
+  # pins, so the MQ sensor's AO has no home yet; the firmware reports -1 and
+  # the dashboard shows UNAVAILABLE — never a fabricated 0.
+  environment:
+    dht11_data: "A1"
+    gas_pin: null
+    lcd_i2c_address: 0x27   # PCF8574 backpack (0x27 or 0x3F)
+    buzzer_pin: "A0"        # digitalWrite toggle — NOT tone() (Timer2 = D11)
+    poll_interval_ms: 1000
 
 camera:
   # Camera cable compatibility is NOT yet confirmed. The software must work

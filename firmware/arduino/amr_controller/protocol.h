@@ -9,6 +9,10 @@
 //   PING | STATUS | STOP | VERSION | SENSOR | WDT <ms>
 //   MOVE L=<int> R=<int>        (-255 .. +255)
 //   F | B | L | R | S           (legacy baseline, backward compatible)
+//   ENV                         DHT11 temperature/humidity reading
+//   GAS                         MQ gas sensor raw reading
+//   LCD <line0>|<line1>         set the 16x2 LCD (up to 16 chars each)
+//   BUZZ <freqHz> [<ms>]        buzzer tone (freq 0 = stop); optional duration
 //
 // Responses (Arduino -> Pi):
 //   PONG
@@ -16,6 +20,8 @@
 //   ERR <code> [message...]     (code: PARSE | RANGE | UNKNOWN)
 //   STATUS L=<int> R=<int> MODE=<str>
 //   SENSOR F=<int> L=<int> R=<int> B=<int>
+//   ENV T=<int> H=<int>         (degC / %RH; -1 == not measured / invalid)
+//   GAS RAW=<int>               (0..1023 ADC count; -1 == no pin assigned)
 //   VERSION <semver>
 //   WATCHDOG TRIGGERED          (unsolicited safety event)
 
@@ -23,7 +29,7 @@
 
 #include <Arduino.h>
 
-#define PROTOCOL_VERSION "1.0"
+#define PROTOCOL_VERSION "1.1"
 #define MIN_SPEED        (-255)
 #define MAX_SPEED        (255)
 
@@ -46,12 +52,20 @@ struct ProtocolResult {
   bool isMove = false;
   bool isLegacy = false;
   bool isWdt = false;
+  bool isEnv = false;
+  bool isGas = false;
+  bool isLcd = false;
+  bool isBuzz = false;
 
   // Parsed payloads.
   int left = 0;
   int right = 0;
   char legacyChar = 0;
   int wdtMs = 0;
+  String lcdLine0 = "";           // LCD text (case preserved)
+  String lcdLine1 = "";
+  int buzzFreqHz = 0;             // 0 == stop
+  long buzzMs = 0;                // 0 == no auto-stop
 };
 
 // True if a speed value is within the allowed range.

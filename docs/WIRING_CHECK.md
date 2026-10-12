@@ -28,16 +28,16 @@ Nothing moves until step 7, and step 7 starts with the wheels off the ground.
 Good light, in focus, and include the **board labels** in frame. A wide shot of
 a whole board is more useful than a perfect close-up of one pin.
 
-| # | Shot | What must be visible |
-| --- | --- | --- |
-| 1 | **L298N, top-down, whole board** | `IN1`–`IN4`, `ENA`/`ENB`, the `12V`/`GND`/`5V` terminals, and every wire landing on them |
-| 2 | **ENA/ENB area, close-up** | whether the little **jumper caps** are fitted or removed (this is the #1 cause of "motors only run full speed") |
-| 3 | **Arduino UNO, top-down, whole board** | every jumper and its pin number — I need to read which pin each wire is on |
-| 4 | **Power terminals + battery pack** | which battery terminal goes to `12V` and which to `GND`, and the pack's voltage (e.g. 6×AA, 2S Li-ion) |
-| 5 | **The ground path, wide** | battery `−`, L298N `GND`, Arduino `GND` all in one frame |
-| 6 | **One HC-SR04, close-up** | `VCC`/`GND`/`Trig`/`Echo` labels and its four wires (any one sensor is enough) |
-| 7 | **Motor terminals** | each motor's two wires into `OUT1`/`OUT2` and `OUT3`/`OUT4` |
-| 8 | **Camera ribbon at the Pi** | the ribbon seated in the CSI connector, latch closed, contacts facing the right way |
+| #   | Shot                                   | What must be visible                                                                                            |
+| --- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 1   | **L298N, top-down, whole board**       | `IN1`–`IN4`, `ENA`/`ENB`, the `12V`/`GND`/`5V` terminals, and every wire landing on them                        |
+| 2   | **ENA/ENB area, close-up**             | whether the little **jumper caps** are fitted or removed (this is the #1 cause of "motors only run full speed") |
+| 3   | **Arduino UNO, top-down, whole board** | every jumper and its pin number — I need to read which pin each wire is on                                      |
+| 4   | **Power terminals + battery pack**     | which battery terminal goes to `12V` and which to `GND`, and the pack's voltage (e.g. 6×AA, 2S Li-ion)          |
+| 5   | **The ground path, wide**              | battery `−`, L298N `GND`, Arduino `GND` all in one frame                                                        |
+| 6   | **One HC-SR04, close-up**              | `VCC`/`GND`/`Trig`/`Echo` labels and its four wires (any one sensor is enough)                                  |
+| 7   | **Motor terminals**                    | each motor's two wires into `OUT1`/`OUT2` and `OUT3`/`OUT4`                                                     |
+| 8   | **Camera ribbon at the Pi**            | the ribbon seated in the CSI connector, latch closed, contacts facing the right way                             |
 
 If you can't get all 8, send what you have — 1, 2 and 3 are the important ones.
 
@@ -58,15 +58,15 @@ that actually break a build. I'll check each against your photos:
    sensors read garbage.
 4. **Arduino motor pins match the firmware** — `motor_control.h` expects:
 
-   | Signal | Pin | L298N |
-   | --- | --- | --- |
-   | Left forward / reverse | `D5` / `D4` | `IN1` / `IN2` |
-   | Left enable | `D6` | `ENA` |
+   | Signal                  | Pin          | L298N         |
+   | ----------------------- | ------------ | ------------- |
+   | Left forward / reverse  | `D5` / `D4`  | `IN1` / `IN2` |
+   | Left enable             | `D6`         | `ENA`         |
    | Right forward / reverse | `D10` / `D9` | `IN3` / `IN4` |
-   | Right enable | `D8` | `ENB` |
+   | Right enable            | `D8`         | `ENB`         |
 
 5. **⚠️ Conflict 1 — the rear ultrasonic collides with the left motor.** The
-   firmware's rear sensor is on `D4`/`D5`, which are the *same pins* as
+   firmware's rear sensor is on `D4`/`D5`, which are the _same pins_ as
    `IN2`/`IN1`. If you wired the rear sensor there, driving the left motor will
    fight the sensor. It must move (e.g. to `A1`/`A2`).
 6. **⚠️ Conflict 2 — `ENB` on `D8` is not a PWM pin.** On the UNO only
@@ -75,7 +75,7 @@ that actually break a build. I'll check each against your photos:
    control. Move it to a PWM pin **and** re-check it doesn't clash with the
    ultrasonic pins.
 7. **HC-SR04 `VCC` on 5 V** (not 3.3 V), and each sensor's `Trig`/`Echo` on two
-   *different* pins.
+   _different_ pins.
 8. **Camera ribbon** contacts facing the correct way and the latch closed.
 9. **USB cable is a data cable** — a charge-only cable cannot flash or talk.
 
@@ -90,11 +90,11 @@ A clean map that avoids 5 and 6 is in
 `firmware/arduino/amr_controller/`, board **Arduino Uno**, Upload. Verify over
 the serial monitor at 9600 baud:
 
-| Type | Expect |
-| --- | --- |
-| `PING` | `PONG` |
-| `VERSION` | `VERSION 1.0` |
-| `STATUS` | `STATUS L=0 R=0 MODE=STOPPED` |
+| Type      | Expect                        |
+| --------- | ----------------------------- |
+| `PING`    | `PONG`                        |
+| `VERSION` | `VERSION 1.0`                 |
+| `STATUS`  | `STATUS L=0 R=0 MODE=STOPPED` |
 
 Full detail: [`setup_arduino.md`](setup_arduino.md).
 

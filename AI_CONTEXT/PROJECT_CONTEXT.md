@@ -40,7 +40,7 @@ raspberry_pi/
     communication/     protocol.py (single source of truth), ArduinoSerial, transport
     safety/            SafetyManager (Layer 3), SafetyDecision, SafetyAction
     hazard/            HazardManager (Layer 3.5), sources, event log  <-- newest layer
-    sensors/           UltrasonicManager, UltrasonicReading
+    sensors/           UltrasonicManager, EnvironmentManager + readings
     navigation/        Navigator, LocalNavigator, Pose, Goal, NavResult
     warehouse/         WarehouseTaskManager, WarehouseMap, Task, Manipulator
     camera/            CameraManager (libcamera "pi" / "v4l2" / mock)

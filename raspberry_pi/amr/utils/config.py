@@ -138,6 +138,32 @@ class CameraConfig:
 
 
 @dataclass
+class EnvironmentConfig:
+    """Environmental sensors + on-board display/actuator pins (Arduino side).
+
+    These are *documentation-only* on the Pi: the actual pin ownership lives in
+    the firmware headers. The values here record the deployed wiring so the two
+    sides stay agreeable, and ``poll_interval_ms`` controls how often the Pi
+    asks the controller for a fresh DHT11/gas report.
+
+    The MQ gas ``pin`` is ``None`` by design — the shipped pin chart leaves the
+    gas analog output unassigned (all 20 UNO pins are used), so the firmware
+    reports the reading as ``UNAVAILABLE`` rather than a fake 0.
+    """
+
+    #: DHT11 data pin, e.g. ``"A1"`` (used as a digital pin).
+    dht11_data: str = "A1"
+    #: MQ gas analog pin, or ``None`` when unassigned (the shipped default).
+    gas_pin: Optional[str] = None
+    #: I2C LCD address (0x27 is the common PCF8574 backpack default).
+    lcd_i2c_address: int = 0x27
+    #: Buzzer pin, e.g. ``"A0"`` (used as a digital output).
+    buzzer_pin: str = "A0"
+    #: How often (ms) the Pi polls the controller for a fresh environment read.
+    poll_interval_ms: int = 1000
+
+
+@dataclass
 class RobotConfig:
     """Robot identity and geometry.
 
@@ -151,6 +177,7 @@ class RobotConfig:
     motors: MotorConfig = field(default_factory=MotorConfig)
     ultrasonic: UltrasonicConfig = field(default_factory=UltrasonicConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
+    environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
 
 
 @dataclass
@@ -421,6 +448,10 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
     # dataclass defaults. Both layouts are now accepted; the nested one wins if
     # a deployment provides both.
     camera_blob = (robot_blob.get("camera") or robot_data.get("camera") or {})
+    # Environmental sensors/display (DHT11, gas, LCD, buzzer). The block is a
+    # sibling of `robot:` in robot.yaml (same layout as `camera:`), so accept
+    # both the nested and top-level location.
+    env_blob = (robot_blob.get("environment") or robot_data.get("environment") or {})
     robot = RobotConfig(
         name=str(robot_blob.get("name", "amr-robot")),
         wheel_track_m=robot_blob.get("wheel_track_m"),
@@ -428,6 +459,7 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
         motors=_build(MotorConfig, robot_blob.get("motors", {}), "robot.motors"),
         ultrasonic=_build_ultrasonic(robot_blob.get("ultrasonic")),
         camera=_build(CameraConfig, camera_blob, "robot.camera"),
+        environment=_build(EnvironmentConfig, env_blob, "robot.environment"),
     )
 
     warehouse_blob = warehouse_data.get("warehouse", warehouse_data) or {}
@@ -461,6 +493,7 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
     _validate_serial(serial)
     _validate_safety(safety)
     _validate_motors(robot.motors)
+    _validate_environment(robot.environment)
     _validate_warehouse(warehouse)
     _validate_hazard(hazard)
     _validate_rfid(rfid, warehouse)
@@ -496,6 +529,17 @@ def _validate_safety(c: SafetyConfig) -> None:
 def _validate_motors(c: MotorConfig) -> None:
     if not (1 <= c.max_speed <= 255):
         raise ConfigError(f"motors.max_speed {c.max_speed} out of range [1,255]")
+
+
+def _validate_environment(c: EnvironmentConfig) -> None:
+    if c.poll_interval_ms < 20:
+        raise ConfigError(f"environment.poll_interval_ms {c.poll_interval_ms} must be >= 20")
+    # The I2C address must be a valid 7-bit PCF8574 address (0x00-0x7F),
+    # matching what the LCD backpack's pull-ups allow.
+    if not (0x00 <= c.lcd_i2c_address <= 0x7F):
+        raise ConfigError(
+            f"environment.lcd_i2c_address {c.lcd_i2c_address:#x} out of range [0x00, 0x7F]"
+        )
 
 
 def _validate_hazard(c: HazardConfig) -> None:

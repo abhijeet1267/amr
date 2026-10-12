@@ -41,7 +41,7 @@ def robot(app_config):
 def test_start_connects_and_reports_version(robot):
     mgr, _ = robot
     assert mgr.state.connected is True
-    assert mgr.version == "1.0"
+    assert mgr.version == "1.1"
     assert mgr.state.mode is RobotMode.IDLE
 
 
@@ -69,7 +69,7 @@ def test_snapshot_contains_core_fields(robot):
         "front_cm", "rear_cm", "safety", "version", "is_moving",
     ):
         assert key in d
-    assert d["version"] == "1.0"
+    assert d["version"] == "1.1"
 
 
 # --------------------------------------------------------------------------- #

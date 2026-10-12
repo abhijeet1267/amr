@@ -9,33 +9,33 @@ expects. Read this before powering anything up.
 
 ## 1. What the photos show
 
-| Photo | What it is |
-| --- | --- |
-| 1 | A small **USB-A dongle with a cap** (flash drive / card reader class). Not part of the robot. |
-| 2 | The **chassis** top-down: black frame, 4 yellow wheels, **2× HC-SR04** ultrasonic sensors, the **red L298N**. |
-| 3 | A **green I²C module in an anti-static bag** — silkscreen reads `HW-61`, with `SDA`/`SCL`, `VCC`/`GND` and `A0`/`A1`/`A2` address pins. |
-| 4 | The **Raspberry Pi 5** with its **active cooler** (heatsink + fan) and the Pi 5 documentation booklet. |
-| 5 | The **L298N mounted on the chassis** — green power terminal, blue motor/power terminal, jumper caps, loose wiring. |
-| 6 | The **Pi in its official red/white case**, robot in the background (background is out of focus). |
-| 7 | **Cables**: a white USB cable and a **blue braided USB-A → Micro-USB** cable. |
-| 8 | **Full top-down of the robot**: L298N, two front sensors, a breadboard carrying the wiring. |
-| 9, 10 | Close-ups of an **HC-SR04** plugged into the breadboard with jumper wires. |
+| Photo | What it is                                                                                                                              |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | A small **USB-A dongle with a cap** (flash drive / card reader class). Not part of the robot.                                           |
+| 2     | The **chassis** top-down: black frame, 4 yellow wheels, **2× HC-SR04** ultrasonic sensors, the **red L298N**.                           |
+| 3     | A **green I²C module in an anti-static bag** — silkscreen reads `HW-61`, with `SDA`/`SCL`, `VCC`/`GND` and `A0`/`A1`/`A2` address pins. |
+| 4     | The **Raspberry Pi 5** with its **active cooler** (heatsink + fan) and the Pi 5 documentation booklet.                                  |
+| 5     | The **L298N mounted on the chassis** — green power terminal, blue motor/power terminal, jumper caps, loose wiring.                      |
+| 6     | The **Pi in its official red/white case**, robot in the background (background is out of focus).                                        |
+| 7     | **Cables**: a white USB cable and a **blue braided USB-A → Micro-USB** cable.                                                           |
+| 8     | **Full top-down of the robot**: L298N, two front sensors, a breadboard carrying the wiring.                                             |
+| 9, 10 | Close-ups of an **HC-SR04** plugged into the breadboard with jumper wires.                                                              |
 
 ---
 
 ## 2. Check against the project's design
 
-| Component the project expects | In your photos | Status |
-| --- | --- | --- |
-| Raspberry Pi (any 4/5) | **Pi 5** + active cooler, cased | ✅ present |
-| Arduino **UNO** (firmware target) | **not clearly visible** — a blue board is cut off at the top of photo 8 | ⚠️ **must confirm** |
-| L298N H-bridge | red module, mounted, motors connected | ✅ present |
-| 2× DC gear motors | 4-wheel chassis, motors under the frame | ✅ present |
-| **4×** HC-SR04 (front/left/right/rear) | **2 visible**, both at the front | ⚠️ **2 short** |
-| Motor battery pack | not visible in any photo | ⚠️ **must confirm** |
-| Raspberry Pi Camera + ribbon | not visible | ❌ not shown |
-| I²C module (`HW-61`) | present, in a bag | ➖ **not used** by this firmware |
-| USB-A → Micro-USB cable | present | ⚠️ **wrong plug for an UNO** |
+| Component the project expects          | In your photos                                                          | Status                           |
+| -------------------------------------- | ----------------------------------------------------------------------- | -------------------------------- |
+| Raspberry Pi (any 4/5)                 | **Pi 5** + active cooler, cased                                         | ✅ present                       |
+| Arduino **UNO** (firmware target)      | **not clearly visible** — a blue board is cut off at the top of photo 8 | ⚠️ **must confirm**              |
+| L298N H-bridge                         | red module, mounted, motors connected                                   | ✅ present                       |
+| 2× DC gear motors                      | 4-wheel chassis, motors under the frame                                 | ✅ present                       |
+| **4×** HC-SR04 (front/left/right/rear) | **2 visible**, both at the front                                        | ⚠️ **2 short**                   |
+| Motor battery pack                     | not visible in any photo                                                | ⚠️ **must confirm**              |
+| Raspberry Pi Camera + ribbon           | not visible                                                             | ❌ not shown                     |
+| I²C module (`HW-61`)                   | present, in a bag                                                       | ➖ **not used** by this firmware |
+| USB-A → Micro-USB cable                | present                                                                 | ⚠️ **wrong plug for an UNO**     |
 
 ---
 
@@ -121,7 +121,7 @@ Nothing in this firmware or config touches I²C. You can leave it in the bag.
 
 ## 4. What I still need to see
 
-1. **The microcontroller board** — top-down, chip markings legible. *(blocking)*
+1. **The microcontroller board** — top-down, chip markings legible. _(blocking)_
 2. **The L298N's power wiring** — wide shot following the black/green/red wires
    to their source, plus the battery.
 3. **The signal wires at the Arduino end** — a top-down of the board with the

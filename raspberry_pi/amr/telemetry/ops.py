@@ -58,9 +58,15 @@ _KNOWN_UNDETECTED = (
     ("ultrasonic", "amr.sensors.ultrasonic"),
     ("encoder_left", "amr.control differential drive"),
     ("encoder_right", "amr.control differential drive"),
-    ("gas_sensor", "amr.hazard (C4)"),
+    # The MQ gas sensor now has a read path (firmware GAS + amr.sensors), but
+    # NO PIN IS ASSIGNED, so it still reports UNAVAILABLE. It stays listed so
+    # the console says exactly that rather than silently omitting it.
+    ("gas_sensor", "no analog pin assigned"),
     ("imu", "not implemented"),
     ("battery", "not implemented"),
+    # The DHT11 is wired and read, so it is NOT "undetected" — it appears as a
+    # normal sensor row when a reading arrives. Only the LCD/buzzer stay here.
+    ("lcd", "amr.sensors environment (no display hardware tested)"),
 )
 
 

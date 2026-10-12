@@ -18,24 +18,24 @@ client — plus the verification evidence behind each claim.
 
 ## Table of contents
 
-| § | Section |
-| --- | --- |
-| 1 | [Executive summary](#1-executive-summary) |
-| 2 | [What the project is](#2-what-the-project-is) |
-| 3 | [Architecture](#3-architecture) |
-| 4 | [Safety model](#4-safety-model) |
-| 5 | [Serial protocol](#5-serial-protocol) |
-| 6 | [The Python control stack, module by module](#6-the-python-control-stack-module-by-module) |
-| 7 | [The web layer](#7-the-web-layer) |
-| 8 | [The Arduino firmware](#8-the-arduino-firmware) |
-| 9 | [The Flutter client](#9-the-flutter-client) |
-| 10 | [Configuration reference](#10-configuration-reference) |
-| 11 | [Test suite inventory](#11-test-suite-inventory) |
-| 12 | [Verification status](#12-verification-status) |
-| 13 | [Known issues and debt](#13-known-issues-and-debt) |
-| 14 | [C19 — spatial heat map (this session's work)](#14-c19--spatial-heat-map-this-sessions-work) |
-| 15 | [Complete file inventory](#15-complete-file-inventory) |
-| 16 | [Complete source appendix](#16-complete-source-appendix) |
+| §   | Section                                                                                      |
+| --- | -------------------------------------------------------------------------------------------- |
+| 1   | [Executive summary](#1-executive-summary)                                                    |
+| 2   | [What the project is](#2-what-the-project-is)                                                |
+| 3   | [Architecture](#3-architecture)                                                              |
+| 4   | [Safety model](#4-safety-model)                                                              |
+| 5   | [Serial protocol](#5-serial-protocol)                                                        |
+| 6   | [The Python control stack, module by module](#6-the-python-control-stack-module-by-module)   |
+| 7   | [The web layer](#7-the-web-layer)                                                            |
+| 8   | [The Arduino firmware](#8-the-arduino-firmware)                                              |
+| 9   | [The Flutter client](#9-the-flutter-client)                                                  |
+| 10  | [Configuration reference](#10-configuration-reference)                                       |
+| 11  | [Test suite inventory](#11-test-suite-inventory)                                             |
+| 12  | [Verification status](#12-verification-status)                                               |
+| 13  | [Known issues and debt](#13-known-issues-and-debt)                                           |
+| 14  | [C19 — spatial heat map (this session's work)](#14-c19--spatial-heat-map-this-sessions-work) |
+| 15  | [Complete file inventory](#15-complete-file-inventory)                                       |
+| 16  | [Complete source appendix](#16-complete-source-appendix)                                     |
 
 ---
 
@@ -45,22 +45,22 @@ A **modular Autonomous Mobile Robot platform for smart-warehouse automation**: a
 differential-drive robot with a safety-first, layered control stack, plus
 warehouse task orchestration, an operator console, and a cross-platform client.
 
-| Dimension | Value |
-| --- | --- |
-| Runtimes | Raspberry Pi (Python 3) = brain; Arduino UNO (C++) = reflexes |
-| Python control stack | 73 files, ~21,500 lines |
-| Python tests | 40 files, ~17,500 lines |
-| Web console | stdlib HTTP, zero build step; 3 pages + a hub + 22 JSON/binary routes |
-| Flutter client | 25 Dart files, ~5,400 lines; macOS/Windows/Android/iOS |
-| Firmware | 9 files, 623 lines of C++ |
-| Configuration | 8 YAML files, 798 lines |
-| Documentation | 24 markdown files, ~8,400 lines |
-| Python test suite | **1594 passed · 2 skipped · 0 failed** (1596 collected) |
-| Flutter test suite | **21 passed**, `flutter analyze` clean |
+| Dimension            | Value                                                                 |
+| -------------------- | --------------------------------------------------------------------- |
+| Runtimes             | Raspberry Pi (Python 3) = brain; Arduino UNO (C++) = reflexes         |
+| Python control stack | 73 files, ~21,500 lines                                               |
+| Python tests         | 40 files, ~17,500 lines                                               |
+| Web console          | stdlib HTTP, zero build step; 3 pages + a hub + 22 JSON/binary routes |
+| Flutter client       | 25 Dart files, ~5,400 lines; macOS/Windows/Android/iOS                |
+| Firmware             | 9 files, 623 lines of C++                                             |
+| Configuration        | 8 YAML files, 798 lines                                               |
+| Documentation        | 24 markdown files, ~8,400 lines                                       |
+| Python test suite    | **1594 passed · 2 skipped · 0 failed** (1596 collected)               |
+| Flutter test suite   | **21 passed**, `flutter analyze` clean                                |
 
 **The load-bearing design rule.** Every motion command funnels through one gated
 API, `RobotManager`. The web layer and the warehouse layer cannot reach the
-motors any other way, and safety can only ever *veto* — never be bypassed.
+motors any other way, and safety can only ever _veto_ — never be bypassed.
 
 ---
 
@@ -69,12 +69,12 @@ motors any other way, and safety can only ever *veto* — never be bypassed.
 A differential-drive robot that carries shelves in a warehouse. It is split
 across two processors on purpose:
 
-| Part | Role | Implementation |
-| --- | --- | --- |
-| **Raspberry Pi** | Brain — web control, navigation, warehouse tasks, hazard policy | Python 3, stdlib `ThreadingHTTPServer`, PyYAML; `pyserial` optional |
-| **Arduino UNO** | Reflexes — real-time motor drive, watchdog, hardware proximity stop | C++ firmware, L298N H-bridge |
-| **Drive** | Differential, 2× DC gear motor | `amr/control/` |
-| **Sensing** | 4× HC-SR04 ultrasonic (front/left/right/rear), optional camera | `amr/sensors/`, `amr/camera/` |
+| Part             | Role                                                                | Implementation                                                      |
+| ---------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| **Raspberry Pi** | Brain — web control, navigation, warehouse tasks, hazard policy     | Python 3, stdlib `ThreadingHTTPServer`, PyYAML; `pyserial` optional |
+| **Arduino UNO**  | Reflexes — real-time motor drive, watchdog, hardware proximity stop | C++ firmware, L298N H-bridge                                        |
+| **Drive**        | Differential, 2× DC gear motor                                      | `amr/control/`                                                      |
+| **Sensing**      | 4× HC-SR04 ultrasonic (front/left/right/rear), optional camera      | `amr/sensors/`, `amr/camera/`                                       |
 
 The Pi runs everything that may be slow or buggy. The Arduino runs the small loop
 that must not miss a beat. The Arduino **boots stopped**, moves only on explicit
@@ -128,26 +128,26 @@ navigation layers drive in `AUTONOMOUS`, and `IDLE` allows no motion at all.
 
 Each layer depends only on the layers below it.
 
-| # | Package | Responsibility | Key types |
-| --- | --- | --- | --- |
-| 1 | `amr.communication` | Serial protocol + transport | `protocol.py`, `ArduinoSerial`, `ArduinoSerialTransport` |
-| 2 | `amr.control` | Motor driver + differential-drive vocabulary | `MotorDriver`, `ArduinoMotorDriver`, `DifferentialDrive`, `clamp_speed` |
-| 3 | `amr.safety` | Deterministic proximity policy (+ C6 avoidance) | `SafetyManager`, `SafetyDecision`, `SafetyAction`, `AvoidancePolicy` |
-| 3.5 | `amr.hazard` | Context-aware multi-hazard aggregation + spatial visualisation | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `VisionHazardSource` |
-| 4 | `amr.sensors` | Ultrasonic read + validation | `UltrasonicManager`, `UltrasonicReading` |
-| 5 | `amr.robot` | The gated runtime owner | `RobotManager`, `RobotState`, `ModeController`, `RobotMode` |
-| 6 | `amr.camera` | Camera facade (libcamera / V4L2 / mock) + C8 frame contract | `CameraManager`, `CameraSource`, `CameraFrame`, `SimulatedCameraSource` |
-| 7 | `amr.navigation` | Odometry + waypoint planning | `Navigator`, `LocalNavigator`, `Pose`, `Goal`, `NavResult` |
-| 8 | `amr.warehouse` | Task queue + orchestration | `WarehouseTaskManager`, `WarehouseMap`, `Task`, `Manipulator` |
-| 9 | `amr.web` | HTTP control panel + JSON API | `AMRWebApp` |
-| — | `amr.apps` | Interface registry + Applications Hub data | `ApplicationRegistry`, `resolve_status` |
-| — | `amr.map` | C9 2D map state + SVG, C10 3D twin state, **C19 heat map** | `MapSnapshot`, `MapService`, `MapTransform`, `PathHistory`, `build_twin_state`, `build_heatmap_state` |
-| — | `amr.telemetry` | Read-only telemetry contract + console projection | `TelemetrySnapshot`, `TelemetryCollector`, `build_console_state`, `build_ops_state` |
-| — | `amr.rfid` | Shelf / payload identification contract (C17) | `RfidReader`, `RfidTag`, `SimulatedRfidReader`, `confirm` |
-| — | `amr.net` | Host Wi-Fi / Bluetooth probe (read-only) | `connectivity` |
-| — | `amr.mocks` | Hardware-free doubles | `MockSerialTransport`, `MockMotorDriver`, `MockUltrasonicSensor`, `MockCamera` |
-| — | `amr.logging` | Rotating structured logging | `setup_logging`, `get_logger`, `log_event` |
-| — | `amr.utils` | Config loading + fail-fast validation | `load_config`, `AppConfig`, `SafetyConfig`, `RobotConfig`, … |
+| #   | Package             | Responsibility                                                 | Key types                                                                                             |
+| --- | ------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1   | `amr.communication` | Serial protocol + transport                                    | `protocol.py`, `ArduinoSerial`, `ArduinoSerialTransport`                                              |
+| 2   | `amr.control`       | Motor driver + differential-drive vocabulary                   | `MotorDriver`, `ArduinoMotorDriver`, `DifferentialDrive`, `clamp_speed`                               |
+| 3   | `amr.safety`        | Deterministic proximity policy (+ C6 avoidance)                | `SafetyManager`, `SafetyDecision`, `SafetyAction`, `AvoidancePolicy`                                  |
+| 3.5 | `amr.hazard`        | Context-aware multi-hazard aggregation + spatial visualisation | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `VisionHazardSource`                |
+| 4   | `amr.sensors`       | Ultrasonic read + validation                                   | `UltrasonicManager`, `UltrasonicReading`                                                              |
+| 5   | `amr.robot`         | The gated runtime owner                                        | `RobotManager`, `RobotState`, `ModeController`, `RobotMode`                                           |
+| 6   | `amr.camera`        | Camera facade (libcamera / V4L2 / mock) + C8 frame contract    | `CameraManager`, `CameraSource`, `CameraFrame`, `SimulatedCameraSource`                               |
+| 7   | `amr.navigation`    | Odometry + waypoint planning                                   | `Navigator`, `LocalNavigator`, `Pose`, `Goal`, `NavResult`                                            |
+| 8   | `amr.warehouse`     | Task queue + orchestration                                     | `WarehouseTaskManager`, `WarehouseMap`, `Task`, `Manipulator`                                         |
+| 9   | `amr.web`           | HTTP control panel + JSON API                                  | `AMRWebApp`                                                                                           |
+| —   | `amr.apps`          | Interface registry + Applications Hub data                     | `ApplicationRegistry`, `resolve_status`                                                               |
+| —   | `amr.map`           | C9 2D map state + SVG, C10 3D twin state, **C19 heat map**     | `MapSnapshot`, `MapService`, `MapTransform`, `PathHistory`, `build_twin_state`, `build_heatmap_state` |
+| —   | `amr.telemetry`     | Read-only telemetry contract + console projection              | `TelemetrySnapshot`, `TelemetryCollector`, `build_console_state`, `build_ops_state`                   |
+| —   | `amr.rfid`          | Shelf / payload identification contract (C17)                  | `RfidReader`, `RfidTag`, `SimulatedRfidReader`, `confirm`                                             |
+| —   | `amr.net`           | Host Wi-Fi / Bluetooth probe (read-only)                       | `connectivity`                                                                                        |
+| —   | `amr.mocks`         | Hardware-free doubles                                          | `MockSerialTransport`, `MockMotorDriver`, `MockUltrasonicSensor`, `MockCamera`                        |
+| —   | `amr.logging`       | Rotating structured logging                                    | `setup_logging`, `get_logger`, `log_event`                                                            |
+| —   | `amr.utils`         | Config loading + fail-fast validation                          | `load_config`, `AppConfig`, `SafetyConfig`, `RobotConfig`, …                                          |
 
 ### The gate — `RobotManager`
 
@@ -186,12 +186,12 @@ RobotManager · SafetyManager · HazardManager · Navigator · WarehouseTaskMana
 Safety **always wins**. Four independent layers, each able to stop the robot on
 its own:
 
-| Layer | Where | Mechanism | Can stop alone |
-| --- | --- | --- | --- |
-| 1 | Arduino firmware | comms watchdog (default 1000 ms) + proximity stop below thresholds | yes |
-| 2 | Pi, `RobotState` | structured state from `STATUS`/`SENSOR` polls; link-loss detection | yes |
-| 3 | Pi, `amr.safety` | deterministic proximity rules → `PROCEED/WAIT/STOP/TURN/REPLAN` | yes |
-| 3.5 | Pi, `amr.hazard` | multi-input aggregation → `NORMAL/WARNING/SLOW/STOP/EMERGENCY` | yes (escalate-only) |
+| Layer | Where            | Mechanism                                                          | Can stop alone      |
+| ----- | ---------------- | ------------------------------------------------------------------ | ------------------- |
+| 1     | Arduino firmware | comms watchdog (default 1000 ms) + proximity stop below thresholds | yes                 |
+| 2     | Pi, `RobotState` | structured state from `STATUS`/`SENSOR` polls; link-loss detection | yes                 |
+| 3     | Pi, `amr.safety` | deterministic proximity rules → `PROCEED/WAIT/STOP/TURN/REPLAN`    | yes                 |
+| 3.5   | Pi, `amr.hazard` | multi-input aggregation → `NORMAL/WARNING/SLOW/STOP/EMERGENCY`     | yes (escalate-only) |
 
 **Layer 3 rules, first match wins:** disconnected → `STOP`; no valid data →
 `STOP`; any reading below its stop threshold → `STOP`; any reading below `2.0×`
@@ -201,7 +201,7 @@ threshold → `WAIT`; else `PROCEED`.
 It is opt-in via `RobotManager.attach_hazard()`, so the default stack is
 behaviourally identical to the pre-hazard code.
 
-**A `-1` ultrasonic reading means "no echo / clear"** — it is *not* an obstacle. A
+**A `-1` ultrasonic reading means "no echo / clear"** — it is _not_ an obstacle. A
 complete loss of valid sensor data **is** unsafe (Layer 3 rule 2).
 
 **Emergency stop** is always available: a software E-STOP (web/API) sends `STOP`
@@ -224,28 +224,28 @@ is the canonical specification.
 
 **Pi → Arduino**
 
-| Command | Example | Purpose |
-| --- | --- | --- |
-| `PING` | `PING` | Liveness check |
-| `STATUS` | `STATUS` | Query motor + drive state |
-| `STOP` | `STOP` | Immediately stop both motor sides |
-| `VERSION` | `VERSION` | Report firmware protocol version |
-| `SENSOR` | `SENSOR` | Request an immediate ultrasonic report |
-| `WDT <ms>` | `WDT 1000` | Set the communication watchdog timeout |
-| `MOVE L=<int> R=<int>` | `MOVE L=150 R=150` | Set left/right wheel-group speed |
-| `F` / `B` / `L` / `R` / `S` | `F` | Legacy baseline commands (still work) |
+| Command                     | Example            | Purpose                                |
+| --------------------------- | ------------------ | -------------------------------------- |
+| `PING`                      | `PING`             | Liveness check                         |
+| `STATUS`                    | `STATUS`           | Query motor + drive state              |
+| `STOP`                      | `STOP`             | Immediately stop both motor sides      |
+| `VERSION`                   | `VERSION`          | Report firmware protocol version       |
+| `SENSOR`                    | `SENSOR`           | Request an immediate ultrasonic report |
+| `WDT <ms>`                  | `WDT 1000`         | Set the communication watchdog timeout |
+| `MOVE L=<int> R=<int>`      | `MOVE L=150 R=150` | Set left/right wheel-group speed       |
+| `F` / `B` / `L` / `R` / `S` | `F`                | Legacy baseline commands (still work)  |
 
 **Arduino → Pi**
 
-| Response | Example | Meaning |
-| --- | --- | --- |
-| `PONG` | `PONG` | Reply to `PING` |
-| `ACK <verb> [args]` | `ACK MOVE L=1 R=1` | Command accepted |
-| `ERR <code> [msg]` | `ERR RANGE out of range` | Command rejected |
-| `STATUS L=<int> R=<int> MODE=<str>` | `STATUS L=1 R=1 MODE=RUNNING` | Motor + drive state |
-| `SENSOR F=<int> L=<int> R=<int> B=<int>` | `SENSOR F=82 L=45 R=91 B=120` | Ultrasonic distances (cm) |
-| `VERSION <semver>` | `VERSION 1.0` | Protocol version |
-| `WATCHDOG TRIGGERED` | `WATCHDOG TRIGGERED` | Unsolicited: Pi went silent, motors stopped |
+| Response                                 | Example                       | Meaning                                     |
+| ---------------------------------------- | ----------------------------- | ------------------------------------------- |
+| `PONG`                                   | `PONG`                        | Reply to `PING`                             |
+| `ACK <verb> [args]`                      | `ACK MOVE L=1 R=1`            | Command accepted                            |
+| `ERR <code> [msg]`                       | `ERR RANGE out of range`      | Command rejected                            |
+| `STATUS L=<int> R=<int> MODE=<str>`      | `STATUS L=1 R=1 MODE=RUNNING` | Motor + drive state                         |
+| `SENSOR F=<int> L=<int> R=<int> B=<int>` | `SENSOR F=82 L=45 R=91 B=120` | Ultrasonic distances (cm)                   |
+| `VERSION <semver>`                       | `VERSION 1.0`                 | Protocol version                            |
+| `WATCHDOG TRIGGERED`                     | `WATCHDOG TRIGGERED`          | Unsolicited: Pi went silent, motors stopped |
 
 `STATUS MODE` is the **firmware** drive state (`STOPPED`, `RUNNING`, `WATCHDOG`),
 distinct from the Pi's higher-level robot mode.
@@ -271,28 +271,28 @@ XYZ                         ->  ERR UNKNOWN XYZ
 
 ## 6. The Python control stack, module by module
 
-| Module | Responsibility | Notable design points |
-| --- | --- | --- |
-| `amr/main.py` | CLI entry point and wiring | `--mock` / `--demo` / `--web` / `--mission-demo` / `--config-dir`; the startup banner is explicitly flushed because stdout is block-buffered when not a TTY |
-| `amr/communication/protocol.py` | Pure, I/O-free protocol logic | Tolerant parsing: an unrecognised line becomes `UNKNOWN` with `ok=False`, never an exception |
-| `amr/communication/arduino_serial.py` | Synchronous command API over a pluggable transport | Reads until the expected response, an `ERR`, or a timeout; buffers unsolicited `SENSOR` lines; tolerates up to 25 stray lines (the boot banner) |
-| `amr/control/` | `MotorDriver`, `ArduinoMotorDriver`, `DifferentialDrive`, `clamp_speed` | Speed bounds are enforced here and again in the protocol |
-| `amr/safety/safety_manager.py` | Deterministic proximity policy | Returns an immutable `SafetyDecision`; pure function of the readings |
-| `amr/safety/avoidance.py` | C6 `TURN`/`REPLAN` for **non-blocking** obstacles | Returns a Layer-3 `STOP`/`WAIT` unchanged, so emergency stop keeps absolute priority; `enabled: false` by default |
-| `amr/hazard/` | Layer 3.5 multi-hazard aggregation | `types.py` (vocabulary), `sources.py` (inputs + zones), `event_log.py` (bounded ring + JSONL export), `manager.py` (worst-wins), `vision.py` (C5 simulated detector), `visualisation.py` (offline SVG) |
-| `amr/sensors/` | Ultrasonic read + validation | Rejects out-of-window readings; `-1` is "clear" |
-| `amr/robot/robot_manager.py` | **The gate** | `_gate()`; `stop()`/`estop()` never gated; `tick()` is one control-loop iteration; a Pi-side link watchdog (`robot_manager.py:221`) |
-| `amr/navigation/` | Odometry + waypoint planning | `LocalNavigator` — dependency-free; an avoidance gate sits at the top of `step()` |
-| `amr/warehouse/` | Task queue + orchestration | `PICK` / `PLACE` / `RETURN`; bounded queue; a manipulator seam (`mock` / `null` / `gripper`) |
-| `amr/rfid/` | Shelf / payload identification (C17) | An optional reader confirms the shelf and payload *before* the manipulator acts; the shipped default attaches no reader |
-| `amr/camera/` | Camera facade + C8 frame contract | libcamera (`pi`) / OpenCV (`v4l2`) / simulated; degrades to `UNAVAILABLE`/`ERROR` rather than blocking startup |
-| `amr/telemetry/` | Read-only contract + console projection | `collector.py`, `console.py` (`build_console_state`), `ops.py` (`build_ops_state`), `series.py`, `auto_record.py`, `replay_control.py` |
-| `amr/map/` | 2D map, 3D twin, **heat map** | `snapshot.py`, `transform.py`, `service.py`, `twin.py`, `heatmap.py` |
-| `amr/apps/` | Interface registry | `resolve_status()` may only ever make a status *worse*, never better |
-| `amr/net/` | Host connectivity probe | Read-only: inspects the machine, never associates or changes a link |
-| `amr/logging/` | Rotating structured logging | 5 MB × 3 backups; `log_event()` emits greppable `TAG message` lines |
-| `amr/utils/config.py` | Typed config + fail-fast validation | Unknown keys are ignored (forward-compatible); a malformed file raises `ConfigError` |
-| `amr/mocks/` | Hardware-free doubles | The whole stack runs with no hardware; only the transport differs |
+| Module                                | Responsibility                                                          | Notable design points                                                                                                                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `amr/main.py`                         | CLI entry point and wiring                                              | `--mock` / `--demo` / `--web` / `--mission-demo` / `--config-dir`; the startup banner is explicitly flushed because stdout is block-buffered when not a TTY                                            |
+| `amr/communication/protocol.py`       | Pure, I/O-free protocol logic                                           | Tolerant parsing: an unrecognised line becomes `UNKNOWN` with `ok=False`, never an exception                                                                                                           |
+| `amr/communication/arduino_serial.py` | Synchronous command API over a pluggable transport                      | Reads until the expected response, an `ERR`, or a timeout; buffers unsolicited `SENSOR` lines; tolerates up to 25 stray lines (the boot banner)                                                        |
+| `amr/control/`                        | `MotorDriver`, `ArduinoMotorDriver`, `DifferentialDrive`, `clamp_speed` | Speed bounds are enforced here and again in the protocol                                                                                                                                               |
+| `amr/safety/safety_manager.py`        | Deterministic proximity policy                                          | Returns an immutable `SafetyDecision`; pure function of the readings                                                                                                                                   |
+| `amr/safety/avoidance.py`             | C6 `TURN`/`REPLAN` for **non-blocking** obstacles                       | Returns a Layer-3 `STOP`/`WAIT` unchanged, so emergency stop keeps absolute priority; `enabled: false` by default                                                                                      |
+| `amr/hazard/`                         | Layer 3.5 multi-hazard aggregation                                      | `types.py` (vocabulary), `sources.py` (inputs + zones), `event_log.py` (bounded ring + JSONL export), `manager.py` (worst-wins), `vision.py` (C5 simulated detector), `visualisation.py` (offline SVG) |
+| `amr/sensors/`                        | Ultrasonic read + validation                                            | Rejects out-of-window readings; `-1` is "clear"                                                                                                                                                        |
+| `amr/robot/robot_manager.py`          | **The gate**                                                            | `_gate()`; `stop()`/`estop()` never gated; `tick()` is one control-loop iteration; a Pi-side link watchdog (`robot_manager.py:221`)                                                                    |
+| `amr/navigation/`                     | Odometry + waypoint planning                                            | `LocalNavigator` — dependency-free; an avoidance gate sits at the top of `step()`                                                                                                                      |
+| `amr/warehouse/`                      | Task queue + orchestration                                              | `PICK` / `PLACE` / `RETURN`; bounded queue; a manipulator seam (`mock` / `null` / `gripper`)                                                                                                           |
+| `amr/rfid/`                           | Shelf / payload identification (C17)                                    | An optional reader confirms the shelf and payload _before_ the manipulator acts; the shipped default attaches no reader                                                                                |
+| `amr/camera/`                         | Camera facade + C8 frame contract                                       | libcamera (`pi`) / OpenCV (`v4l2`) / simulated; degrades to `UNAVAILABLE`/`ERROR` rather than blocking startup                                                                                         |
+| `amr/telemetry/`                      | Read-only contract + console projection                                 | `collector.py`, `console.py` (`build_console_state`), `ops.py` (`build_ops_state`), `series.py`, `auto_record.py`, `replay_control.py`                                                                 |
+| `amr/map/`                            | 2D map, 3D twin, **heat map**                                           | `snapshot.py`, `transform.py`, `service.py`, `twin.py`, `heatmap.py`                                                                                                                                   |
+| `amr/apps/`                           | Interface registry                                                      | `resolve_status()` may only ever make a status _worse_, never better                                                                                                                                   |
+| `amr/net/`                            | Host connectivity probe                                                 | Read-only: inspects the machine, never associates or changes a link                                                                                                                                    |
+| `amr/logging/`                        | Rotating structured logging                                             | 5 MB × 3 backups; `log_event()` emits greppable `TAG message` lines                                                                                                                                    |
+| `amr/utils/config.py`                 | Typed config + fail-fast validation                                     | Unknown keys are ignored (forward-compatible); a malformed file raises `ConfigError`                                                                                                                   |
+| `amr/mocks/`                          | Hardware-free doubles                                                   | The whole stack runs with no hardware; only the transport differs                                                                                                                                      |
 
 ---
 
@@ -301,36 +301,36 @@ XYZ                         ->  ERR UNKNOWN XYZ
 A **stdlib-only** HTTP server (`ThreadingHTTPServer`) — no Flask, no build step,
 no CDN, no npm. Four HTML surfaces and 22 JSON/binary routes.
 
-| Surface | URL | Purpose |
-| --- | --- | --- |
-| Control panel | `/` | The only page that can command motion |
-| Monitoring dashboard | `/dashboard` | Read-only operations console (C7/C11) |
-| **Command Center** | `/command-center` | The primary operator console — **light by default** (C19) |
-| Applications Hub | `/applications` | Directory of every interface the repository ships |
+| Surface              | URL               | Purpose                                                   |
+| -------------------- | ----------------- | --------------------------------------------------------- |
+| Control panel        | `/`               | The only page that can command motion                     |
+| Monitoring dashboard | `/dashboard`      | Read-only operations console (C7/C11)                     |
+| **Command Center**   | `/command-center` | The primary operator console — **light by default** (C19) |
+| Applications Hub     | `/applications`   | Directory of every interface the repository ships         |
 
 **Routes**
 
-| Method | Path | Returns |
-| --- | --- | --- |
-| GET | `/` | Control panel HTML |
-| GET | `/status` | Full robot snapshot |
-| GET | `/sensor` | One sensor poll + safety decision |
-| GET | `/camera`, `/camera/status`, `/camera/frame`, `/camera/overlay`, `/image` | Camera state / one frame / overlay |
-| GET | `/hazard` | Hazard layer status |
-| GET | `/telemetry` | C7 telemetry document |
-| GET | `/health` | Liveness + degradation + logging state |
-| GET | `/map`, `/map.svg` | C9 map state / server-rendered SVG |
-| GET | `/digital-twin` | C10 3D twin state |
-| **GET** | **`/heatmap`** | **C19 hazard + traffic density grids** |
-| GET | `/dashboard`, `/dashboard/state` | Console page / the single consolidated feed |
-| GET | `/command-center` | Operator console HTML |
-| GET | `/applications`, `/applications/state` | Hub page / registry payload |
-| GET | `/connectivity` | Host Wi-Fi / Bluetooth |
-| GET | `/replay/recordings`, `/replay/status` | Replay listing / position |
-| GET | `/static/<file>` | Whitelisted CSS/JS (3 known files) |
-| POST | `/command` | **Motion**: estop, stop, mode, forward, backward, rotate, turn |
-| POST | `/hazard/acknowledge` | Step 1 of the two-step latch release |
-| POST | `/replay/load` | Load a recording |
+| Method  | Path                                                                      | Returns                                                        |
+| ------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| GET     | `/`                                                                       | Control panel HTML                                             |
+| GET     | `/status`                                                                 | Full robot snapshot                                            |
+| GET     | `/sensor`                                                                 | One sensor poll + safety decision                              |
+| GET     | `/camera`, `/camera/status`, `/camera/frame`, `/camera/overlay`, `/image` | Camera state / one frame / overlay                             |
+| GET     | `/hazard`                                                                 | Hazard layer status                                            |
+| GET     | `/telemetry`                                                              | C7 telemetry document                                          |
+| GET     | `/health`                                                                 | Liveness + degradation + logging state                         |
+| GET     | `/map`, `/map.svg`                                                        | C9 map state / server-rendered SVG                             |
+| GET     | `/digital-twin`                                                           | C10 3D twin state                                              |
+| **GET** | **`/heatmap`**                                                            | **C19 hazard + traffic density grids**                         |
+| GET     | `/dashboard`, `/dashboard/state`                                          | Console page / the single consolidated feed                    |
+| GET     | `/command-center`                                                         | Operator console HTML                                          |
+| GET     | `/applications`, `/applications/state`                                    | Hub page / registry payload                                    |
+| GET     | `/connectivity`                                                           | Host Wi-Fi / Bluetooth                                         |
+| GET     | `/replay/recordings`, `/replay/status`                                    | Replay listing / position                                      |
+| GET     | `/static/<file>`                                                          | Whitelisted CSS/JS (3 known files)                             |
+| POST    | `/command`                                                                | **Motion**: estop, stop, mode, forward, backward, rotate, turn |
+| POST    | `/hazard/acknowledge`                                                     | Step 1 of the two-step latch release                           |
+| POST    | `/replay/load`                                                            | Load a recording                                               |
 
 **Command Center views (13).** `overview` · `twin` · `camera` · `map` ·
 **`heatmap`** · `mission` · `telemetry` · `safety` · `sensors` · `hazards` ·
@@ -350,13 +350,13 @@ remains the sole actuator path, behind the `RobotManager` → `SafetyManager` ga
 
 `firmware/arduino/amr_controller/` — 9 files, 623 lines.
 
-| File | Role |
-| --- | --- |
-| `amr_controller.ino` | Setup/loop: read a line, dispatch, run the watchdog, poll the ultrasonics |
-| `protocol.h` / `protocol.cpp` | The command parser — mirrors `protocol.py` |
-| `motor_control.h` / `motor_control.cpp` | L298N PWM + direction HAL |
-| `safety.h` / `safety.cpp` | Communication watchdog + Layer-1 proximity stop |
-| `ultrasonic.h` / `ultrasonic.cpp` | 4× HC-SR04 polling, `format()` emits `SENSOR F= L= R= B=` |
+| File                                    | Role                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------- |
+| `amr_controller.ino`                    | Setup/loop: read a line, dispatch, run the watchdog, poll the ultrasonics |
+| `protocol.h` / `protocol.cpp`           | The command parser — mirrors `protocol.py`                                |
+| `motor_control.h` / `motor_control.cpp` | L298N PWM + direction HAL                                                 |
+| `safety.h` / `safety.cpp`               | Communication watchdog + Layer-1 proximity stop                           |
+| `ultrasonic.h` / `ultrasonic.cpp`       | 4× HC-SR04 polling, `format()` emits `SENSOR F= L= R= B=`                 |
 
 Key properties:
 
@@ -376,14 +376,14 @@ Key properties:
 `amr_controller/` — a cross-platform operator client (macOS, Windows, Android,
 iOS) speaking the robot's real HTTP contract.
 
-| Aspect | Detail |
-| --- | --- |
-| Framework | Flutter (Dart), `provider` for state, `http` for REST, `shared_preferences` |
-| Theme | Light industrial: white panels on a neutral canvas, one engineering-blue accent |
-| Destinations | Dashboard · Camera · Map · **Heat map** · Teleop · Apps · Sensors · Diagnostics · Logs · Settings · Connection |
-| State | One `RobotProvider` (`ChangeNotifier`) holds connection, registry, telemetry, map, **heat map**, camera, connectivity; a single self-arming 1.5 s poll |
-| Commands | All motion goes through `provider.command()` — one auditable path that records the outcome |
-| Safety | E-STOP reachable from Teleop at all times (long-press to arm, release to fire) |
+| Aspect       | Detail                                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Framework    | Flutter (Dart), `provider` for state, `http` for REST, `shared_preferences`                                                                            |
+| Theme        | Light industrial: white panels on a neutral canvas, one engineering-blue accent                                                                        |
+| Destinations | Dashboard · Camera · Map · **Heat map** · Teleop · Apps · Sensors · Diagnostics · Logs · Settings · Connection                                         |
+| State        | One `RobotProvider` (`ChangeNotifier`) holds connection, registry, telemetry, map, **heat map**, camera, connectivity; a single self-arming 1.5 s poll |
+| Commands     | All motion goes through `provider.command()` — one auditable path that records the outcome                                                             |
+| Safety       | E-STOP reachable from Teleop at all times (long-press to arm, release to fire)                                                                         |
 
 Honesty carried from the robot's own docs: no battery or temperature sensor
 exists, so those tiles read `no sensor` rather than a fabricated number; `null`
@@ -401,16 +401,16 @@ is "not measured" and is never conflated with `0`.
 All configuration lives in `config/` and is loaded by `amr/utils/config.py` into
 frozen dataclasses, validated fail-fast.
 
-| File | Dataclass | Highlights |
-| --- | --- | --- |
-| `robot.yaml` | `RobotConfig` | name; `wheel_track_m`/`wheel_diameter_m` (**`null`** until measured); `motors.max_speed` 255; ultrasonic pins (`TODO_VERIFY`); camera `pi` 1280×720 |
-| `safety.yaml` | `SafetyConfig` | `watchdog_timeout_ms` 1000; stop distances F/R 20 · L/R 15; valid window 2–400 cm; `status: NOT_VERIFIED` |
-| `serial.yaml` | `SerialConfig` | `port` `/dev/ttyACM0`; `baudrate` 9600; per-command timeouts; `protocol_version` `1.0` |
-| `warehouse.yaml` | `WarehouseConfig` | map locations; task/turn speed; `wheel_base_m`; `queue_max` 16; `manipulator: mock` |
-| `hazard.yaml` | `HazardConfig` | thresholds, kinds, zones, event log; `NOT_VERIFIED`, `enabled: false` |
-| `applications.yaml` | registry | 25 interface entries: ids, categories, platforms, declared status, urls |
-| `rfid.yaml` | RFID config | shelf/payload tags; `backend: "null"` attaches no reader |
-| `replay.yaml` | replay config | recordings directory, `auto_record` |
+| File                | Dataclass         | Highlights                                                                                                                                          |
+| ------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `robot.yaml`        | `RobotConfig`     | name; `wheel_track_m`/`wheel_diameter_m` (**`null`** until measured); `motors.max_speed` 255; ultrasonic pins (`TODO_VERIFY`); camera `pi` 1280×720 |
+| `safety.yaml`       | `SafetyConfig`    | `watchdog_timeout_ms` 1000; stop distances F/R 20 · L/R 15; valid window 2–400 cm; `status: NOT_VERIFIED`                                           |
+| `serial.yaml`       | `SerialConfig`    | `port` `/dev/ttyACM0`; `baudrate` 9600; per-command timeouts; `protocol_version` `1.0`                                                              |
+| `warehouse.yaml`    | `WarehouseConfig` | map locations; task/turn speed; `wheel_base_m`; `queue_max` 16; `manipulator: mock`                                                                 |
+| `hazard.yaml`       | `HazardConfig`    | thresholds, kinds, zones, event log; `NOT_VERIFIED`, `enabled: false`                                                                               |
+| `applications.yaml` | registry          | 25 interface entries: ids, categories, platforms, declared status, urls                                                                             |
+| `rfid.yaml`         | RFID config       | shelf/payload tags; `backend: "null"` attaches no reader                                                                                            |
+| `replay.yaml`       | replay config     | recordings directory, `auto_record`                                                                                                                 |
 
 **Honest placeholders.** Values marked `null` / `TODO_VERIFY` / `NOT_VERIFIED` are
 placeholders that must be filled from the physical robot before autonomous use is
@@ -459,32 +459,32 @@ driven against a `MockRobot`.
 
 ### Verified
 
-| Check | Result |
-| --- | --- |
-| `cd raspberry_pi && python -m pytest` | **1594 passed, 2 skipped, 0 failed** |
-| `flutter analyze` (`amr_controller`) | **No issues found** |
-| `flutter test` (`amr_controller`) | **21 passed** |
-| `node --check` on the served console scripts | clean |
-| `python -m compileall amr` | clean |
-| Live boot (`--mock --web`) | banner printed; every documented route answers 200 |
-| Applications Hub | `/applications` renders 25 applications; 17 openable, 13 deep links |
-| Offline entry points | `amr.warehouse` → `RESULT: completed=3 failed=0`; `amr.hazard` → `RESULT: steps=4 failures=0`; `amr.hazard.vision`; `amr.hazard.visualisation`; `amr.demo` → `Result: PASS` |
-| Heat map (C19) | `/heatmap` 200; two grids over one extent; `console["heatmap"] == GET /heatmap` exactly; 84 path samples over 31 cells after a driven mission, `clipped: 0` |
+| Check                                        | Result                                                                                                                                                                      |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cd raspberry_pi && python -m pytest`        | **1594 passed, 2 skipped, 0 failed**                                                                                                                                        |
+| `flutter analyze` (`amr_controller`)         | **No issues found**                                                                                                                                                         |
+| `flutter test` (`amr_controller`)            | **21 passed**                                                                                                                                                               |
+| `node --check` on the served console scripts | clean                                                                                                                                                                       |
+| `python -m compileall amr`                   | clean                                                                                                                                                                       |
+| Live boot (`--mock --web`)                   | banner printed; every documented route answers 200                                                                                                                          |
+| Applications Hub                             | `/applications` renders 25 applications; 17 openable, 13 deep links                                                                                                         |
+| Offline entry points                         | `amr.warehouse` → `RESULT: completed=3 failed=0`; `amr.hazard` → `RESULT: steps=4 failures=0`; `amr.hazard.vision`; `amr.hazard.visualisation`; `amr.demo` → `Result: PASS` |
+| Heat map (C19)                               | `/heatmap` 200; two grids over one extent; `console["heatmap"] == GET /heatmap` exactly; 84 path samples over 31 cells after a driven mission, `clipped: 0`                 |
 
 ### NOT verified — read before trusting the robot
 
-| Item | State | Blocker |
-| --- | --- | --- |
-| Robot geometry (`wheel_track_m`, `wheel_diameter_m`) | **`null`** | Must be measured physically |
-| Safety thresholds | **`NOT_VERIFIED`** | Test values |
-| Hazard thresholds | **`NOT_VERIFIED`**, disabled | No gas/fire sensor hardware exists |
-| Ultrasonic trig/echo pins | **`TODO_VERIFY`** | Wiring not documented |
-| Camera cable compatibility | Unconfirmed | Software degrades gracefully |
-| Arduino firmware | **Never executed in CI** | Needs a physical UNO |
-| L298N ENA/ENB wiring | Unverified | PWM output gated until confirmed |
-| RFID / gripper / gas-sensor hardware | **None exists** | Contracts + simulated backends only |
-| ROS 2 runtime | **Not built** | Zero `rclpy` anywhere; no topic ever published |
-| Anything on real hardware | **Not tested** | Every claim above is mock-based |
+| Item                                                 | State                        | Blocker                                        |
+| ---------------------------------------------------- | ---------------------------- | ---------------------------------------------- |
+| Robot geometry (`wheel_track_m`, `wheel_diameter_m`) | **`null`**                   | Must be measured physically                    |
+| Safety thresholds                                    | **`NOT_VERIFIED`**           | Test values                                    |
+| Hazard thresholds                                    | **`NOT_VERIFIED`**, disabled | No gas/fire sensor hardware exists             |
+| Ultrasonic trig/echo pins                            | **`TODO_VERIFY`**            | Wiring not documented                          |
+| Camera cable compatibility                           | Unconfirmed                  | Software degrades gracefully                   |
+| Arduino firmware                                     | **Never executed in CI**     | Needs a physical UNO                           |
+| L298N ENA/ENB wiring                                 | Unverified                   | PWM output gated until confirmed               |
+| RFID / gripper / gas-sensor hardware                 | **None exists**              | Contracts + simulated backends only            |
+| ROS 2 runtime                                        | **Not built**                | Zero `rclpy` anywhere; no topic ever published |
+| Anything on real hardware                            | **Not tested**               | Every claim above is mock-based                |
 
 ---
 
@@ -502,7 +502,7 @@ driven against a `MockRobot`.
   scheduling ignores the hazard verdict.
 - **No hazard sensor sources are wired**, so on the shipped configuration the
   hazard heat map is always empty (correctly reported, not faked).
-- **`VisionHazardSource` is a working pipeline over a *simulated* detector** — no
+- **`VisionHazardSource` is a working pipeline over a _simulated_ detector** — no
   OpenCV/YOLO/camera-backed detector is wired, and the thresholds are unvalidated
   software defaults.
 - **The C6 avoidance clearance provider is not wired**, so in the default
@@ -522,18 +522,18 @@ half that makes the hazard half readable in context.
 
 **Delivered**
 
-| Item | Where |
-| --- | --- |
-| The projection | `amr/map/heatmap.py` — `build_heatmap_state()`, `HeatGrid`, `HeatmapState` |
-| The route | `GET /heatmap`, plus `heatmap` inside `/dashboard/state` (byte-identical) |
-| The console view | `heatmap` in `VIEW_KEYS`/`VIEW_SECTIONS`, `#sec-heatmap`, `renderHeatmap()`, `drawHeatGrid()`, `.stage.heat` |
-| The client screen | `amr_controller/lib/features/heatmap/heatmap_screen.dart` + models + provider wiring |
-| Docs | `docs/heatmap.md` |
-| Tests | `test_heatmap.py` (35), 11 in `test_web_server.py`, 8 in `test_command_center.py`, 2 model + 3 widget tests in the client |
+| Item              | Where                                                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| The projection    | `amr/map/heatmap.py` — `build_heatmap_state()`, `HeatGrid`, `HeatmapState`                                                |
+| The route         | `GET /heatmap`, plus `heatmap` inside `/dashboard/state` (byte-identical)                                                 |
+| The console view  | `heatmap` in `VIEW_KEYS`/`VIEW_SECTIONS`, `#sec-heatmap`, `renderHeatmap()`, `drawHeatGrid()`, `.stage.heat`              |
+| The client screen | `amr_controller/lib/features/heatmap/heatmap_screen.dart` + models + provider wiring                                      |
+| Docs              | `docs/heatmap.md`                                                                                                         |
+| Tests             | `test_heatmap.py` (35), 11 in `test_web_server.py`, 8 in `test_command_center.py`, 2 model + 3 widget tests in the client |
 
 **The rules that keep it honest**
 
-1. **A stable extent** from the *configured* geometry, not the live data — a heat
+1. **A stable extent** from the _configured_ geometry, not the live data — a heat
    map is read by comparing polls, and a frame that rescales every second cannot
    be compared with itself.
 2. **Nothing is silently dropped** — a sample outside the extent is counted in
@@ -543,11 +543,11 @@ half that makes the hazard half readable in context.
 4. **Absence is absence** — no configured geometry means both grids are `null` and
    the source is `UNAVAILABLE`.
 5. **`row_order` is published** because the frame is y-up and row 0 is the
-   *bottom* row; a client that guessed otherwise would draw a plausible, mirrored
+   _bottom_ row; a client that guessed otherwise would draw a plausible, mirrored
    picture.
 
 **A real bug found only by running it.** `drawHeatGrid` passed the ramp
-*function* where an array of stops was expected, so every cell rendered
+_function_ where an array of stops was expected, so every cell rendered
 `fill="undefined"` → the SVG default (black). Every string-based test passed.
 It was caught by reading the live DOM with `agent-browser eval`, fixed, and
 re-verified (`rgb(75,148,171)` …). The client-side equivalent is now covered by
@@ -566,355 +566,355 @@ new intent rather than deleted.
 
 ### 15.1 Files embedded in §16
 
-| File | Lines | Bytes | Area |
-| --- | ---: | ---: | --- |
-| `.github/workflows/ci.yml` | 132 | 4,444 | CI workflows |
-| `.github/workflows/flutter-build.yml` | 224 | 7,395 | CI workflows |
-| `.gitignore` | 69 | 1,453 |  |
-| `AI_CONTEXT/APPLICATION_ECOSYSTEM_AUDIT.md` | 141 | 9,957 | Shared context for the multi-agent team |
-| `AI_CONTEXT/ARCHITECTURE.md` | 345 | 20,698 | Shared context for the multi-agent team |
-| `AI_CONTEXT/CURRENT_STATUS.md` | 197 | 25,491 | Shared context for the multi-agent team |
-| `AI_CONTEXT/HANDOFF.md` | 2,592 | 153,894 | Shared context for the multi-agent team |
-| `AI_CONTEXT/PROJECT_CONTEXT.md` | 157 | 7,581 | Shared context for the multi-agent team |
-| `AI_CONTEXT/TASK_BOARD.md` | 1,440 | 77,921 | Shared context for the multi-agent team |
-| `CONTRIBUTING.md` | 47 | 1,678 |  |
-| `LICENSE` | 22 | 1,069 |  |
-| `README.md` | 841 | 47,002 |  |
-| `amr_controller/.gitignore` | 53 | 1,077 | Flutter client — project + platform runners |
-| `amr_controller/.metadata` | 31 | 966 | Flutter client — project + platform runners |
-| `amr_controller/BUILD.md` | 60 | 2,579 | Flutter client — project + platform runners |
-| `amr_controller/Makefile` | 55 | 2,004 | Flutter client — project + platform runners |
-| `amr_controller/README.md` | 113 | 5,592 | Flutter client — project + platform runners |
-| `amr_controller/RELEASE.md` | 59 | 2,396 | Flutter client — project + platform runners |
-| `amr_controller/VERIFICATION.md` | 90 | 12,108 | Flutter client — project + platform runners |
-| `amr_controller/analysis_options.yaml` | 18 | 341 | Flutter client — project + platform runners |
-| `amr_controller/android/.gitignore` | 15 | 253 | Flutter client — project + platform runners |
-| `amr_controller/android/app/build.gradle.kts` | 72 | 2,502 | Flutter client — project + platform runners |
-| `amr_controller/android/app/src/debug/AndroidManifest.xml` | 8 | 378 | Flutter client — project + platform runners |
-| `amr_controller/android/app/src/main/AndroidManifest.xml` | 58 | 3,031 | Flutter client — project + platform runners |
-| `amr_controller/android/app/src/main/kotlin/dev/abhi/robot/amr_controller/MainActivity.kt` | 6 | 131 | Flutter client — project + platform runners |
-| `amr_controller/android/app/src/main/res/drawable-v21/launch_background.xml` | 13 | 438 | Flutter client — project + platform runners |
-| `amr_controller/android/app/src/main/res/drawable/launch_background.xml` | 13 | 434 | Flutter client — project + platform runners |
-| `amr_controller/android/app/src/main/res/values-night/styles.xml` | 19 | 995 | Flutter client — project + platform runners |
-| `amr_controller/android/app/src/main/res/values/styles.xml` | 19 | 996 | Flutter client — project + platform runners |
-| `amr_controller/android/build.gradle.kts` | 25 | 537 | Flutter client — project + platform runners |
-| `amr_controller/android/gradle.properties` | 7 | 300 | Flutter client — project + platform runners |
-| `amr_controller/android/settings.gradle.kts` | 27 | 770 | Flutter client — project + platform runners |
-| `amr_controller/integration_test/connection_test.dart` | 73 | 2,942 | Flutter client — on-device integration tests |
-| `amr_controller/integration_test/device_runtime_test.dart` | 107 | 4,676 | Flutter client — on-device integration tests |
-| `amr_controller/ios/.gitignore` | 35 | 569 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner.xcodeproj/project.pbxproj` | 648 | 25,791 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner.xcodeproj/project.xcworkspace/contents.xcworkspacedata` | 8 | 135 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist` | 9 | 238 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings` | 9 | 226 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme` | 120 | 4,717 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner.xcworkspace/contents.xcworkspacedata` | 8 | 152 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist` | 9 | 238 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings` | 9 | 226 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner/AppDelegate.swift` | 17 | 539 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json` | 123 | 2,439 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/Contents.json` | 24 | 378 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/README.md` | 6 | 337 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner/Base.lproj/LaunchScreen.storyboard` | 38 | 2,377 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner/Base.lproj/Main.storyboard` | 27 | 1,605 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner/Info.plist` | 83 | 2,786 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner/Runner-Bridging-Header.h` | 2 | 38 | Flutter client — project + platform runners |
-| `amr_controller/ios/Runner/SceneDelegate.swift` | 7 | 76 | Flutter client — project + platform runners |
-| `amr_controller/ios/RunnerTests/RunnerTests.swift` | 13 | 285 | Flutter client — project + platform runners |
-| `amr_controller/lib/core/event_log.dart` | 108 | 3,415 | Flutter client — application source |
-| `amr_controller/lib/core/format.dart` | 47 | 1,415 | Flutter client — application source |
-| `amr_controller/lib/features/camera/camera_screen.dart` | 241 | 9,001 | Flutter client — application source |
-| `amr_controller/lib/features/dashboard/dashboard_screen.dart` | 231 | 8,045 | Flutter client — application source |
-| `amr_controller/lib/features/diagnostics/diagnostics_screen.dart` | 92 | 3,397 | Flutter client — application source |
-| `amr_controller/lib/features/heatmap/heatmap_screen.dart` | 341 | 11,167 | Flutter client — application source |
-| `amr_controller/lib/features/logs/logs_screen.dart` | 160 | 5,063 | Flutter client — application source |
-| `amr_controller/lib/features/map/map_screen.dart` | 283 | 9,367 | Flutter client — application source |
-| `amr_controller/lib/features/missions/missions_screen.dart` | 125 | 4,662 | Flutter client — application source |
-| `amr_controller/lib/features/sensors/sensors_screen.dart` | 72 | 2,722 | Flutter client — application source |
-| `amr_controller/lib/features/settings/settings_screen.dart` | 66 | 2,418 | Flutter client — application source |
-| `amr_controller/lib/main.dart` | 238 | 8,360 | Flutter client — application source |
-| `amr_controller/lib/models/app_state.dart` | 178 | 5,829 | Flutter client — application source |
-| `amr_controller/lib/models/robot_data.dart` | 450 | 13,205 | Flutter client — application source |
-| `amr_controller/lib/providers/robot_provider.dart` | 470 | 15,735 | Flutter client — application source |
-| `amr_controller/lib/screens/applications_hub_screen.dart` | 209 | 6,599 | Flutter client — application source |
-| `amr_controller/lib/screens/connection_screen.dart` | 189 | 6,689 | Flutter client — application source |
-| `amr_controller/lib/screens/teleop_screen.dart` | 496 | 15,677 | Flutter client — application source |
-| `amr_controller/lib/services/robot_api_service.dart` | 177 | 5,828 | Flutter client — application source |
-| `amr_controller/lib/testing/mock_robot.dart` | 443 | 14,398 | Flutter client — application source |
-| `amr_controller/lib/theme/theme.dart` | 110 | 3,724 | Flutter client — application source |
-| `amr_controller/lib/widgets/app_card.dart` | 164 | 5,524 | Flutter client — application source |
-| `amr_controller/lib/widgets/console_rail.dart` | 74 | 2,458 | Flutter client — application source |
-| `amr_controller/lib/widgets/joystick_widget.dart` | 187 | 5,875 | Flutter client — application source |
-| `amr_controller/lib/widgets/status_widgets.dart` | 259 | 7,028 | Flutter client — application source |
-| `amr_controller/linux/.gitignore` | 2 | 18 | Flutter client — project + platform runners |
-| `amr_controller/linux/CMakeLists.txt` | 129 | 4,770 | Flutter client — project + platform runners |
-| `amr_controller/linux/flutter/CMakeLists.txt` | 89 | 2,815 | Flutter client — project + platform runners |
-| `amr_controller/linux/flutter/generated_plugin_registrant.cc` | 16 | 434 | Flutter client — project + platform runners |
-| `amr_controller/linux/flutter/generated_plugin_registrant.h` | 16 | 303 | Flutter client — project + platform runners |
-| `amr_controller/linux/flutter/generated_plugins.cmake` | 25 | 760 | Flutter client — project + platform runners |
-| `amr_controller/linux/runner/CMakeLists.txt` | 27 | 974 | Flutter client — project + platform runners |
-| `amr_controller/linux/runner/main.cc` | 7 | 180 | Flutter client — project + platform runners |
-| `amr_controller/linux/runner/my_application.cc` | 149 | 5,467 | Flutter client — project + platform runners |
-| `amr_controller/linux/runner/my_application.h` | 22 | 451 | Flutter client — project + platform runners |
-| `amr_controller/macos/.gitignore` | 8 | 89 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner.xcodeproj/project.pbxproj` | 730 | 27,941 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist` | 9 | 238 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme` | 118 | 4,600 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner.xcworkspace/contents.xcworkspacedata` | 8 | 152 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist` | 9 | 238 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/AppDelegate.swift` | 14 | 311 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json` | 69 | 1,247 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/Base.lproj/MainMenu.xib` | 344 | 23,729 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/Configs/AppInfo.xcconfig` | 15 | 623 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/Configs/Debug.xcconfig` | 3 | 77 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/Configs/Release.xcconfig` | 3 | 79 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/Configs/Warnings.xcconfig` | 14 | 580 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/DebugProfile.entitlements` | 15 | 403 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/Info.plist` | 33 | 1,060 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/MainFlutterWindow.swift` | 16 | 388 | Flutter client — project + platform runners |
-| `amr_controller/macos/Runner/Release.entitlements` | 14 | 487 | Flutter client — project + platform runners |
-| `amr_controller/macos/RunnerTests/RunnerTests.swift` | 13 | 290 | Flutter client — project + platform runners |
-| `amr_controller/pubspec.lock` | 490 | 14,334 | Flutter client — project + platform runners |
-| `amr_controller/pubspec.yaml` | 46 | 1,618 | Flutter client — project + platform runners |
-| `amr_controller/test/client_integration_test.dart` | 155 | 5,606 | Flutter client — unit/widget tests |
-| `amr_controller/test/heatmap_screen_test.dart` | 160 | 5,685 | Flutter client — unit/widget tests |
-| `amr_controller/test/models_test.dart` | 100 | 3,483 | Flutter client — unit/widget tests |
-| `amr_controller/test/v2_models_test.dart` | 163 | 5,283 | Flutter client — unit/widget tests |
-| `amr_controller/test/widget_test.dart` | 24 | 919 | Flutter client — unit/widget tests |
-| `amr_controller/web/index.html` | 47 | 1,592 | Flutter client — project + platform runners |
-| `amr_controller/web/manifest.json` | 36 | 786 | Flutter client — project + platform runners |
-| `amr_controller/windows/.gitignore` | 18 | 291 | Flutter client — project + platform runners |
-| `amr_controller/windows/CMakeLists.txt` | 109 | 4,164 | Flutter client — project + platform runners |
-| `amr_controller/windows/flutter/CMakeLists.txt` | 110 | 3,742 | Flutter client — project + platform runners |
-| `amr_controller/windows/flutter/generated_plugin_registrant.cc` | 15 | 324 | Flutter client — project + platform runners |
-| `amr_controller/windows/flutter/generated_plugin_registrant.h` | 16 | 302 | Flutter client — project + platform runners |
-| `amr_controller/windows/flutter/generated_plugins.cmake` | 25 | 766 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/CMakeLists.txt` | 41 | 1,796 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/Runner.rc` | 122 | 3,053 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/flutter_window.cpp` | 72 | 2,122 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/flutter_window.h` | 34 | 928 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/main.cpp` | 44 | 1,267 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/resource.h` | 17 | 432 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/runner.exe.manifest` | 15 | 602 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/utils.cpp` | 70 | 2,168 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/utils.h` | 20 | 672 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/win32_window.cpp` | 289 | 8,534 | Flutter client — project + platform runners |
-| `amr_controller/windows/runner/win32_window.h` | 103 | 3,522 | Flutter client — project + platform runners |
-| `assets/architecture.svg` | 81 | 5,687 | README diagrams (SVG) |
-| `assets/hero.svg` | 48 | 2,951 | README diagrams (SVG) |
-| `assets/modes.svg` | 62 | 4,412 | README diagrams (SVG) |
-| `assets/protocol.svg` | 58 | 4,108 | README diagrams (SVG) |
-| `assets/stack.svg` | 63 | 4,210 | README diagrams (SVG) |
-| `assets/warehouse-map.svg` | 68 | 3,519 | README diagrams (SVG) |
-| `config/applications.yaml` | 528 | 19,657 | YAML configuration |
-| `config/hazard.yaml` | 79 | 3,099 | YAML configuration |
-| `config/replay.yaml` | 21 | 941 | YAML configuration |
-| `config/rfid.yaml` | 35 | 1,501 | YAML configuration |
-| `config/robot.yaml` | 44 | 1,463 | YAML configuration |
-| `config/safety.yaml` | 48 | 2,164 | YAML configuration |
-| `config/serial.yaml` | 15 | 570 | YAML configuration |
-| `config/warehouse.yaml` | 36 | 1,380 | YAML configuration |
-| `docs/camera.md` | 154 | 7,073 | Reference documentation |
-| `docs/camera_overlay.md` | 265 | 10,851 | Reference documentation |
-| `docs/command_center.md` | 216 | 10,404 | Reference documentation |
-| `docs/dashboard_console.md` | 131 | 6,111 | Reference documentation |
-| `docs/digital_twin.md` | 191 | 8,477 | Reference documentation |
-| `docs/hazard.md` | 379 | 18,715 | Reference documentation |
-| `docs/heatmap.md` | 135 | 5,762 | Reference documentation |
-| `docs/manipulator.md` | 135 | 6,570 | Reference documentation |
-| `docs/map.md` | 180 | 6,437 | Reference documentation |
-| `docs/mission_monitoring.md` | 146 | 7,254 | Reference documentation |
-| `docs/replay.md` | 158 | 5,906 | Reference documentation |
-| `docs/replay_dashboard.md` | 351 | 15,760 | Reference documentation |
-| `docs/rfid.md` | 92 | 5,522 | Reference documentation |
-| `docs/ros2.md` | 109 | 5,279 | Reference documentation |
-| `docs/safety.md` | 211 | 8,762 | Reference documentation |
-| `docs/serial_protocol.md` | 141 | 6,297 | Reference documentation |
-| `docs/telemetry.md` | 302 | 15,388 | Reference documentation |
-| `docs/web_control.md` | 250 | 15,717 | Reference documentation |
-| `firmware/arduino/amr_controller/amr_controller.ino` | 152 | 4,685 | Arduino UNO C++ firmware (the robot's reflexes) |
-| `firmware/arduino/amr_controller/motor_control.cpp` | 77 | 2,202 | Arduino UNO C++ firmware (the robot's reflexes) |
-| `firmware/arduino/amr_controller/motor_control.h` | 46 | 1,846 | Arduino UNO C++ firmware (the robot's reflexes) |
-| `firmware/arduino/amr_controller/protocol.cpp` | 95 | 2,826 | Arduino UNO C++ firmware (the robot's reflexes) |
-| `firmware/arduino/amr_controller/protocol.h` | 63 | 1,788 | Arduino UNO C++ firmware (the robot's reflexes) |
-| `firmware/arduino/amr_controller/safety.cpp` | 32 | 816 | Arduino UNO C++ firmware (the robot's reflexes) |
-| `firmware/arduino/amr_controller/safety.h` | 29 | 872 | Arduino UNO C++ firmware (the robot's reflexes) |
-| `firmware/arduino/amr_controller/ultrasonic.cpp` | 86 | 2,706 | Arduino UNO C++ firmware (the robot's reflexes) |
-| `firmware/arduino/amr_controller/ultrasonic.h` | 52 | 1,618 | Arduino UNO C++ firmware (the robot's reflexes) |
-| `raspberry_pi/amr/__init__.py` | 20 | 739 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/__main__.py` | 9 | 144 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/apps/__init__.py` | 32 | 637 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/apps/registry.py` | 380 | 16,023 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/camera/__init__.py` | 56 | 1,569 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/camera/camera_manager.py` | 234 | 8,317 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/camera/detector.py` | 249 | 10,106 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/camera/frame.py` | 633 | 25,094 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/camera/overlay.py` | 337 | 13,248 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/communication/__init__.py` | 53 | 1,072 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/communication/arduino_serial.py` | 212 | 7,107 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/communication/protocol.py` | 252 | 7,646 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/control/__init__.py` | 25 | 643 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/control/differential_drive.py` | 98 | 3,414 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/control/motor_controller.py` | 117 | 4,162 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/demo.py` | 732 | 30,454 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/hazard/__init__.py` | 105 | 2,925 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/hazard/__main__.py` | 146 | 4,717 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/hazard/event_log.py` | 174 | 6,588 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/hazard/manager.py` | 414 | 16,376 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/hazard/sources.py` | 560 | 21,404 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/hazard/types.py` | 474 | 17,959 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/hazard/vision.py` | 620 | 25,701 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/hazard/visualisation.py` | 564 | 20,101 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/logging/__init__.py` | 6 | 204 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/logging/logger.py` | 114 | 4,055 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/main.py` | 565 | 24,421 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/map/__init__.py` | 126 | 3,208 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/map/heatmap.py` | 397 | 15,028 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/map/service.py` | 311 | 13,104 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/map/snapshot.py` | 635 | 22,795 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/map/transform.py` | 225 | 9,045 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/map/twin.py` | 445 | 16,609 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/mocks/__init__.py` | 23 | 812 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/mocks/mock_camera.py` | 55 | 1,885 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/mocks/mock_motor.py` | 34 | 980 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/mocks/mock_sensor.py` | 26 | 751 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/mocks/mock_serial.py` | 119 | 4,025 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/navigation/__init__.py` | 31 | 784 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/navigation/navigator.py` | 389 | 15,415 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/navigation/types.py` | 81 | 1,946 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/net/__init__.py` | 24 | 459 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/net/connectivity.py` | 259 | 9,270 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/rfid/__init__.py` | 42 | 1,089 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/rfid/reader.py` | 250 | 8,983 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/robot/__init__.py` | 20 | 556 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/robot/mode_controller.py` | 90 | 2,888 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/robot/robot_manager.py` | 477 | 20,051 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/robot/robot_state.py` | 81 | 2,674 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/safety/__init__.py` | 23 | 472 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/safety/avoidance.py` | 358 | 14,077 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/safety/safety_manager.py` | 153 | 5,596 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/sensors/__init__.py` | 19 | 762 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/sensors/ultrasonic.py` | 102 | 3,378 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/__init__.py` | 132 | 3,164 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/auto_record.py` | 212 | 7,721 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/collector.py` | 825 | 33,907 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/console.py` | 488 | 20,138 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/ops.py` | 644 | 27,423 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/recorder.py` | 388 | 13,949 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/replay.py` | 233 | 8,343 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/replay_control.py` | 326 | 12,363 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/series.py` | 413 | 15,960 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/telemetry/types.py` | 512 | 18,256 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/utils/__init__.py` | 2 | 53 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/utils/config.py` | 619 | 24,764 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/warehouse/__init__.py` | 48 | 1,222 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/warehouse/__main__.py` | 82 | 2,372 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/warehouse/map.py` | 93 | 3,152 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/warehouse/task_manager.py` | 394 | 15,948 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/warehouse/tasks.py` | 349 | 12,507 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/web/__init__.py` | 15 | 523 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/web/server.py` | 3,813 | 172,157 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/web/static/applications.css` | 626 | 14,282 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/web/static/applications.html` | 210 | 8,162 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/web/static/applications.js` | 551 | 18,265 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/web/static/command_center.css` | 1,517 | 33,396 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/web/static/command_center.html` | 954 | 32,180 | Python control stack (the robot's brain) |
-| `raspberry_pi/amr/web/static/command_center.js` | 2,535 | 75,554 | Python control stack (the robot's brain) |
-| `raspberry_pi/pyproject.toml` | 33 | 806 | Python packaging + runtime logs |
-| `raspberry_pi/tests/conftest.py` | 173 | 6,600 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_app_registry.py` | 1,123 | 49,337 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_applications_hub.py` | 408 | 18,452 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_auto_record.py` | 439 | 17,569 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_avoidance.py` | 739 | 30,064 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_camera_backend.py` | 565 | 24,455 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_camera_frame.py` | 523 | 20,469 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_camera_manager.py` | 118 | 3,663 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_camera_overlay.py` | 368 | 17,828 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_command_center.py` | 862 | 38,607 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_config.py` | 229 | 8,273 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_connectivity.py` | 195 | 7,828 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_console.py` | 347 | 15,894 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_differential_drive.py` | 250 | 7,660 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_digital_twin.py` | 275 | 10,907 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_hazard.py` | 834 | 29,706 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_hazard_visualisation.py` | 474 | 15,330 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_heatmap.py` | 380 | 16,428 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_logging.py` | 206 | 8,390 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_map.py` | 991 | 40,543 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_mission_monitoring.py` | 402 | 17,428 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_mode_controller.py` | 103 | 2,834 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_motor_controller.py` | 191 | 6,379 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_navigation.py` | 430 | 15,424 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_ops_projection.py` | 394 | 17,614 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_protocol.py` | 251 | 7,073 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_replay.py` | 523 | 20,550 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_replay_control.py` | 532 | 22,628 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_rfid.py` | 560 | 23,574 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_robot_manager.py` | 313 | 10,247 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_robot_state.py` | 60 | 1,549 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_ros_bridge.py` | 252 | 10,138 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_safety_manager.py` | 129 | 3,794 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_startup_banner.py` | 114 | 4,119 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_telemetry.py` | 330 | 14,142 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_ultrasonic.py` | 78 | 2,449 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_unified_demo.py` | 338 | 13,894 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_vision.py` | 631 | 26,327 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_warehouse.py` | 760 | 30,572 | Python test suite (hardware-free) |
-| `raspberry_pi/tests/test_web_server.py` | 1,639 | 67,495 | Python test suite (hardware-free) |
-| `ros2/__init__.py` | 39 | 1,391 | Optional ROS 2 message translation (no rclpy) |
-| `ros2/bridge.py` | 228 | 8,615 | Optional ROS 2 message translation (no rclpy) |
-| `showcase.html` | 375 | 10,866 |  |
+| File                                                                                                | Lines |   Bytes | Area                                            |
+| --------------------------------------------------------------------------------------------------- | ----: | ------: | ----------------------------------------------- |
+| `.github/workflows/ci.yml`                                                                          |   132 |   4,444 | CI workflows                                    |
+| `.github/workflows/flutter-build.yml`                                                               |   224 |   7,395 | CI workflows                                    |
+| `.gitignore`                                                                                        |    69 |   1,453 |                                                 |
+| `AI_CONTEXT/APPLICATION_ECOSYSTEM_AUDIT.md`                                                         |   141 |   9,957 | Shared context for the multi-agent team         |
+| `AI_CONTEXT/ARCHITECTURE.md`                                                                        |   345 |  20,698 | Shared context for the multi-agent team         |
+| `AI_CONTEXT/CURRENT_STATUS.md`                                                                      |   197 |  25,491 | Shared context for the multi-agent team         |
+| `AI_CONTEXT/HANDOFF.md`                                                                             | 2,592 | 153,894 | Shared context for the multi-agent team         |
+| `AI_CONTEXT/PROJECT_CONTEXT.md`                                                                     |   157 |   7,581 | Shared context for the multi-agent team         |
+| `AI_CONTEXT/TASK_BOARD.md`                                                                          | 1,440 |  77,921 | Shared context for the multi-agent team         |
+| `CONTRIBUTING.md`                                                                                   |    47 |   1,678 |                                                 |
+| `LICENSE`                                                                                           |    22 |   1,069 |                                                 |
+| `README.md`                                                                                         |   841 |  47,002 |                                                 |
+| `amr_controller/.gitignore`                                                                         |    53 |   1,077 | Flutter client — project + platform runners     |
+| `amr_controller/.metadata`                                                                          |    31 |     966 | Flutter client — project + platform runners     |
+| `amr_controller/BUILD.md`                                                                           |    60 |   2,579 | Flutter client — project + platform runners     |
+| `amr_controller/Makefile`                                                                           |    55 |   2,004 | Flutter client — project + platform runners     |
+| `amr_controller/README.md`                                                                          |   113 |   5,592 | Flutter client — project + platform runners     |
+| `amr_controller/RELEASE.md`                                                                         |    59 |   2,396 | Flutter client — project + platform runners     |
+| `amr_controller/VERIFICATION.md`                                                                    |    90 |  12,108 | Flutter client — project + platform runners     |
+| `amr_controller/analysis_options.yaml`                                                              |    18 |     341 | Flutter client — project + platform runners     |
+| `amr_controller/android/.gitignore`                                                                 |    15 |     253 | Flutter client — project + platform runners     |
+| `amr_controller/android/app/build.gradle.kts`                                                       |    72 |   2,502 | Flutter client — project + platform runners     |
+| `amr_controller/android/app/src/debug/AndroidManifest.xml`                                          |     8 |     378 | Flutter client — project + platform runners     |
+| `amr_controller/android/app/src/main/AndroidManifest.xml`                                           |    58 |   3,031 | Flutter client — project + platform runners     |
+| `amr_controller/android/app/src/main/kotlin/dev/abhi/robot/amr_controller/MainActivity.kt`          |     6 |     131 | Flutter client — project + platform runners     |
+| `amr_controller/android/app/src/main/res/drawable-v21/launch_background.xml`                        |    13 |     438 | Flutter client — project + platform runners     |
+| `amr_controller/android/app/src/main/res/drawable/launch_background.xml`                            |    13 |     434 | Flutter client — project + platform runners     |
+| `amr_controller/android/app/src/main/res/values-night/styles.xml`                                   |    19 |     995 | Flutter client — project + platform runners     |
+| `amr_controller/android/app/src/main/res/values/styles.xml`                                         |    19 |     996 | Flutter client — project + platform runners     |
+| `amr_controller/android/build.gradle.kts`                                                           |    25 |     537 | Flutter client — project + platform runners     |
+| `amr_controller/android/gradle.properties`                                                          |     7 |     300 | Flutter client — project + platform runners     |
+| `amr_controller/android/settings.gradle.kts`                                                        |    27 |     770 | Flutter client — project + platform runners     |
+| `amr_controller/integration_test/connection_test.dart`                                              |    73 |   2,942 | Flutter client — on-device integration tests    |
+| `amr_controller/integration_test/device_runtime_test.dart`                                          |   107 |   4,676 | Flutter client — on-device integration tests    |
+| `amr_controller/ios/.gitignore`                                                                     |    35 |     569 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner.xcodeproj/project.pbxproj`                                               |   648 |  25,791 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner.xcodeproj/project.xcworkspace/contents.xcworkspacedata`                  |     8 |     135 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist`     |     9 |     238 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings` |     9 |     226 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme`                        |   120 |   4,717 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner.xcworkspace/contents.xcworkspacedata`                                    |     8 |     152 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist`                       |     9 |     238 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings`                   |     9 |     226 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner/AppDelegate.swift`                                                       |    17 |     539 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json`                        |   123 |   2,439 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/Contents.json`                      |    24 |     378 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/README.md`                          |     6 |     337 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner/Base.lproj/LaunchScreen.storyboard`                                      |    38 |   2,377 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner/Base.lproj/Main.storyboard`                                              |    27 |   1,605 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner/Info.plist`                                                              |    83 |   2,786 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner/Runner-Bridging-Header.h`                                                |     2 |      38 | Flutter client — project + platform runners     |
+| `amr_controller/ios/Runner/SceneDelegate.swift`                                                     |     7 |      76 | Flutter client — project + platform runners     |
+| `amr_controller/ios/RunnerTests/RunnerTests.swift`                                                  |    13 |     285 | Flutter client — project + platform runners     |
+| `amr_controller/lib/core/event_log.dart`                                                            |   108 |   3,415 | Flutter client — application source             |
+| `amr_controller/lib/core/format.dart`                                                               |    47 |   1,415 | Flutter client — application source             |
+| `amr_controller/lib/features/camera/camera_screen.dart`                                             |   241 |   9,001 | Flutter client — application source             |
+| `amr_controller/lib/features/dashboard/dashboard_screen.dart`                                       |   231 |   8,045 | Flutter client — application source             |
+| `amr_controller/lib/features/diagnostics/diagnostics_screen.dart`                                   |    92 |   3,397 | Flutter client — application source             |
+| `amr_controller/lib/features/heatmap/heatmap_screen.dart`                                           |   341 |  11,167 | Flutter client — application source             |
+| `amr_controller/lib/features/logs/logs_screen.dart`                                                 |   160 |   5,063 | Flutter client — application source             |
+| `amr_controller/lib/features/map/map_screen.dart`                                                   |   283 |   9,367 | Flutter client — application source             |
+| `amr_controller/lib/features/missions/missions_screen.dart`                                         |   125 |   4,662 | Flutter client — application source             |
+| `amr_controller/lib/features/sensors/sensors_screen.dart`                                           |    72 |   2,722 | Flutter client — application source             |
+| `amr_controller/lib/features/settings/settings_screen.dart`                                         |    66 |   2,418 | Flutter client — application source             |
+| `amr_controller/lib/main.dart`                                                                      |   238 |   8,360 | Flutter client — application source             |
+| `amr_controller/lib/models/app_state.dart`                                                          |   178 |   5,829 | Flutter client — application source             |
+| `amr_controller/lib/models/robot_data.dart`                                                         |   450 |  13,205 | Flutter client — application source             |
+| `amr_controller/lib/providers/robot_provider.dart`                                                  |   470 |  15,735 | Flutter client — application source             |
+| `amr_controller/lib/screens/applications_hub_screen.dart`                                           |   209 |   6,599 | Flutter client — application source             |
+| `amr_controller/lib/screens/connection_screen.dart`                                                 |   189 |   6,689 | Flutter client — application source             |
+| `amr_controller/lib/screens/teleop_screen.dart`                                                     |   496 |  15,677 | Flutter client — application source             |
+| `amr_controller/lib/services/robot_api_service.dart`                                                |   177 |   5,828 | Flutter client — application source             |
+| `amr_controller/lib/testing/mock_robot.dart`                                                        |   443 |  14,398 | Flutter client — application source             |
+| `amr_controller/lib/theme/theme.dart`                                                               |   110 |   3,724 | Flutter client — application source             |
+| `amr_controller/lib/widgets/app_card.dart`                                                          |   164 |   5,524 | Flutter client — application source             |
+| `amr_controller/lib/widgets/console_rail.dart`                                                      |    74 |   2,458 | Flutter client — application source             |
+| `amr_controller/lib/widgets/joystick_widget.dart`                                                   |   187 |   5,875 | Flutter client — application source             |
+| `amr_controller/lib/widgets/status_widgets.dart`                                                    |   259 |   7,028 | Flutter client — application source             |
+| `amr_controller/linux/.gitignore`                                                                   |     2 |      18 | Flutter client — project + platform runners     |
+| `amr_controller/linux/CMakeLists.txt`                                                               |   129 |   4,770 | Flutter client — project + platform runners     |
+| `amr_controller/linux/flutter/CMakeLists.txt`                                                       |    89 |   2,815 | Flutter client — project + platform runners     |
+| `amr_controller/linux/flutter/generated_plugin_registrant.cc`                                       |    16 |     434 | Flutter client — project + platform runners     |
+| `amr_controller/linux/flutter/generated_plugin_registrant.h`                                        |    16 |     303 | Flutter client — project + platform runners     |
+| `amr_controller/linux/flutter/generated_plugins.cmake`                                              |    25 |     760 | Flutter client — project + platform runners     |
+| `amr_controller/linux/runner/CMakeLists.txt`                                                        |    27 |     974 | Flutter client — project + platform runners     |
+| `amr_controller/linux/runner/main.cc`                                                               |     7 |     180 | Flutter client — project + platform runners     |
+| `amr_controller/linux/runner/my_application.cc`                                                     |   149 |   5,467 | Flutter client — project + platform runners     |
+| `amr_controller/linux/runner/my_application.h`                                                      |    22 |     451 | Flutter client — project + platform runners     |
+| `amr_controller/macos/.gitignore`                                                                   |     8 |      89 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner.xcodeproj/project.pbxproj`                                             |   730 |  27,941 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist`   |     9 |     238 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme`                      |   118 |   4,600 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner.xcworkspace/contents.xcworkspacedata`                                  |     8 |     152 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist`                     |     9 |     238 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/AppDelegate.swift`                                                     |    14 |     311 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json`                      |    69 |   1,247 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/Base.lproj/MainMenu.xib`                                               |   344 |  23,729 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/Configs/AppInfo.xcconfig`                                              |    15 |     623 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/Configs/Debug.xcconfig`                                                |     3 |      77 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/Configs/Release.xcconfig`                                              |     3 |      79 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/Configs/Warnings.xcconfig`                                             |    14 |     580 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/DebugProfile.entitlements`                                             |    15 |     403 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/Info.plist`                                                            |    33 |   1,060 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/MainFlutterWindow.swift`                                               |    16 |     388 | Flutter client — project + platform runners     |
+| `amr_controller/macos/Runner/Release.entitlements`                                                  |    14 |     487 | Flutter client — project + platform runners     |
+| `amr_controller/macos/RunnerTests/RunnerTests.swift`                                                |    13 |     290 | Flutter client — project + platform runners     |
+| `amr_controller/pubspec.lock`                                                                       |   490 |  14,334 | Flutter client — project + platform runners     |
+| `amr_controller/pubspec.yaml`                                                                       |    46 |   1,618 | Flutter client — project + platform runners     |
+| `amr_controller/test/client_integration_test.dart`                                                  |   155 |   5,606 | Flutter client — unit/widget tests              |
+| `amr_controller/test/heatmap_screen_test.dart`                                                      |   160 |   5,685 | Flutter client — unit/widget tests              |
+| `amr_controller/test/models_test.dart`                                                              |   100 |   3,483 | Flutter client — unit/widget tests              |
+| `amr_controller/test/v2_models_test.dart`                                                           |   163 |   5,283 | Flutter client — unit/widget tests              |
+| `amr_controller/test/widget_test.dart`                                                              |    24 |     919 | Flutter client — unit/widget tests              |
+| `amr_controller/web/index.html`                                                                     |    47 |   1,592 | Flutter client — project + platform runners     |
+| `amr_controller/web/manifest.json`                                                                  |    36 |     786 | Flutter client — project + platform runners     |
+| `amr_controller/windows/.gitignore`                                                                 |    18 |     291 | Flutter client — project + platform runners     |
+| `amr_controller/windows/CMakeLists.txt`                                                             |   109 |   4,164 | Flutter client — project + platform runners     |
+| `amr_controller/windows/flutter/CMakeLists.txt`                                                     |   110 |   3,742 | Flutter client — project + platform runners     |
+| `amr_controller/windows/flutter/generated_plugin_registrant.cc`                                     |    15 |     324 | Flutter client — project + platform runners     |
+| `amr_controller/windows/flutter/generated_plugin_registrant.h`                                      |    16 |     302 | Flutter client — project + platform runners     |
+| `amr_controller/windows/flutter/generated_plugins.cmake`                                            |    25 |     766 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/CMakeLists.txt`                                                      |    41 |   1,796 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/Runner.rc`                                                           |   122 |   3,053 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/flutter_window.cpp`                                                  |    72 |   2,122 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/flutter_window.h`                                                    |    34 |     928 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/main.cpp`                                                            |    44 |   1,267 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/resource.h`                                                          |    17 |     432 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/runner.exe.manifest`                                                 |    15 |     602 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/utils.cpp`                                                           |    70 |   2,168 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/utils.h`                                                             |    20 |     672 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/win32_window.cpp`                                                    |   289 |   8,534 | Flutter client — project + platform runners     |
+| `amr_controller/windows/runner/win32_window.h`                                                      |   103 |   3,522 | Flutter client — project + platform runners     |
+| `assets/architecture.svg`                                                                           |    81 |   5,687 | README diagrams (SVG)                           |
+| `assets/hero.svg`                                                                                   |    48 |   2,951 | README diagrams (SVG)                           |
+| `assets/modes.svg`                                                                                  |    62 |   4,412 | README diagrams (SVG)                           |
+| `assets/protocol.svg`                                                                               |    58 |   4,108 | README diagrams (SVG)                           |
+| `assets/stack.svg`                                                                                  |    63 |   4,210 | README diagrams (SVG)                           |
+| `assets/warehouse-map.svg`                                                                          |    68 |   3,519 | README diagrams (SVG)                           |
+| `config/applications.yaml`                                                                          |   528 |  19,657 | YAML configuration                              |
+| `config/hazard.yaml`                                                                                |    79 |   3,099 | YAML configuration                              |
+| `config/replay.yaml`                                                                                |    21 |     941 | YAML configuration                              |
+| `config/rfid.yaml`                                                                                  |    35 |   1,501 | YAML configuration                              |
+| `config/robot.yaml`                                                                                 |    44 |   1,463 | YAML configuration                              |
+| `config/safety.yaml`                                                                                |    48 |   2,164 | YAML configuration                              |
+| `config/serial.yaml`                                                                                |    15 |     570 | YAML configuration                              |
+| `config/warehouse.yaml`                                                                             |    36 |   1,380 | YAML configuration                              |
+| `docs/camera.md`                                                                                    |   154 |   7,073 | Reference documentation                         |
+| `docs/camera_overlay.md`                                                                            |   265 |  10,851 | Reference documentation                         |
+| `docs/command_center.md`                                                                            |   216 |  10,404 | Reference documentation                         |
+| `docs/dashboard_console.md`                                                                         |   131 |   6,111 | Reference documentation                         |
+| `docs/digital_twin.md`                                                                              |   191 |   8,477 | Reference documentation                         |
+| `docs/hazard.md`                                                                                    |   379 |  18,715 | Reference documentation                         |
+| `docs/heatmap.md`                                                                                   |   135 |   5,762 | Reference documentation                         |
+| `docs/manipulator.md`                                                                               |   135 |   6,570 | Reference documentation                         |
+| `docs/map.md`                                                                                       |   180 |   6,437 | Reference documentation                         |
+| `docs/mission_monitoring.md`                                                                        |   146 |   7,254 | Reference documentation                         |
+| `docs/replay.md`                                                                                    |   158 |   5,906 | Reference documentation                         |
+| `docs/replay_dashboard.md`                                                                          |   351 |  15,760 | Reference documentation                         |
+| `docs/rfid.md`                                                                                      |    92 |   5,522 | Reference documentation                         |
+| `docs/ros2.md`                                                                                      |   109 |   5,279 | Reference documentation                         |
+| `docs/safety.md`                                                                                    |   211 |   8,762 | Reference documentation                         |
+| `docs/serial_protocol.md`                                                                           |   141 |   6,297 | Reference documentation                         |
+| `docs/telemetry.md`                                                                                 |   302 |  15,388 | Reference documentation                         |
+| `docs/web_control.md`                                                                               |   250 |  15,717 | Reference documentation                         |
+| `firmware/arduino/amr_controller/amr_controller.ino`                                                |   152 |   4,685 | Arduino UNO C++ firmware (the robot's reflexes) |
+| `firmware/arduino/amr_controller/motor_control.cpp`                                                 |    77 |   2,202 | Arduino UNO C++ firmware (the robot's reflexes) |
+| `firmware/arduino/amr_controller/motor_control.h`                                                   |    46 |   1,846 | Arduino UNO C++ firmware (the robot's reflexes) |
+| `firmware/arduino/amr_controller/protocol.cpp`                                                      |    95 |   2,826 | Arduino UNO C++ firmware (the robot's reflexes) |
+| `firmware/arduino/amr_controller/protocol.h`                                                        |    63 |   1,788 | Arduino UNO C++ firmware (the robot's reflexes) |
+| `firmware/arduino/amr_controller/safety.cpp`                                                        |    32 |     816 | Arduino UNO C++ firmware (the robot's reflexes) |
+| `firmware/arduino/amr_controller/safety.h`                                                          |    29 |     872 | Arduino UNO C++ firmware (the robot's reflexes) |
+| `firmware/arduino/amr_controller/ultrasonic.cpp`                                                    |    86 |   2,706 | Arduino UNO C++ firmware (the robot's reflexes) |
+| `firmware/arduino/amr_controller/ultrasonic.h`                                                      |    52 |   1,618 | Arduino UNO C++ firmware (the robot's reflexes) |
+| `raspberry_pi/amr/__init__.py`                                                                      |    20 |     739 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/__main__.py`                                                                      |     9 |     144 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/apps/__init__.py`                                                                 |    32 |     637 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/apps/registry.py`                                                                 |   380 |  16,023 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/camera/__init__.py`                                                               |    56 |   1,569 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/camera/camera_manager.py`                                                         |   234 |   8,317 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/camera/detector.py`                                                               |   249 |  10,106 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/camera/frame.py`                                                                  |   633 |  25,094 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/camera/overlay.py`                                                                |   337 |  13,248 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/communication/__init__.py`                                                        |    53 |   1,072 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/communication/arduino_serial.py`                                                  |   212 |   7,107 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/communication/protocol.py`                                                        |   252 |   7,646 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/control/__init__.py`                                                              |    25 |     643 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/control/differential_drive.py`                                                    |    98 |   3,414 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/control/motor_controller.py`                                                      |   117 |   4,162 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/demo.py`                                                                          |   732 |  30,454 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/hazard/__init__.py`                                                               |   105 |   2,925 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/hazard/__main__.py`                                                               |   146 |   4,717 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/hazard/event_log.py`                                                              |   174 |   6,588 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/hazard/manager.py`                                                                |   414 |  16,376 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/hazard/sources.py`                                                                |   560 |  21,404 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/hazard/types.py`                                                                  |   474 |  17,959 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/hazard/vision.py`                                                                 |   620 |  25,701 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/hazard/visualisation.py`                                                          |   564 |  20,101 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/logging/__init__.py`                                                              |     6 |     204 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/logging/logger.py`                                                                |   114 |   4,055 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/main.py`                                                                          |   565 |  24,421 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/map/__init__.py`                                                                  |   126 |   3,208 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/map/heatmap.py`                                                                   |   397 |  15,028 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/map/service.py`                                                                   |   311 |  13,104 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/map/snapshot.py`                                                                  |   635 |  22,795 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/map/transform.py`                                                                 |   225 |   9,045 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/map/twin.py`                                                                      |   445 |  16,609 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/mocks/__init__.py`                                                                |    23 |     812 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/mocks/mock_camera.py`                                                             |    55 |   1,885 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/mocks/mock_motor.py`                                                              |    34 |     980 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/mocks/mock_sensor.py`                                                             |    26 |     751 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/mocks/mock_serial.py`                                                             |   119 |   4,025 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/navigation/__init__.py`                                                           |    31 |     784 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/navigation/navigator.py`                                                          |   389 |  15,415 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/navigation/types.py`                                                              |    81 |   1,946 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/net/__init__.py`                                                                  |    24 |     459 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/net/connectivity.py`                                                              |   259 |   9,270 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/rfid/__init__.py`                                                                 |    42 |   1,089 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/rfid/reader.py`                                                                   |   250 |   8,983 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/robot/__init__.py`                                                                |    20 |     556 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/robot/mode_controller.py`                                                         |    90 |   2,888 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/robot/robot_manager.py`                                                           |   477 |  20,051 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/robot/robot_state.py`                                                             |    81 |   2,674 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/safety/__init__.py`                                                               |    23 |     472 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/safety/avoidance.py`                                                              |   358 |  14,077 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/safety/safety_manager.py`                                                         |   153 |   5,596 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/sensors/__init__.py`                                                              |    19 |     762 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/sensors/ultrasonic.py`                                                            |   102 |   3,378 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/__init__.py`                                                            |   132 |   3,164 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/auto_record.py`                                                         |   212 |   7,721 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/collector.py`                                                           |   825 |  33,907 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/console.py`                                                             |   488 |  20,138 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/ops.py`                                                                 |   644 |  27,423 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/recorder.py`                                                            |   388 |  13,949 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/replay.py`                                                              |   233 |   8,343 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/replay_control.py`                                                      |   326 |  12,363 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/series.py`                                                              |   413 |  15,960 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/telemetry/types.py`                                                               |   512 |  18,256 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/utils/__init__.py`                                                                |     2 |      53 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/utils/config.py`                                                                  |   619 |  24,764 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/warehouse/__init__.py`                                                            |    48 |   1,222 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/warehouse/__main__.py`                                                            |    82 |   2,372 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/warehouse/map.py`                                                                 |    93 |   3,152 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/warehouse/task_manager.py`                                                        |   394 |  15,948 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/warehouse/tasks.py`                                                               |   349 |  12,507 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/web/__init__.py`                                                                  |    15 |     523 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/web/server.py`                                                                    | 3,813 | 172,157 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/web/static/applications.css`                                                      |   626 |  14,282 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/web/static/applications.html`                                                     |   210 |   8,162 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/web/static/applications.js`                                                       |   551 |  18,265 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/web/static/command_center.css`                                                    | 1,517 |  33,396 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/web/static/command_center.html`                                                   |   954 |  32,180 | Python control stack (the robot's brain)        |
+| `raspberry_pi/amr/web/static/command_center.js`                                                     | 2,535 |  75,554 | Python control stack (the robot's brain)        |
+| `raspberry_pi/pyproject.toml`                                                                       |    33 |     806 | Python packaging + runtime logs                 |
+| `raspberry_pi/tests/conftest.py`                                                                    |   173 |   6,600 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_app_registry.py`                                                           | 1,123 |  49,337 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_applications_hub.py`                                                       |   408 |  18,452 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_auto_record.py`                                                            |   439 |  17,569 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_avoidance.py`                                                              |   739 |  30,064 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_camera_backend.py`                                                         |   565 |  24,455 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_camera_frame.py`                                                           |   523 |  20,469 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_camera_manager.py`                                                         |   118 |   3,663 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_camera_overlay.py`                                                         |   368 |  17,828 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_command_center.py`                                                         |   862 |  38,607 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_config.py`                                                                 |   229 |   8,273 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_connectivity.py`                                                           |   195 |   7,828 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_console.py`                                                                |   347 |  15,894 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_differential_drive.py`                                                     |   250 |   7,660 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_digital_twin.py`                                                           |   275 |  10,907 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_hazard.py`                                                                 |   834 |  29,706 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_hazard_visualisation.py`                                                   |   474 |  15,330 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_heatmap.py`                                                                |   380 |  16,428 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_logging.py`                                                                |   206 |   8,390 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_map.py`                                                                    |   991 |  40,543 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_mission_monitoring.py`                                                     |   402 |  17,428 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_mode_controller.py`                                                        |   103 |   2,834 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_motor_controller.py`                                                       |   191 |   6,379 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_navigation.py`                                                             |   430 |  15,424 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_ops_projection.py`                                                         |   394 |  17,614 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_protocol.py`                                                               |   251 |   7,073 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_replay.py`                                                                 |   523 |  20,550 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_replay_control.py`                                                         |   532 |  22,628 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_rfid.py`                                                                   |   560 |  23,574 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_robot_manager.py`                                                          |   313 |  10,247 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_robot_state.py`                                                            |    60 |   1,549 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_ros_bridge.py`                                                             |   252 |  10,138 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_safety_manager.py`                                                         |   129 |   3,794 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_startup_banner.py`                                                         |   114 |   4,119 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_telemetry.py`                                                              |   330 |  14,142 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_ultrasonic.py`                                                             |    78 |   2,449 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_unified_demo.py`                                                           |   338 |  13,894 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_vision.py`                                                                 |   631 |  26,327 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_warehouse.py`                                                              |   760 |  30,572 | Python test suite (hardware-free)               |
+| `raspberry_pi/tests/test_web_server.py`                                                             | 1,639 |  67,495 | Python test suite (hardware-free)               |
+| `ros2/__init__.py`                                                                                  |    39 |   1,391 | Optional ROS 2 message translation (no rclpy)   |
+| `ros2/bridge.py`                                                                                    |   228 |   8,615 | Optional ROS 2 message translation (no rclpy)   |
+| `showcase.html`                                                                                     |   375 |  10,866 |                                                 |
 
 ### 15.2 Files listed but not embedded
 
-| File | Bytes | Reason |
-| --- | ---: | --- |
-| `.claude/launch.json` | 342 | generated/vendored directory `.claude/` |
-| `PROJECT_REPORT.md` | 2,801,588 | this report |
-| `amr_controller/android/app/src/main/res/mipmap-hdpi/ic_launcher.png` | 544 | binary or build artefact (`.png`) |
-| `amr_controller/android/app/src/main/res/mipmap-mdpi/ic_launcher.png` | 442 | binary or build artefact (`.png`) |
-| `amr_controller/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png` | 721 | binary or build artefact (`.png`) |
-| `amr_controller/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png` | 1,031 | binary or build artefact (`.png`) |
-| `amr_controller/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png` | 1,443 | binary or build artefact (`.png`) |
-| `amr_controller/android/app/src/profile/AndroidManifest.xml` | 378 | generated/vendored directory `profile/` |
-| `amr_controller/android/gradle/wrapper/gradle-wrapper.properties` | 202 | generated/vendored directory `gradle/` |
-| `amr_controller/ios/Flutter/AppFrameworkInfo.plist` | 720 | generated/vendored directory `Flutter/` |
-| `amr_controller/ios/Flutter/Debug.xcconfig` | 30 | generated/vendored directory `Flutter/` |
-| `amr_controller/ios/Flutter/Release.xcconfig` | 30 | generated/vendored directory `Flutter/` |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png` | 10,932 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@1x.png` | 295 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@2x.png` | 406 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@3x.png` | 450 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@1x.png` | 282 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@2x.png` | 462 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@3x.png` | 704 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@1x.png` | 406 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@2x.png` | 586 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@3x.png` | 862 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@2x.png` | 862 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@3x.png` | 1,674 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@1x.png` | 762 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@2x.png` | 1,226 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-83.5x83.5@2x.png` | 1,418 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage.png` | 68 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@2x.png` | 68 | binary or build artefact (`.png`) |
-| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@3x.png` | 68 | binary or build artefact (`.png`) |
-| `amr_controller/macos/Flutter/Flutter-Debug.xcconfig` | 48 | generated/vendored directory `Flutter/` |
-| `amr_controller/macos/Flutter/Flutter-Release.xcconfig` | 48 | generated/vendored directory `Flutter/` |
-| `amr_controller/macos/Flutter/GeneratedPluginRegistrant.swift` | 396 | generated/vendored directory `Flutter/` |
-| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png` | 102,994 | binary or build artefact (`.png`) |
-| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_128.png` | 5,680 | binary or build artefact (`.png`) |
-| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_16.png` | 520 | binary or build artefact (`.png`) |
-| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png` | 14,142 | binary or build artefact (`.png`) |
-| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_32.png` | 1,066 | binary or build artefact (`.png`) |
-| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_512.png` | 36,406 | binary or build artefact (`.png`) |
-| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_64.png` | 2,218 | binary or build artefact (`.png`) |
-| `amr_controller/web/favicon.png` | 917 | binary or build artefact (`.png`) |
-| `amr_controller/web/icons/Icon-192.png` | 5,292 | binary or build artefact (`.png`) |
-| `amr_controller/web/icons/Icon-512.png` | 8,252 | binary or build artefact (`.png`) |
-| `amr_controller/web/icons/Icon-maskable-192.png` | 5,594 | binary or build artefact (`.png`) |
-| `amr_controller/web/icons/Icon-maskable-512.png` | 20,998 | binary or build artefact (`.png`) |
-| `amr_controller/windows/runner/resources/app_icon.ico` | 33,772 | binary or build artefact (`.ico`) |
+| File                                                                                     |     Bytes | Reason                                  |
+| ---------------------------------------------------------------------------------------- | --------: | --------------------------------------- |
+| `.claude/launch.json`                                                                    |       342 | generated/vendored directory `.claude/` |
+| `PROJECT_REPORT.md`                                                                      | 2,801,588 | this report                             |
+| `amr_controller/android/app/src/main/res/mipmap-hdpi/ic_launcher.png`                    |       544 | binary or build artefact (`.png`)       |
+| `amr_controller/android/app/src/main/res/mipmap-mdpi/ic_launcher.png`                    |       442 | binary or build artefact (`.png`)       |
+| `amr_controller/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png`                   |       721 | binary or build artefact (`.png`)       |
+| `amr_controller/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png`                  |     1,031 | binary or build artefact (`.png`)       |
+| `amr_controller/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`                 |     1,443 | binary or build artefact (`.png`)       |
+| `amr_controller/android/app/src/profile/AndroidManifest.xml`                             |       378 | generated/vendored directory `profile/` |
+| `amr_controller/android/gradle/wrapper/gradle-wrapper.properties`                        |       202 | generated/vendored directory `gradle/`  |
+| `amr_controller/ios/Flutter/AppFrameworkInfo.plist`                                      |       720 | generated/vendored directory `Flutter/` |
+| `amr_controller/ios/Flutter/Debug.xcconfig`                                              |        30 | generated/vendored directory `Flutter/` |
+| `amr_controller/ios/Flutter/Release.xcconfig`                                            |        30 | generated/vendored directory `Flutter/` |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png` |    10,932 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@1x.png`     |       295 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@2x.png`     |       406 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@3x.png`     |       450 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@1x.png`     |       282 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@2x.png`     |       462 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@3x.png`     |       704 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@1x.png`     |       406 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@2x.png`     |       586 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@3x.png`     |       862 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@2x.png`     |       862 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@3x.png`     |     1,674 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@1x.png`     |       762 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@2x.png`     |     1,226 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-83.5x83.5@2x.png` |     1,418 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage.png`         |        68 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@2x.png`      |        68 | binary or build artefact (`.png`)       |
+| `amr_controller/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@3x.png`      |        68 | binary or build artefact (`.png`)       |
+| `amr_controller/macos/Flutter/Flutter-Debug.xcconfig`                                    |        48 | generated/vendored directory `Flutter/` |
+| `amr_controller/macos/Flutter/Flutter-Release.xcconfig`                                  |        48 | generated/vendored directory `Flutter/` |
+| `amr_controller/macos/Flutter/GeneratedPluginRegistrant.swift`                           |       396 | generated/vendored directory `Flutter/` |
+| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png`       |   102,994 | binary or build artefact (`.png`)       |
+| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_128.png`        |     5,680 | binary or build artefact (`.png`)       |
+| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_16.png`         |       520 | binary or build artefact (`.png`)       |
+| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png`        |    14,142 | binary or build artefact (`.png`)       |
+| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_32.png`         |     1,066 | binary or build artefact (`.png`)       |
+| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_512.png`        |    36,406 | binary or build artefact (`.png`)       |
+| `amr_controller/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_64.png`         |     2,218 | binary or build artefact (`.png`)       |
+| `amr_controller/web/favicon.png`                                                         |       917 | binary or build artefact (`.png`)       |
+| `amr_controller/web/icons/Icon-192.png`                                                  |     5,292 | binary or build artefact (`.png`)       |
+| `amr_controller/web/icons/Icon-512.png`                                                  |     8,252 | binary or build artefact (`.png`)       |
+| `amr_controller/web/icons/Icon-maskable-192.png`                                         |     5,594 | binary or build artefact (`.png`)       |
+| `amr_controller/web/icons/Icon-maskable-512.png`                                         |    20,998 | binary or build artefact (`.png`)       |
+| `amr_controller/windows/runner/resources/app_icon.ico`                                   |    33,772 | binary or build artefact (`.ico`)       |
 
 ## 16. Complete source appendix
 
@@ -1286,7 +1286,7 @@ jobs:
           if-no-files-found: error
 ```
 
-### (root) — 
+### (root) —
 
 #### `.gitignore`
 
@@ -1886,7 +1886,7 @@ Re-verify with the commands below before trusting these numbers.
 | 3D twin smoke (C10, `--mock --web`)                         | `GET /digital-twin` → 200 `source:SIMULATION`, `robot` pose **identical** to `GET /map`, 5 config waypoints, `renderer.library: null`; `GET /dashboard` → 200 containing the 3D card and canvas; `/telemetry`, `/map.svg`, `/camera/status` all 200                                                                                    |
 | Console smoke (C12, `--mock --web --mission-demo`)          | `GET /dashboard/state` → 200 `read_only:true`, `source:SIMULATION`; mission `phase:NAVIGATE` → `DROP`, `destination:station`, `mission_progress:0.33`, `total_tasks:3`, `mission_id:web-run`; `mission` **no longer** in `degraded`; all prior endpoints still 200                                                                     |
 | Console smoke (C11, `--mock --web`)                         | `GET /dashboard/state` → 200 `read_only:true`, `source:SIMULATION`; `console["map"] == GET /map` and `console["twin"] == GET /digital-twin` **exactly**; battery `UNAVAILABLE` with `note: "no battery source in this build"`; mission `Mission data unavailable` when no warehouse runtime is attached; all prior endpoints still 200 |
-| Heat map smoke (C19, `--mock --web --mission-demo`)         | `GET /heatmap` → 200, both grids on one shared extent (20×16 @ 0.25 m); `console["heatmap"] == GET /heatmap` **exactly**; after a driven mission `traffic` reports 81 samples over 31 cells, `clipped: 0`; `hazard` is empty on the shipped config (no sensor exists) and says so; all prior endpoints still 200 |
+| Heat map smoke (C19, `--mock --web --mission-demo`)         | `GET /heatmap` → 200, both grids on one shared extent (20×16 @ 0.25 m); `console["heatmap"] == GET /heatmap` **exactly**; after a driven mission `traffic` reports 81 samples over 31 cells, `clipped: 0`; `hazard` is empty on the shipped config (no sensor exists) and says so; all prior endpoints still 200                       |
 
 The 2 skips are the camera tests that need `opencv-python`/`numpy`; they run when
 those are installed and skip gracefully otherwise. They are the only conditional
@@ -2000,7 +2000,7 @@ python -m amr.hazard.visualisation   # render the events JSONL onto the map (SVG
   only for its own link-loss detection (`robot_manager.py:221`), and nothing on
   the Pi ever sends the `WDT <ms>` verb the firmware implements and
   `docs/serial_protocol.md` documents. The Arduino therefore keeps its
-  compiled-in `DEFAULT_WATCHDOG_MS` (1000 ms), which today *happens* to equal
+  compiled-in `DEFAULT_WATCHDOG_MS` (1000 ms), which today _happens_ to equal
   `safety.yaml`. Raise the config and the two diverge silently: the Arduino
   stops the robot after 1 s of silence while the Pi still believes the link is
   healthy. Fix is additive (a `build_wdt` + a send at connect) but it changes
@@ -6259,7 +6259,7 @@ C1, C4, and any firmware change under `firmware/arduino/` — CI has no Arduino
 toolchain, so those cannot be tested in this environment.
 ````
 
-### (root) — 
+### (root) —
 
 #### `CONTRIBUTING.md`
 
@@ -6856,7 +6856,7 @@ own.
 | 3D Digital Twin                 | `GET /digital-twin` (C10), raw WebGL             |
 | Live Camera + detection overlay | `GET /camera/frame` (C8) + hazard metadata (C13) |
 | Warehouse Map                   | `GET /map` (C9), rendered as SVG in-browser      |
-| Spatial heat map                | `GET /heatmap` (C19), two density grids           |
+| Spatial heat map                | `GET /heatmap` (C19), two density grids          |
 | Robot Status / Safety / Mission | `/dashboard/state` (C7/C11/C12)                  |
 | Telemetry charts + Event Log    | `history` (C15c)                                 |
 | Record & Replay                 | C14 / C14b                                       |
@@ -6905,7 +6905,7 @@ client re-derives a bin index. The payload publishes `cell_m`, the extent,
   weighted by severity (INFO 1, WARNING 2, CRITICAL 4). An event with only
   image-space evidence is counted in `unlocated` and never placed — the C5 rule,
   enforced at this boundary too.
-- **Traffic density** counts path samples, so a cell is *time spent there*, not
+- **Traffic density** counts path samples, so a cell is _time spent there_, not
   distance travelled.
 
 The extent comes from the **configured** geometry, not from the current data, so
@@ -7273,8 +7273,8 @@ migration:
   #
   # Files that are not part of the templates will be ignored by default.
   unmanaged_files:
-    - 'lib/main.dart'
-    - 'ios/Runner.xcodeproj/project.pbxproj'
+    - "lib/main.dart"
+    - "ios/Runner.xcodeproj/project.pbxproj"
 ```
 
 #### `amr_controller/BUILD.md`
@@ -7472,8 +7472,8 @@ The client speaks the robot's real HTTP contract, verified against
 | `GET`  | `/telemetry`          | battery / speed / ultrasonic / mode                                                                     |
 | `GET`  | `/health`             | the ping / connection check                                                                             |
 | `GET`  | `/status`             | raw robot snapshot                                                                                      |
-| `GET`  | `/map`                | the Map screen: pose, route, trail, hazards, zones                                                       |
-| `GET`  | `/heatmap`            | the Heat map screen: hazard + traffic density grids (C19)                                                |
+| `GET`  | `/map`                | the Map screen: pose, route, trail, hazards, zones                                                      |
+| `GET`  | `/heatmap`            | the Heat map screen: hazard + traffic density grids (C19)                                               |
 | `POST` | `/command`            | `forward` / `backward` / `turn_left` / `turn_right` / `rotate_left` / `rotate_right` / `stop` / `estop` |
 
 Two honesty notes carried straight from the robot's own docs:
@@ -7599,22 +7599,22 @@ are never conflated.
 
 ## Software verification (automated, reproducible)
 
-| Capability                                             | Evidence                                                                                                                                                                       | Status                      |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
-| Flutter compilation                                    | `flutter analyze` clean                                                                                                                                                        | VERIFIED                    |
-| Dart test suite (models, shell)                        | `flutter test` green                                                                                                                                                           | VERIFIED                    |
-| Flutter client → mock robot (real HTTP)                | `test/client_integration_test.dart` — real `RobotApiService`/`RobotProvider` over real TCP sockets against `MockRobot`                                                         | VERIFIED                    |
-| Connection state transition (disconnected → connected) | `test/client_integration_test.dart` `connection/`                                                                                                                              | VERIFIED                    |
-| Motion command (MANUAL → forward/stop)                 | `test/client_integration_test.dart` `motion/`                                                                                                                                  | VERIFIED                    |
-| Invalid command handling (speed 400)                   | `test/client_integration_test.dart` `invalid command/`                                                                                                                         | VERIFIED                    |
-| E-STOP safety path (SAFETY_STOP → motion veto)         | `test/client_integration_test.dart` `E-STOP safety/`                                                                                                                           | VERIFIED                    |
-| Telemetry parsing (incl. null-preservation)            | `test/client_integration_test.dart` + `test/models_test.dart`                                                                                                                  | VERIFIED                    |
-| Heat-map models + screen (C19)                         | `flutter analyze` clean + `test/v2_models_test.dart` (parsing, incl. the row-major/`row_order` convention) + `test/heatmap_screen_test.dart` (both graphs **actually painted**, empty grid, no-geometry state) + `flutter test` 21/21 | VERIFIED |
-| UI → client → HTTP → robot → state → UI                | `integration_test/connection_test.dart` — real `ConnectionScreen` ping flips the badge to "Connected"                                                                          | VERIFIED (CI + emulator)    |
-| Full app shell on-device command flow                  | `integration_test/device_runtime_test.dart` — real `AmrControllerApp` shell: More sheet → Connection + Teleop, MANUAL→forward→stop→E-STOP→veto over real HTTP                  | VERIFIED (Android emulator) |
-| Light/white theme re-verification                      | `flutter analyze` clean + 16/16 `flutter test` + both integration tests re-run on the emulator after the retheme; every screen screenshot-reviewed against the live mock robot | VERIFIED (Android emulator) |
-| Web launch + render                                    | browser run                                                                                                                                                                    | VERIFIED                    |
-| All 7 platform builds                                  | `flutter-build.yml` CI + local APK/AAB/Web                                                                                                                                     | VERIFIED (COMPILED)         |
+| Capability                                             | Evidence                                                                                                                                                                                                                              | Status                      |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Flutter compilation                                    | `flutter analyze` clean                                                                                                                                                                                                               | VERIFIED                    |
+| Dart test suite (models, shell)                        | `flutter test` green                                                                                                                                                                                                                  | VERIFIED                    |
+| Flutter client → mock robot (real HTTP)                | `test/client_integration_test.dart` — real `RobotApiService`/`RobotProvider` over real TCP sockets against `MockRobot`                                                                                                                | VERIFIED                    |
+| Connection state transition (disconnected → connected) | `test/client_integration_test.dart` `connection/`                                                                                                                                                                                     | VERIFIED                    |
+| Motion command (MANUAL → forward/stop)                 | `test/client_integration_test.dart` `motion/`                                                                                                                                                                                         | VERIFIED                    |
+| Invalid command handling (speed 400)                   | `test/client_integration_test.dart` `invalid command/`                                                                                                                                                                                | VERIFIED                    |
+| E-STOP safety path (SAFETY_STOP → motion veto)         | `test/client_integration_test.dart` `E-STOP safety/`                                                                                                                                                                                  | VERIFIED                    |
+| Telemetry parsing (incl. null-preservation)            | `test/client_integration_test.dart` + `test/models_test.dart`                                                                                                                                                                         | VERIFIED                    |
+| Heat-map models + screen (C19)                         | `flutter analyze` clean + `test/v2_models_test.dart` (parsing, incl. the row-major/`row_order` convention) + `test/heatmap_screen_test.dart` (both graphs **actually painted**, empty grid, no-geometry state) + `flutter test` 21/21 | VERIFIED                    |
+| UI → client → HTTP → robot → state → UI                | `integration_test/connection_test.dart` — real `ConnectionScreen` ping flips the badge to "Connected"                                                                                                                                 | VERIFIED (CI + emulator)    |
+| Full app shell on-device command flow                  | `integration_test/device_runtime_test.dart` — real `AmrControllerApp` shell: More sheet → Connection + Teleop, MANUAL→forward→stop→E-STOP→veto over real HTTP                                                                         | VERIFIED (Android emulator) |
+| Light/white theme re-verification                      | `flutter analyze` clean + 16/16 `flutter test` + both integration tests re-run on the emulator after the retheme; every screen screenshot-reviewed against the live mock robot                                                        | VERIFIED (Android emulator) |
+| Web launch + render                                    | browser run                                                                                                                                                                                                                           | VERIFIED                    |
+| All 7 platform builds                                  | `flutter-build.yml` CI + local APK/AAB/Web                                                                                                                                                                                            | VERIFIED (COMPILED)         |
 
 ## Platform runtime verification
 
@@ -22157,15 +22157,15 @@ off-by-one in a bin index is invisible in a picture and silent in a test.
 
 ## 2. The two grids
 
-| Grid | One sample is | Value |
-| --- | --- | --- |
-| `hazard` | one recorded hazard event **that carries a world location** | severity-weighted (below) |
-| `traffic` | one point on the travelled path | 1 per sample |
+| Grid      | One sample is                                               | Value                     |
+| --------- | ----------------------------------------------------------- | ------------------------- |
+| `hazard`  | one recorded hazard event **that carries a world location** | severity-weighted (below) |
+| `traffic` | one point on the travelled path                             | 1 per sample              |
 
 **Severity weighting** (`severity_weights` is published in the payload, so a
 client never guesses): `INFO` 1, `WARNING` 2, `CRITICAL` 4, and an unrecognised
 severity 2 — an unknown severity must not vanish from the picture. The weighting
-is a *display* convention. It never feeds a safety decision: the hazard verdict
+is a _display_ convention. It never feeds a safety decision: the hazard verdict
 is computed from raw readings, not from this grid.
 
 **Traffic is time, not distance.** The path is appended by the control loop, so
@@ -22176,7 +22176,7 @@ sampling rate is the clock, not the odometer.
 
 ## 3. The rules that keep it honest
 
-1. **A stable extent.** The grid covers the *configured* geometry (waypoints and
+1. **A stable extent.** The grid covers the _configured_ geometry (waypoints and
    hazard zones, padded by `margin_m`), snapped outwards to whole square cells.
    The robot's pose and the data are deliberately **excluded** from the extent: a
    heat map is read by comparing polls, and a frame that rescales every second
@@ -22208,13 +22208,19 @@ sampling rate is the clock, not the odometer.
   "y_axis": "up",
   "severity_weights": { "INFO": 1.0, "WARNING": 2.0, "CRITICAL": 4.0 },
   "hazard": {
-    "cols": 20, "rows": 16, "cell_m": 0.25,
+    "cols": 20,
+    "rows": 16,
+    "cell_m": 0.25,
     "extent": { "x_min": -0.5, "x_max": 4.5, "y_min": -0.5, "y_max": 3.5 },
     "cells": [0.0, 4.0, 0.0, "..."],
     "row_order": "row 0 is y_min (bottom); index = row * cols + col",
-    "max_value": 4.0, "total": 4.0,
-    "samples": 1, "clipped": 0, "unlocated": 2,
-    "source": "SIMULATION", "note": "..."
+    "max_value": 4.0,
+    "total": 4.0,
+    "samples": 1,
+    "clipped": 0,
+    "unlocated": 2,
+    "source": "SIMULATION",
+    "note": "..."
   },
   "traffic": { "...": "same shape" },
   "notes": ["2 recorded hazard event(s) carried no world location ..."]
@@ -22222,7 +22228,7 @@ sampling rate is the clock, not the odometer.
 ```
 
 **`row_order` is load-bearing.** The repository frame is y-up, so row 0 is the
-*bottom* row. A client that assumed row 0 was the top would draw every map
+_bottom_ row. A client that assumed row 0 was the top would draw every map
 vertically mirrored — which looks entirely plausible and would never fail a
 "does it render" check. Both clients are held to the published rule.
 
@@ -22234,10 +22240,10 @@ equality, exactly as it does for `map` and `twin`.
 
 ## 5. Where it is shown
 
-| Surface | Where |
-| --- | --- |
+| Surface        | Where                                                                         |
+| -------------- | ----------------------------------------------------------------------------- |
 | Command Center | the **Heat map** view — two graphs, plus a scale legend and per-grid readouts |
-| Flutter client | the **Heat map** destination (`lib/features/heatmap/heatmap_screen.dart`) |
+| Flutter client | the **Heat map** destination (`lib/features/heatmap/heatmap_screen.dart`)     |
 
 Both draw the scene on a **dark stage** (the console) or the app's white panel
 (the client) and read the ramps from the palette, so a theme change repaints
@@ -51609,7 +51615,13 @@ function hexToRgb(h) {
   h = String(h || "").trim();
   if (h.charAt(0) === "#") h = h.slice(1);
   if (h.length === 3) {
-    h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+    h =
+      h.charAt(0) +
+      h.charAt(0) +
+      h.charAt(1) +
+      h.charAt(1) +
+      h.charAt(2) +
+      h.charAt(2);
   }
   if (h.length !== 6) return null;
   var n = parseInt(h, 16);
@@ -51623,9 +51635,12 @@ function mixHex(a, b, t) {
   if (!A || !B) return a;
   return (
     "rgb(" +
-    Math.round(A[0] + (B[0] - A[0]) * t) + "," +
-    Math.round(A[1] + (B[1] - A[1]) * t) + "," +
-    Math.round(A[2] + (B[2] - A[2]) * t) + ")"
+    Math.round(A[0] + (B[0] - A[0]) * t) +
+    "," +
+    Math.round(A[1] + (B[1] - A[1]) * t) +
+    "," +
+    Math.round(A[2] + (B[2] - A[2]) * t) +
+    ")"
   );
 }
 
@@ -51645,7 +51660,11 @@ function heatRamp(stops, t) {
 
 /* Hazard intensity reads as severity: cool (present) -> amber (act) -> red. */
 function hazardRamp() {
-  return [token("info", "#3d8bfd"), token("warn", "#e8a33d"), token("crit", "#ef4d5a")];
+  return [
+    token("info", "#3d8bfd"),
+    token("warn", "#e8a33d"),
+    token("crit", "#ef4d5a"),
+  ];
 }
 
 /* Traffic intensity is not a severity, so it stays one hue: dark -> accent. */
@@ -51680,8 +51699,13 @@ function drawHeatGrid(svg, grid, ramp, ariaLabel) {
 
   var out = [];
   out.push(
-    '<rect x="0" y="0" width="' + HM_W + '" height="' + HM_H +
-      '" fill="' + token("stage", "#060a11") + '"/>',
+    '<rect x="0" y="0" width="' +
+      HM_W +
+      '" height="' +
+      HM_H +
+      '" fill="' +
+      token("stage", "#060a11") +
+      '"/>',
   );
 
   var peak = isNum(grid.max_value) ? grid.max_value : 0;
@@ -51699,47 +51723,74 @@ function drawHeatGrid(svg, grid, ramp, ariaLabel) {
       var y0 = ext.y_min + row * grid.cell_m;
       var t = peak > 0 ? v / peak : 0;
       out.push(
-        '<rect x="' + X(x0).toFixed(1) +
-          '" y="' + Y(y0 + grid.cell_m).toFixed(1) +
-          '" width="' + cellW.toFixed(1) +
-          '" height="' + cellH.toFixed(1) +
-          '" fill="' + heatRamp(ramp, t) +
-          '" fill-opacity="' + (0.10 + 0.85 * t).toFixed(2) + '"/>',
+        '<rect x="' +
+          X(x0).toFixed(1) +
+          '" y="' +
+          Y(y0 + grid.cell_m).toFixed(1) +
+          '" width="' +
+          cellW.toFixed(1) +
+          '" height="' +
+          cellH.toFixed(1) +
+          '" fill="' +
+          heatRamp(ramp, t) +
+          '" fill-opacity="' +
+          (0.1 + 0.85 * t).toFixed(2) +
+          '"/>',
       );
     }
   }
 
   /* Extent outline — explicitly a data frame, never a surveyed wall. */
   out.push(
-    '<rect x="' + X(ext.x_min).toFixed(1) +
-      '" y="' + Y(ext.y_max).toFixed(1) +
-      '" width="' + (spanX * scale).toFixed(1) +
-      '" height="' + (spanY * scale).toFixed(1) +
+    '<rect x="' +
+      X(ext.x_min).toFixed(1) +
+      '" y="' +
+      Y(ext.y_max).toFixed(1) +
+      '" width="' +
+      (spanX * scale).toFixed(1) +
+      '" height="' +
+      (spanY * scale).toFixed(1) +
       '" fill="none" stroke="#2f4258" stroke-width="1" stroke-dasharray="5 4"/>',
   );
 
   var st = map.warehouse || {};
   (st.waypoints || []).forEach(function (w) {
     out.push(
-      '<circle cx="' + X(w.x).toFixed(1) + '" cy="' + Y(w.y).toFixed(1) +
+      '<circle cx="' +
+        X(w.x).toFixed(1) +
+        '" cy="' +
+        Y(w.y).toFixed(1) +
         '" r="3.5" fill="none" stroke="#8fa3bd" stroke-width="1.5"/>',
     );
     out.push(
-      '<text x="' + (X(w.x) + 7).toFixed(1) + '" y="' + (Y(w.y) + 3).toFixed(1) +
+      '<text x="' +
+        (X(w.x) + 7).toFixed(1) +
+        '" y="' +
+        (Y(w.y) + 3).toFixed(1) +
         '" fill="#8fa3bd" font-size="11" font-family="system-ui, sans-serif">' +
-        esc(w.name || "") + "</text>",
+        esc(w.name || "") +
+        "</text>",
     );
   });
   if (map.robot) {
     out.push(
-      '<circle cx="' + X(map.robot.x).toFixed(1) + '" cy="' + Y(map.robot.y).toFixed(1) +
-        '" r="6" fill="' + token("accent", "#22d3ee") + '"/>',
+      '<circle cx="' +
+        X(map.robot.x).toFixed(1) +
+        '" cy="' +
+        Y(map.robot.y).toFixed(1) +
+        '" r="6" fill="' +
+        token("accent", "#22d3ee") +
+        '"/>',
     );
   }
   if (!drawn) {
     out.push(
-      '<text x="' + (HM_W / 2) + '" y="' + (HM_H / 2) +
-        '" fill="' + token("dim", "#64768c") +
+      '<text x="' +
+        HM_W / 2 +
+        '" y="' +
+        HM_H / 2 +
+        '" fill="' +
+        token("dim", "#64768c") +
         '" font-size="13" text-anchor="middle" font-family="system-ui, sans-serif">' +
         "no samples recorded</text>",
     );
@@ -51761,21 +51812,35 @@ function heatLegend(el, grid, ramp, unitWord) {
   for (var i = 0; i <= 4; i++) {
     var t = i / 4;
     swatch.push(
-      '<span class="hm-step" style="background:' + heatRamp(stops, t) +
-        ";opacity:" + (0.10 + 0.85 * t).toFixed(2) + '"></span>',
+      '<span class="hm-step" style="background:' +
+        heatRamp(stops, t) +
+        ";opacity:" +
+        (0.1 + 0.85 * t).toFixed(2) +
+        '"></span>',
     );
   }
   var bits = [
-    '<div class="hm-scale"><span class="hm-lab">0</span>' + swatch.join("") +
-      '<span class="hm-lab">' + na(peak, 0) + "</span></div>",
+    '<div class="hm-scale"><span class="hm-lab">0</span>' +
+      swatch.join("") +
+      '<span class="hm-lab">' +
+      na(peak, 0) +
+      "</span></div>",
     '<p class="hm-note">' + esc(unitWord) + "</p>",
     '<p class="hm-note">' + esc(grid.note || "") + "</p>",
-    '<p class="hm-note">samples ' + grid.samples +
-      " &middot; cells " + grid.cols + "&times;" + grid.rows +
-      " &middot; " + na(grid.cell_m, 2) + " m" +
+    '<p class="hm-note">samples ' +
+      grid.samples +
+      " &middot; cells " +
+      grid.cols +
+      "&times;" +
+      grid.rows +
+      " &middot; " +
+      na(grid.cell_m, 2) +
+      " m" +
       (grid.clipped ? " &middot; clipped " + grid.clipped : "") +
       (grid.unlocated ? " &middot; unlocated " + grid.unlocated : "") +
-      " &middot; " + esc(grid.source || "UNAVAILABLE") + "</p>",
+      " &middot; " +
+      esc(grid.source || "UNAVAILABLE") +
+      "</p>",
   ];
   el.innerHTML = bits.join("");
 }
@@ -51800,12 +51865,20 @@ function renderHeatmap(s) {
     trafficRamp,
     "Traffic density: path samples per cell, binned over the configured warehouse extent.",
   );
-  heatLegend($("hm-hazard-legend"), hazardGrid, hazardRamp,
-    "severity-weighted hazard events");
-  heatLegend($("hm-traffic-legend"), trafficGrid, trafficRamp,
-    "path samples (time spent, not distance)");
+  heatLegend(
+    $("hm-hazard-legend"),
+    hazardGrid,
+    hazardRamp,
+    "severity-weighted hazard events",
+  );
+  heatLegend(
+    $("hm-traffic-legend"),
+    trafficGrid,
+    trafficRamp,
+    "path samples (time spent, not distance)",
+  );
 
-  txt("hm-badge", hasAny ? (hz.source || "") : "NO DATA");
+  txt("hm-badge", hasAny ? hz.source || "" : "NO DATA");
   txt("hm-hazard-total", hazardGrid ? na(hazardGrid.total, 0) : "n/a");
   txt("hm-hazard-samples", hazardGrid ? String(hazardGrid.samples) : "n/a");
   txt("hm-traffic-samples", trafficGrid ? String(trafficGrid.samples) : "n/a");
@@ -71266,7 +71339,7 @@ __all__ = [
 ]
 ```
 
-### (root) — 
+### (root) —
 
 #### `showcase.html`
 
