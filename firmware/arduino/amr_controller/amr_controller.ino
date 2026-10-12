@@ -59,7 +59,7 @@ static String readLine() {
 // Low-level firmware drive state reported in STATUS.
 static const char* driveMode() {
   if (watchdogTripped) return "WATCHDOG";
-  if (MotorControl.anyMoving()) return "RUNNING";
+  if (MotorControl::anyMoving()) return "RUNNING";
   return "STOPPED";
 }
 
@@ -92,18 +92,18 @@ static void handleCommand(const String& line) {
     Serial.print(F("VERSION "));
     Serial.println(PROTOCOL_VERSION);
   } else if (r.isStop) {
-    MotorControl.stop();
+    MotorControl::stop();
     Serial.println(F("ACK STOP"));
   } else if (r.isStatus) {
     Serial.print(F("STATUS L="));
-    Serial.print(MotorControl.leftSpeed());
+    Serial.print(MotorControl::leftSpeed());
     Serial.print(F(" R="));
-    Serial.print(MotorControl.rightSpeed());
+    Serial.print(MotorControl::rightSpeed());
     Serial.print(F(" MODE="));
     Serial.println(driveMode());
   } else if (r.isSensor) {
-    Ultrasonic.readAll();
-    Serial.println(Ultrasonic.format());
+    Ultrasonic::readAll();
+    Serial.println(Ultrasonic::format());
   } else if (r.isEnv) {
     int t = -1, h = -1;
     Dht11::read(t, h);
@@ -127,7 +127,7 @@ static void handleCommand(const String& line) {
     Serial.print(F("ACK BUZZ "));
     Serial.println(r.buzzFreqHz);
   } else if (r.isMove) {
-    MotorControl.setBoth(r.left, r.right);
+    MotorControl::setBoth(r.left, r.right);
     Serial.print(F("ACK MOVE L="));
     Serial.print(r.left);
     Serial.print(F(" R="));
@@ -142,7 +142,7 @@ static void handleCommand(const String& line) {
       case 'R': l = 1;  rr = -1; break;
       case 'S': l = 0;  rr = 0;  break;
     }
-    MotorControl.setBoth(l, rr);
+    MotorControl::setBoth(l, rr);
     Serial.print(F("ACK "));
     Serial.println(r.legacyChar);
   } else if (r.isWdt) {
@@ -158,13 +158,13 @@ static void handleCommand(const String& line) {
 
 void setup() {
   Serial.begin(9600);
-  MotorControl.begin();          // safe (stopped) state
-  Ultrasonic.begin();
+  MotorControl::begin();          // safe (stopped) state
+  Ultrasonic::begin();
   // NOTE: thresholds normally come from config/safety.yaml on the Pi. The
   // firmware uses these defaults until a runtime config command is added.
   Ultrasonic::setThresholds(20, 15, 15, 20);
   Safety::begin(DEFAULT_WATCHDOG_MS);
-  MotorControl.stop();           // explicit safe state at boot
+  MotorControl::stop();           // explicit safe state at boot
 
   Dht11::begin();
   GasSensor::begin();
@@ -189,7 +189,7 @@ void loop() {
   // 2) Communication watchdog: stop if the Pi went silent.
   if (Safety::shouldStop(now)) {
     if (!watchdogTripped) {
-      MotorControl.stop();
+      MotorControl::stop();
       Buzzer::beepFor(2000, 500);   // audible alert on safety stop
       watchdogTripped = true;
       Serial.println(F("WATCHDOG TRIGGERED"));
@@ -199,10 +199,10 @@ void loop() {
 
   // 3) Sensors: poll, optional telemetry, Layer-1 hardware stop.
   if (Ultrasonic::pollDue(now)) {
-    Ultrasonic.readAll();
-    if (ULTRASONIC_TELEMETRY) Serial.println(Ultrasonic.format());
+    Ultrasonic::readAll();
+    if (ULTRASONIC_TELEMETRY) Serial.println(Ultrasonic::format());
     if (Ultrasonic::safetyStopNeeded()) {
-      MotorControl.stop();
+      MotorControl::stop();
     }
   }
 
