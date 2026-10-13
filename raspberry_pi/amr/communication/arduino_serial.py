@@ -73,6 +73,15 @@ class ArduinoSerialTransport:
     #: Every mock is instant, so no test could catch this — only hardware.
     DEFAULT_SETTLE_S = 2.0
 
+    #: Known Arduino USB (vid, pid) signatures, used only to *discover* the port
+    #: when the configured one is missing. The Uno CDC-ACM reports 2341:0043;
+    #: CH340-based clones report 1a86:7523. The stable /dev/serial/by-id symlink
+    #: is preferred over these because it does not change on re-enumeration.
+    _ARDUINO_SIGNATURES = (
+        (0x2341, 0x0043),  # Arduino UNO R3 (CDC ACM)
+        (0x1a86, 0x7523),  # CH340G (many "Uno" clones)
+    )
+
     def __init__(
         self,
         port: str,
@@ -86,12 +95,55 @@ class ArduinoSerialTransport:
         self._settle_s = settle_s
         self._ser = None
 
+    def _resolve_port(self) -> str:
+        """The port to open: the configured one, or a discovered Arduino.
+
+        The device node for a USB CDC Arduino is *not* stable — the board can
+        re-enumerate as ``/dev/ttyACM0`` one boot and ``/dev/ttyACM1`` the next
+        (observed on the real UNO, 2026-10-13). A hard-coded port then fails with
+        "No such file or directory" and the whole stack aborts at startup. So:
+        if the configured port exists, use it (config wins); otherwise discover
+        the Arduino, preferring the stable ``/dev/serial/by-id`` symlink and
+        falling back to a VID:PID match. This is read-only discovery — it opens
+        no port and toggles no pins.
+        """
+        import os
+
+        if os.path.exists(self._port):
+            return self._port
+
+        # 1) The stable by-id symlink: usb-Arduino_<serial> or usb-1a86_<serial>.
+        byid = "/dev/serial/by-id"
+        try:
+            for name in sorted(os.listdir(byid)):
+                if name.lower().startswith("usb-arduino") or \
+                   name.lower().startswith("usb-2341") or \
+                   name.lower().startswith("usb-1a86") or \
+                   "arduino" in name.lower():
+                    return os.path.join(byid, name)
+        except OSError:
+            pass
+
+        # 2) Match by the Arduino's USB VID:PID via pyserial's list_ports.
+        try:
+            import serial.tools.list_ports as lp
+
+            for cand in lp.comports():
+                if (cand.vid, cand.pid) in self._ARDUINO_SIGNATURES:
+                    return cand.device
+        except Exception:  # noqa: BLE001 - discovery is best-effort
+            pass
+
+        # 3) Nothing found: keep the configured port so the caller raises the
+        #    usual, actionable "could not open the controller link" error.
+        return self._port
+
     def open(self) -> None:
         import serial  # lazy import — optional dependency
 
         if self._ser is None:
             self._ser = serial.Serial(
-                self._port, self._baudrate, timeout=self._timeout
+                self._resolve_port(), self._baudrate, timeout=self._timeout
             )
             # Let the board finish rebooting before we speak to it, then drop
             # whatever it printed in the meantime (the `AMR FW READY` banner and

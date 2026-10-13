@@ -248,3 +248,80 @@ def test_ping_false_when_not_connected():
     s = ArduinoSerial(t, timeout=0.2)
     # Not opened -> ping must safely return False, not raise.
     assert s.ping() is False
+
+
+# --------------------------------------------------------------------------- #
+# Port auto-discovery — the device node is NOT stable across re-enumeration
+# --------------------------------------------------------------------------- #
+def _transport(port="/dev/ttyACM0"):
+    from amr.communication.arduino_serial import ArduinoSerialTransport
+    return ArduinoSerialTransport(port, baudrate=9600)
+
+
+def test_resolve_port_uses_configured_port_when_it_exists(monkeypatch):
+    """Config wins: if the configured port is present, no discovery happens."""
+    import os
+    monkeypatch.setattr(os.path, "exists", lambda p: p == "/dev/ttyACM0")
+    # Discovery must not even run — it would call listdir, which we make fail.
+    def _boom(*a, **k):
+        raise AssertionError("discovery must not run when the configured port exists")
+    monkeypatch.setattr(os, "listdir", _boom)
+    assert _transport("/dev/ttyACM0")._resolve_port() == "/dev/ttyACM0"
+
+
+def test_resolve_port_discovers_stable_byid_symlink(monkeypatch):
+    """Missing configured port -> prefer the stable /dev/serial/by-id symlink."""
+    import os
+    monkeypatch.setattr(os.path, "exists", lambda p: False)
+    monkeypatch.setattr(os, "listdir", lambda d: [
+        "usb-Arduino_043E000100013511903F",
+    ])
+    got = _transport("/dev/ttyACM0")._resolve_port()
+    assert got == "/dev/serial/by-id/usb-Arduino_043E000100013511903F"
+
+
+def _fake_list_ports(monkeypatch, ports):
+    """Seed a fake ``serial.tools.list_ports`` into sys.modules.
+
+    pyserial is an optional dependency and is NOT installed in the hardware-free
+    test environment, so the discovery test must not import the real thing.
+    ``import serial.tools.list_ports`` resolves these sys.modules entries.
+    """
+    import sys
+    import types
+
+    serial_mod = types.ModuleType("serial")
+    tools_mod = types.ModuleType("serial.tools")
+    lp_mod = types.ModuleType("serial.tools.list_ports")
+
+    class _Port:
+        def __init__(self, vid, pid, device):
+            self.vid, self.pid, self.device = vid, pid, device
+
+    lp_mod.comports = lambda: [
+        _Port(vid, pid, dev) for (vid, pid, dev) in ports
+    ]
+    monkeypatch.setitem(sys.modules, "serial", serial_mod)
+    monkeypatch.setitem(sys.modules, "serial.tools", tools_mod)
+    monkeypatch.setitem(sys.modules, "serial.tools.list_ports", lp_mod)
+
+
+def test_resolve_port_falls_back_to_vid_pid(monkeypatch):
+    """No by-id symlink -> match by the Arduino's USB signature."""
+    import os
+    monkeypatch.setattr(os.path, "exists", lambda p: False)
+    monkeypatch.setattr(os, "listdir", lambda d: [])  # no by-id entries
+    # A CH340 clone at ttyACM1, plus an unrelated device that must be ignored.
+    _fake_list_ports(monkeypatch, [(0x1a86, 0x7523, "/dev/ttyACM1"),
+                                    (0x0451, 0x16a8, "/dev/ttyUSB9")])
+    assert _transport("/dev/ttyACM0")._resolve_port() == "/dev/ttyACM1"
+
+
+def test_resolve_port_returns_configured_when_nothing_found(monkeypatch):
+    """Nothing discoverable -> keep the configured port so the caller raises
+    the usual, actionable 'could not open the controller link' error."""
+    import os
+    monkeypatch.setattr(os.path, "exists", lambda p: False)
+    monkeypatch.setattr(os, "listdir", lambda d: [])
+    _fake_list_ports(monkeypatch, [])
+    assert _transport("/dev/ttyACM0")._resolve_port() == "/dev/ttyACM0"
