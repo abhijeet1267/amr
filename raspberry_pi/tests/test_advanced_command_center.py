@@ -54,7 +54,13 @@ def _tele(**over):
     return base
 
 
-_THRESH = {"front_stop_cm": 20, "front_caution_cm": 40, "valid_max_cm": 400}
+# Per-face stop thresholds, matching config/safety.yaml. The dashboard must
+# classify with these (not a single global number), and the caution band is
+# CAUTION_FACTOR * stop_cm — the same rule the SafetyManager applies.
+_THRESH = {
+    "front_stop_cm": 20, "left_stop_cm": 15, "right_stop_cm": 15, "rear_stop_cm": 20,
+    "valid_max_cm": 400,
+}
 _ENV = {"gas_pin": None, "lcd_i2c_address": 0x27, "buzzer_pin": "A0"}
 
 
@@ -111,19 +117,112 @@ class TestHardwareInventory:
         assert batt.value is None
         assert batt.status is ComponentStatus.UNAVAILABLE
 
-    def test_ultrasonic_classification_uses_thresholds(self):
+    def test_ultrasonic_classification_uses_per_face_thresholds(self):
+        # Per-face bands: <stop -> TOO_CLOSE, stop<=v<2*stop -> CAUTION, else CLEAR.
+        # front_stop=20 (band 20-40), right_stop=15 (band 15-30).
         inv = build_hardware_inventory(_tele(), thresholds=_THRESH, env_config=_ENV)
-        assert _by_id(inv, "us_front").classification == "CLEAR"     # 195 cm
-        assert _by_id(inv, "us_right").classification == "CAUTION"   # 52 cm
-        # A near front reading is TOO_CLOSE.
+        assert _by_id(inv, "us_front").classification == "CLEAR"   # 195 cm, well clear
+        assert _by_id(inv, "us_right").classification == "CLEAR"   # 52 cm, clear of band 30
+
+        # A front reading inside its caution band (20..40) -> CAUTION.
         inv2 = build_hardware_inventory(
+            _tele(sensors={"front_cm": 30, "left_cm": 200, "right_cm": 200,
+                            "rear_cm": 200, "temperature_c": None,
+                            "humidity_pct": None, "gas_raw": None,
+                            "source": "LIVE"}),
+            thresholds=_THRESH, env_config=_ENV,
+        )
+        assert _by_id(inv2, "us_front").classification == "CAUTION"
+
+        # A front reading below the stop distance -> TOO_CLOSE.
+        inv3 = build_hardware_inventory(
             _tele(sensors={"front_cm": 10, "left_cm": 200, "right_cm": 200,
                             "rear_cm": 200, "temperature_c": None,
                             "humidity_pct": None, "gas_raw": None,
                             "source": "LIVE"}),
             thresholds=_THRESH, env_config=_ENV,
         )
-        assert _by_id(inv2, "us_front").classification == "TOO_CLOSE"
+        assert _by_id(inv3, "us_front").classification == "TOO_CLOSE"
+
+    def test_dashboard_classification_matches_the_safety_manager(self):
+        """The dashboard's per-face classification must agree with the robot's
+        own SafetyManager for the same reading.
+
+        This is the regression that motivated the per-face fix: a single global
+        threshold would classify differently from the SafetyManager, which uses
+        per-face stop distances and a CAUTION_FACTOR * stop caution band.
+        """
+        from amr.safety import SafetyAction, SafetyManager
+        from amr.sensors import UltrasonicReading
+        from amr.utils.config import SafetyConfig
+
+        cfg = SafetyConfig()  # front/rear 20, left/right 15
+        mgr = SafetyManager(cfg)
+
+        def dashboard_class(dist):
+            inv = build_hardware_inventory(
+                _tele(sensors={"front_cm": dist, "left_cm": dist,
+                                "right_cm": dist, "rear_cm": dist,
+                                "temperature_c": None, "humidity_pct": None,
+                                "gas_raw": None, "source": "LIVE"}),
+                thresholds={
+                    "front_stop_cm": cfg.front_stop_distance_cm,
+                    "left_stop_cm": cfg.left_stop_distance_cm,
+                    "right_stop_cm": cfg.right_stop_distance_cm,
+                    "rear_stop_cm": cfg.rear_stop_distance_cm,
+                    "valid_max_cm": cfg.sensor_max_valid_cm,
+                },
+                env_config=_ENV,
+            )
+            return {c.id: c.classification for c in inv.components}
+
+        # 100 cm on all faces: SafetyManager -> PROCEED; dashboard -> all CLEAR.
+        reading = UltrasonicReading(front=100, left=100, right=100, rear=100)
+        assert mgr.check(reading, connected=True).action is SafetyAction.PROCEED
+        classes = dashboard_class(100)
+        assert classes["us_front"] == "CLEAR" and classes["us_rear"] == "CLEAR"
+        assert classes["us_left"] == "CLEAR" and classes["us_right"] == "CLEAR"
+
+        # Front 15 cm: SafetyManager -> STOP (front < 20). Dashboard front
+        # -> TOO_CLOSE; other faces (15cm) are at their own stop boundary.
+        reading2 = UltrasonicReading(front=15, left=100, right=100, rear=100)
+        assert mgr.check(reading2, connected=True).action is SafetyAction.STOP
+        classes2 = build_hardware_inventory(
+            _tele(sensors={"front_cm": 15, "left_cm": 100, "right_cm": 100,
+                            "rear_cm": 100, "temperature_c": None,
+                            "humidity_pct": None, "gas_raw": None,
+                            "source": "LIVE"}),
+            thresholds={
+                "front_stop_cm": cfg.front_stop_distance_cm,
+                "left_stop_cm": cfg.left_stop_distance_cm,
+                "right_stop_cm": cfg.right_stop_distance_cm,
+                "rear_stop_cm": cfg.rear_stop_distance_cm,
+                "valid_max_cm": cfg.sensor_max_valid_cm,
+            },
+            env_config=_ENV,
+        )
+        assert _by_id(classes2, "us_front").classification == "TOO_CLOSE"
+
+        # Front 35 cm: SafetyManager -> WAIT (20 <= 35 < 40 = 2*20). Dashboard
+        # front -> CAUTION. This is the band that differs from a naive
+        # "below 40 = obstacle" and must match the manager's WAIT.
+        reading3 = UltrasonicReading(front=35, left=200, right=200, rear=200)
+        assert mgr.check(reading3, connected=True).action is SafetyAction.WAIT
+        classes3 = build_hardware_inventory(
+            _tele(sensors={"front_cm": 35, "left_cm": 200, "right_cm": 200,
+                            "rear_cm": 200, "temperature_c": None,
+                            "humidity_pct": None, "gas_raw": None,
+                            "source": "LIVE"}),
+            thresholds={
+                "front_stop_cm": cfg.front_stop_distance_cm,
+                "left_stop_cm": cfg.left_stop_distance_cm,
+                "right_stop_cm": cfg.right_stop_distance_cm,
+                "rear_stop_cm": cfg.rear_stop_distance_cm,
+                "valid_max_cm": cfg.sensor_max_valid_cm,
+            },
+            env_config=_ENV,
+        )
+        assert _by_id(classes3, "us_front").classification == "CAUTION"
 
     def test_no_echo_is_not_an_obstacle(self):
         """A None reading is NO_ECHO, never an obstacle or a 0."""

@@ -22,6 +22,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+# Reuse the robot's own caution multiplier so the dashboard's classification is
+# the SAME rule the SafetyManager applies, not a second, divergent guess.
+from ..safety.safety_manager import CAUTION_FACTOR
+
 
 class ComponentStatus(str, Enum):
     """The states a dashboard component card can show.
@@ -146,16 +150,23 @@ def _ultrasonic_class(
     value: Optional[int],
     *,
     stop_cm: Optional[int],
-    caution_cm: Optional[int],
     valid_max_cm: Optional[int],
     stale,
 ) -> UltrasonicClass:
-    """Classify one ultrasonic reading for display.
+    """Classify one ultrasonic reading for display, **per face**.
 
-    ``None`` -> NO_ECHO (clear / not present), which is *not* an obstacle.
-    Thresholds come from the safety config when present, otherwise from
-    documented dashboard defaults. This is display only — the real stop logic
-    stays in ``amr.safety`` / the firmware.
+    The bands mirror :class:`amr.safety.safety_manager.SafetyManager._check_base`
+    exactly, so what the operator sees is what the robot actually acts on:
+
+    * ``value < stop_cm``            -> TOO_CLOSE  (the real STOP band)
+    * ``stop_cm <= value < CAUTION_FACTOR * stop_cm`` -> CAUTION  (the real WAIT
+      band)
+    * otherwise -> CLEAR
+
+    ``None`` -> NO_ECHO (clear / not present), which is *not* an obstacle and is
+    never a 0-distance. A reading above the configured valid window is
+    OUT_OF_RANGE. This is display only — the real stop logic stays in
+    ``amr.safety`` / the firmware; the numbers are the *same* numbers.
     """
     if value is None:
         return UltrasonicClass.NO_ECHO
@@ -163,13 +174,11 @@ def _ultrasonic_class(
         return UltrasonicClass.STALE
     if valid_max_cm is not None and value > valid_max_cm:
         return UltrasonicClass.OUT_OF_RANGE
-    if stop_cm is not None and value < stop_cm:
-        return UltrasonicClass.TOO_CLOSE
-    if caution_cm is not None and value < caution_cm:
-        return UltrasonicClass.OBSTACLE
-    # A softer caution band just beyond the obstacle threshold.
-    if caution_cm is not None and value < 2 * caution_cm:
-        return UltrasonicClass.CAUTION
+    if stop_cm is not None:
+        if value < stop_cm:
+            return UltrasonicClass.TOO_CLOSE
+        if value < CAUTION_FACTOR * stop_cm:
+            return UltrasonicClass.CAUTION
     return UltrasonicClass.CLEAR
 
 
@@ -205,8 +214,13 @@ def build_hardware_inventory(
         now = t.get("timestamp")
 
     th = thresholds or {}
-    stop_cm = th.get("front_stop_cm")
-    caution_cm = th.get("front_caution_cm")
+    # Per-face stop thresholds, mirroring the safety manager exactly. The
+    # caution band is CAUTION_FACTOR * stop_cm, the same factor the SafetyManager
+    # uses for its WAIT band — so the dashboard and the robot agree.
+    stop_by_face = {
+        face: th.get(f"{face}_stop_cm")
+        for face in ("front", "left", "right", "rear")
+    }
     valid_max_cm = th.get("valid_max_cm")
 
     components: List[Component] = []
@@ -290,7 +304,7 @@ def build_hardware_inventory(
             status = ComponentStatus.CONFIGURED
             src = "UNAVAILABLE"
         klass = _ultrasonic_class(
-            value, stop_cm=stop_cm, caution_cm=caution_cm,
+            value, stop_cm=stop_by_face.get(face),
             valid_max_cm=valid_max_cm, stale=False,
         )
         components.append(Component(

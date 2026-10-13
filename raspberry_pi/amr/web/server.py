@@ -622,14 +622,18 @@ class AMRWebApp:
         self._alerts = AlertEngine(maxlen=200, stale_after_s=10.0)
         self._alerts_state: Dict[str, Any] = self._alerts.to_dict()
         # Display-only ultrasonic thresholds for the hardware grid. Taken from
-        # the safety config (the same numbers the real stop logic uses), so the
-        # dashboard classification is never a second, divergent set of numbers.
+        # the safety config (the same numbers the real stop logic uses) so the
+        # dashboard's per-face classification is never a second, divergent set
+        # of numbers. The caution band is derived from these stop distances by
+        # CAUTION_FACTOR in hardware.py, exactly as SafetyManager does.
         _safe = getattr(getattr(mgr, "_config", None), "safety", None)
         self._us_thresholds: Dict[str, int] = {}
         if _safe is not None:
             self._us_thresholds = {
                 "front_stop_cm": int(getattr(_safe, "front_stop_distance_cm", 20)),
-                "front_caution_cm": int(getattr(_safe, "left_stop_distance_cm", 15)),
+                "left_stop_cm": int(getattr(_safe, "left_stop_distance_cm", 15)),
+                "right_stop_cm": int(getattr(_safe, "right_stop_distance_cm", 15)),
+                "rear_stop_cm": int(getattr(_safe, "rear_stop_distance_cm", 20)),
                 "valid_max_cm": int(getattr(_safe, "sensor_max_valid_cm", 400)),
             }
         _env_cfg = getattr(getattr(mgr, "_config", None), "robot", None)

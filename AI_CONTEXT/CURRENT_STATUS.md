@@ -31,10 +31,10 @@ those are installed and skip gracefully otherwise. They are the only conditional
 tests.
 
 Per-file test counts (regenerated from `pytest --collect-only -q` — 41 files,
-1643 tests: 1641 run + 2 skipped):
+1678 tests: 1676 run + 2 skipped):
 
 ```
-test_advanced_command_center.py 34    test_mode_controller.py        13
+test_advanced_command_center.py 35    test_mode_controller.py        13
 test_app_registry.py           46
 test_applications_hub.py       27    test_motor_controller.py       21
 test_auto_record.py            27    test_navigation.py             50
