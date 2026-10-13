@@ -92,6 +92,10 @@ from ..telemetry.auto_record import AutoRecorder
 from ..telemetry.replay_control import RecordingStore, ReplayController
 from ..telemetry.series import CommandCenterHistory
 from ..telemetry.types import DataSource
+from ..telemetry.hardware import build_hardware_inventory
+from ..telemetry.command_log import CommandLog
+from ..telemetry.alerts import AlertEngine
+from ..telemetry.lcd_state import build_lcd_state
 
 # C15c — the Command Center's front-end assets. They live as real files (not
 # embedded Python strings, as the legacy dashboard does) because they are large,
@@ -566,6 +570,11 @@ class AMRWebApp:
         self._server: Optional[ThreadingHTTPServer] = None
         self._threads: list = []
         self.log = get_logger("web")
+        # Whether this app runs a simulated robot. Recorded so the command log
+        # can label each command's execution environment (SIMULATION vs
+        # HARDWARE) instead of a command from the web UI being mistaken for a
+        # physical action.
+        self._simulated_flag = bool(simulated)
         # Read-only projection of this same manager for the C7 dashboard. It is
         # built here (rather than required from the caller) so the web app can
         # never be wired to a different runtime than the one it controls, and
@@ -604,6 +613,34 @@ class AMRWebApp:
         )
         self.log.info("applications hub: %d interfaces registered",
                       len(self._applications))
+
+        # Advanced Command Center projections. These are read-only (or, for the
+        # command log, a record-keeping side effect of dispatch) and ride on the
+        # existing control loop and single /dashboard/state request — no second
+        # data path, no second thread.
+        self._commands = CommandLog(maxlen=200)
+        self._alerts = AlertEngine(maxlen=200, stale_after_s=10.0)
+        self._alerts_state: Dict[str, Any] = self._alerts.to_dict()
+        # Display-only ultrasonic thresholds for the hardware grid. Taken from
+        # the safety config (the same numbers the real stop logic uses), so the
+        # dashboard classification is never a second, divergent set of numbers.
+        _safe = getattr(getattr(mgr, "_config", None), "safety", None)
+        self._us_thresholds: Dict[str, int] = {}
+        if _safe is not None:
+            self._us_thresholds = {
+                "front_stop_cm": int(getattr(_safe, "front_stop_distance_cm", 20)),
+                "front_caution_cm": int(getattr(_safe, "left_stop_distance_cm", 15)),
+                "valid_max_cm": int(getattr(_safe, "sensor_max_valid_cm", 400)),
+            }
+        _env_cfg = getattr(getattr(mgr, "_config", None), "robot", None)
+        _env = getattr(_env_cfg, "environment", None) if _env_cfg else None
+        self._env_config: Dict[str, Any] = {}
+        if _env is not None:
+            self._env_config = {
+                "gas_pin": getattr(_env, "gas_pin", None),
+                "lcd_i2c_address": getattr(_env, "lcd_i2c_address", 0x27),
+                "buzzer_pin": getattr(_env, "buzzer_pin", None),
+            }
 
     # ------------------------------------------------------------------ #
     # Lifecycle
@@ -716,6 +753,14 @@ class AMRWebApp:
                                       self.telemetry.health())
             except Exception as exc:  # noqa: BLE001 - history is optional
                 self.log.warning("command-center history failed: %s", exc)
+            # Reconcile the alert set against the authoritative snapshot on this
+            # loop, so alerts reflect the latest telemetry even when the browser
+            # is not polling. ``console_state`` reads the stored result rather
+            # than re-polling, so there is exactly one reconcile per tick.
+            try:
+                self._alerts_state = self._alerts.poll(self.telemetry.snapshot())
+            except Exception as exc:  # noqa: BLE001 - alerts are advisory
+                self.log.warning("alert reconcile failed: %s", exc)
 
     # ------------------------------------------------------------------ #
     # Handler-facing API (all serialised by the lock)
@@ -1010,6 +1055,94 @@ class AMRWebApp:
         events = hazard.events.history() if hazard is not None else ()
         return build_heatmap_state(snapshot, events).to_dict()
 
+    def _io_state(self) -> dict:
+        """Read-only engineering I/O panel, derived from config + state.
+
+        The Pi itself does not own these pins — the Arduino does — so this is a
+        *configuration + logical-state* view, not a live pin read. It shows what
+        each interface is configured for and, where the runtime reports it, the
+        current logical state. It never probes a pin, toggles anything, or
+        re-initialises a driver.
+
+        A requested motor speed is labelled as requested, not measured — the
+        runtime has no tachometer, so "requested" and "measured" are not
+        conflated.
+        """
+        env = self._env_config
+        connected = bool(self._mgr.state.connected)
+        state = self._mgr.state
+
+        # Digital / PWM outputs: the L298N enable pins and the buzzer.
+        # The only honest values are the configured pins and the current
+        # commanded state; a physical HIGH/LOW is not readable from the Pi.
+        def _pin_row(pid, name, function, configured, live_value=None):
+            return {
+                "id": pid, "name": name, "function": function,
+                "direction": "output",
+                "configured": configured,
+                "state": live_value,
+                "simulated": self._simulated_flag,
+                "connected": connected,
+            }
+
+        outputs = [
+            _pin_row("ena", "Left enable (speed)", "motor_enable", "D10"),
+            _pin_row("enb", "Right enable (speed)", "motor_enable", "D11"),
+            _pin_row("in1", "Left forward", "motor_dir", "D12"),
+            _pin_row("in2", "Left reverse", "motor_dir", "D13"),
+            _pin_row("in3", "Right forward", "motor_dir", "A3"),
+            _pin_row("in4", "Right reverse", "motor_dir", "A2"),
+            _pin_row("buzzer", "Buzzer", "audio", env.get("buzzer_pin")),
+        ]
+
+        sensors = [
+            {"id": "us_front", "name": "Ultrasonic front", "function": "range",
+             "direction": "input", "pins": "D2/D3",
+             "value": state.front_cm, "unit": "cm"},
+            {"id": "us_left", "name": "Ultrasonic left", "function": "range",
+             "direction": "input", "pins": "D4/D5",
+             "value": state.left_cm, "unit": "cm"},
+            {"id": "us_right", "name": "Ultrasonic right", "function": "range",
+             "direction": "input", "pins": "D6/D7",
+             "value": state.right_cm, "unit": "cm"},
+            {"id": "us_rear", "name": "Ultrasonic rear", "function": "range",
+             "direction": "input", "pins": "D8/D9",
+             "value": state.rear_cm, "unit": "cm"},
+            {"id": "dht11", "name": "DHT11", "function": "temp/rh",
+             "direction": "input", "pins": env.get("dht11_data") or "A1",
+             "value": None, "unit": "°C/%RH"},
+            {"id": "gas", "name": "MQ gas (AO)", "function": "analog",
+             "direction": "input", "pins": env.get("gas_pin") or "unassigned",
+             "value": None, "unit": "raw"},
+        ]
+
+        comms = [
+            {"id": "usb", "name": "USB serial (Pi↔Arduino)", "baud": 9600,
+             "port": "/dev/ttyACM0", "connected": connected},
+            {"id": "i2c", "name": "I2C (LCD)", "address": (
+                f"0x{env['lcd_i2c_address']:02X}"
+                if isinstance(env.get("lcd_i2c_address"), int) else None),
+             "pins": "A4/A5", "connected": connected},
+        ]
+
+        # Motor requested speeds — explicitly requested, not measured.
+        motors = {
+            "requested_left": state.left_speed,
+            "requested_right": state.right_speed,
+            "note": "Requested PWM; no tachometer, so not a measured speed.",
+            "is_moving": state.is_moving,
+        }
+
+        return {
+            "outputs": outputs,
+            "sensors": sensors,
+            "comms": comms,
+            "motors": motors,
+            "note": "Configuration and logical state. The Arduino owns the pins; "
+                    "this panel does not read or toggle them.",
+            "simulated": self._simulated_flag,
+        }
+
     # ------------------------------------------------------------------ #
     # C7 — read-only telemetry projection (no motor path whatsoever)
     # ------------------------------------------------------------------ #
@@ -1070,6 +1203,35 @@ class AMRWebApp:
             state["ops"] = build_ops_state(
                 state, history=state["history"], replay=state["replay"],
                 recording=state["recording"], tick_hz=self._tick_hz)
+            # Advanced Command Center: hardware inventory, command log, alerts,
+            # and the LCD mirror. All derived from the snapshot just assembled —
+            # no second data path. The alert engine is reconciled here against
+            # the fresh snapshot (and on every tick), so the alert set always
+            # reflects the latest telemetry.
+            state["hardware"] = build_hardware_inventory(
+                snapshot,
+                env_config=self._env_config,
+                thresholds=self._us_thresholds,
+            ).to_dict()
+            state["commands"] = self._commands.to_dict(limit=50)
+            # Alerts are reconciled in the control loop (see _tick_once); read
+            # the stored result so this request does not re-poll a second time.
+            state["alerts"] = self._alerts_state
+            # Last *accepted* command label, for the LCD's row 1 (only when there
+            # is no higher-priority safety/hazard message). A rejected command
+            # must not be displayed as "the current command".
+            last_cmd = None
+            for rec in self._commands.latest(10):
+                if rec.state.value == "SUCCEEDED":
+                    last_cmd = rec.command
+                    break
+            state["lcd"] = build_lcd_state(
+                snapshot,
+                connected=bool(self._env_config.get("lcd_i2c_address") is not None),
+                address=self._env_config.get("lcd_i2c_address") or 0x27,
+                command_label=last_cmd,
+            ).to_dict()
+            state["io"] = self._io_state()
             return state
 
     def health(self) -> Tuple[dict, int]:
@@ -1193,6 +1355,18 @@ class AMRWebApp:
                 "hazard": self._hazard_payload(),
             }, 200
 
+    def acknowledge_alert(self, alert_id: str) -> bool:
+        """Acknowledge a dashboard alert by id.
+
+        Flagging only: it never resolves the alert or clears the condition. A
+        rule that is still firing will re-activate the alert on the next poll,
+        so an operator cannot "close" a live fault by clicking Acknowledge. A
+        physical safety alert (``clearable_by_user: False``) is additionally
+        never removed — only the underlying safety subsystem resolves it.
+        Returns ``False`` when no such alert exists.
+        """
+        return self._alerts.acknowledge(alert_id)
+
     def _hazard_payload(self) -> dict:
         """Build the ``GET /hazard`` body (caller must hold the lock).
 
@@ -1296,46 +1470,88 @@ class AMRWebApp:
         return payload
 
     def dispatch(self, payload: dict) -> Tuple[dict, int]:
-        """Execute one command through the gated manager API."""
+        """Execute one command through the gated manager API.
+
+        Every command is also recorded in the bounded :class:`CommandLog` so the
+        dashboard can show its lifecycle. A command's recorded state reflects
+        *evidence*, not an assumption: ``SUCCEEDED`` means the backend
+        acknowledged it; for motion we additionally set ``executed`` only when
+        the robot's own state confirms it began moving. A 200 never, by itself,
+        claims a wheel turned.
+        """
         cmd = str(payload.get("cmd", "")).lower()
-        with self._lock:
-            try:
+        env = "SIMULATION" if getattr(self, "_simulated_flag", False) else "HARDWARE"
+        record = self._commands.create(cmd, payload or {}, environment=env)
+        command_id = record.command_id
+        self._commands.mark_validated(command_id)
+
+        # The gated manager calls happen under the app lock, exactly as before.
+        # Log state transitions are recorded around them; the log is itself a
+        # bounded structure with its own internal ordering, so it does not need
+        # the app lock (and holding it here too would deadlock on a non-
+        # reentrant Lock).
+        try:
+            with self._lock:
                 if cmd == "estop":
                     self._mgr.estop()
-                    return {"ok": True, "mode": self._mgr.state.mode.value}, 200
+                    body = {"ok": True, "mode": self._mgr.state.mode.value,
+                            "command_id": command_id}
+                    self._commands.mark_succeeded(command_id, body,
+                                                  robot_mode_after=body["mode"])
+                    return body, 200
 
                 if cmd == "stop":
                     self._mgr.stop()
-                    return {"ok": True}, 200
+                    body = {"ok": True, "command_id": command_id}
+                    self._commands.mark_succeeded(command_id, body)
+                    return body, 200
 
                 if cmd == "mode":
                     # Accept case-insensitively ("manual" and "MANUAL").
                     target = RobotMode(str(payload.get("mode", "")).upper())
                     mode = self._mgr.request_mode(target)
-                    return {"ok": True, "mode": mode.value}, 200
+                    body = {"ok": True, "mode": mode.value,
+                            "command_id": command_id}
+                    self._commands.mark_succeeded(command_id, body,
+                                                  robot_mode_after=mode.value)
+                    return body, 200
 
                 if cmd in _MOTION:
                     speed = int(payload.get("speed", _MOTION[cmd]))
                     max_speed = self._mgr.drive.max_speed
                     if not (1 <= speed <= max_speed):
-                        return {
-                            "ok": False,
-                            "error": (
-                                f"speed {speed} out of range [1, {max_speed}]"
-                            ),
-                        }, 400
+                        body = {"ok": False, "error": (
+                            f"speed {speed} out of range [1, {max_speed}]")}
+                        self._commands.mark_rejected(command_id, body["error"],
+                                                      body)
+                        return body, 400
                     getattr(self._mgr, cmd)(speed)
-                    return {"ok": True, "cmd": cmd}, 200
+                    body = {"ok": True, "cmd": cmd, "command_id": command_id}
+                    # A motion command the gate accepted: report the robot's own
+                    # state as `executed` (None when it does not confirm), never
+                    # an assumed True.
+                    self._commands.mark_succeeded(
+                        command_id, body,
+                        executed=bool(self._mgr.state.is_moving))
+                    return body, 200
 
-                return {"ok": False, "error": f"unknown command: {cmd}"}, 400
+                body = {"ok": False, "error": f"unknown command: {cmd}"}
+                self._commands.mark_rejected(command_id, body["error"], body)
+                return body, 400
 
-            except RobotCommandError as exc:
-                return {"ok": False, "error": str(exc)}, 400
-            except (KeyError, ValueError, TypeError) as exc:
-                return {"ok": False, "error": f"bad payload: {exc}"}, 400
-            except Exception as exc:  # noqa: BLE001
-                self.log.error("command %s failed: %s", cmd, exc)
-                return {"ok": False, "error": str(exc)}, 500
+        except RobotCommandError as exc:
+            body = {"ok": False, "error": str(exc)}
+            self._commands.mark_rejected(command_id, str(exc), body)
+            return body, 400
+        except (KeyError, ValueError, TypeError) as exc:
+            body = {"ok": False, "error": f"bad payload: {exc}"}
+            self._commands.mark_rejected(command_id, str(exc), body)
+            return body, 400
+        except Exception as exc:  # noqa: BLE001
+            self.log.error("command %s failed: %s", cmd, exc)
+            body = {"ok": False, "error": str(exc)}
+            self._commands.mark_failed(command_id, str(exc))
+            return body, 500
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -1633,6 +1849,27 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             result, code = self.app.acknowledge_hazard()
             self._send_json(result, code)
+            return
+        if path == "/alerts/acknowledge":
+            # Body must carry the alert_id. Acknowledging is a flag only — it
+            # never removes the alert or the underlying condition (see the
+            # AlertEngine: a still-firing rule re-activates on the next poll).
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length) if length else b""
+                payload = json.loads(raw.decode("utf-8")) if raw else {}
+                if not isinstance(payload, dict):
+                    raise ValueError("payload must be a JSON object")
+            except (ValueError, UnicodeDecodeError) as exc:
+                self._send_json({"ok": False, "error": f"bad JSON: {exc}"}, 400)
+                return
+            alert_id = str(payload.get("alert_id", ""))
+            if not alert_id:
+                self._send_json({"ok": False, "error": "alert_id is required"}, 400)
+                return
+            ok = self.app.acknowledge_alert(alert_id)
+            self._send_json({"ok": ok, "acknowledged": ok},
+                            200 if ok else 404)
             return
         if self.path != "/command":
             self._send_json({"error": "not found"}, 404)

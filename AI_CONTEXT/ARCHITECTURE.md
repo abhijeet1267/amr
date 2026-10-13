@@ -50,7 +50,7 @@ Each layer depends only on the layers below it.
 | 2   | `amr.control`       | Motor driver + differential-drive vocabulary                             | `MotorDriver`, `ArduinoMotorDriver`, `DifferentialDrive`, `clamp_speed`                                      |
 | 3   | `amr.safety`        | Deterministic proximity policy                                           | `SafetyManager`, `SafetyDecision`, `SafetyAction`                                                            |
 | 3.5 | `amr.hazard`        | Context-aware multi-hazard aggregation + read-side spatial visualisation | `HazardManager`, `HazardSource`, `HazardState`, `HazardEventLog`, `render_map_svg`                           |
-| 4   | `amr.sensors`       | Ultrasonic + environment read + validation                               | `UltrasonicManager`, `UltrasonicReading`, `EnvironmentManager`, `EnvironmentReading`                       |
+| 4   | `amr.sensors`       | Ultrasonic + environment read + validation                               | `UltrasonicManager`, `UltrasonicReading`, `EnvironmentManager`, `EnvironmentReading`                         |
 | 5   | `amr.robot`         | The gated runtime owner                                                  | `RobotManager`, `RobotState`, `ModeController`, `RobotMode`                                                  |
 | 6   | `amr.camera`        | Camera facade (libcamera / V4L2 / mock)                                  | `CameraManager`                                                                                              |
 | 7   | `amr.navigation`    | Odometry + waypoint planning                                             | `Navigator`, `LocalNavigator`, `Pose`, `Goal`, `NavResult`                                                   |
@@ -189,8 +189,18 @@ authentication** (single-operator LAN tool — never expose the port).
 `GET /telemetry` · `GET /health` · `GET /map` · `GET /map.svg` ·
 `GET /dashboard` · `POST /command` (`estop`, `stop`, `mode`,
 drive commands) · `POST /hazard/acknowledge` (step 1 of the two-step
-emergency release — never resets the robot mode). `estop`/`stop` are never
-gated. Details: `docs/web_control.md`.
+emergency release — never resets the robot mode) · `POST /alerts/acknowledge`
+(Advanced Command Center: flag a dashboard alert acknowledged — a flag, not a
+cure; never moves the robot or clears a physical fault). `estop`/`stop` are
+never gated. Details: `docs/web_control.md`.
+
+`GET /dashboard/state` (the one read-only console payload) carries, in addition
+to the C7/C9/C10/C19/C5e sections, the **Advanced Command Center** blocks
+`hardware` (component inventory with real connection state), `commands`
+(execution log + lifecycle), `alerts` (warning/fault center), `lcd` (intended
+display content — never claimed confirmed), and `io` (Arduino I/O config +
+logical state). All are read-only projections of the same runtime; none adds a
+request, a timer, or a second data path. See `docs/command_center.md`.
 
 ---
 

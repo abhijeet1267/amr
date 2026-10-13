@@ -233,3 +233,171 @@ reference.
 - **A static grep cannot confirm a runtime-filled badge.** The
   `SIMULATION` badge is populated by JavaScript from live state, so it does
   not appear in the served HTML. It has to be checked after render.
+
+---
+
+---
+
+# Advanced Command Center upgrade (2026-10-13)
+
+This section records the advanced upgrade layered on top of the C15c console:
+a hardware status grid, live ultrasonic monitor, command execution history, an
+LCD display mirror, an I/O panel, and a warning/fault center. It is the source
+of truth for how those work.
+
+> **Honesty rule.** Where something is simulated, not connected, or not verified
+> on hardware, this says so. Nothing here upgrades a mock reading into a physical
+> one.
+
+## Architecture
+
+The advanced panels extend the existing single-read-only-poll design. They add
+**no request and no timer** — each reads a new block from the same
+`/dashboard/state` payload:
+
+```
+   GET /dashboard/state  (one request, 1 Hz)
+     existing: telemetry, map, twin, heatmap, ops, history, replay, recording
+     new:      hardware, commands, alerts, lcd, io
+```
+
+- One poll. The page still uses exactly two `setInterval`s (one poll, one
+  file-list) — a tested invariant.
+- Read-only console. Submission stays on the control panel (`/`), the sole
+  actuator path. A test fails if the console JS calls `forward(`, `estop(`,
+  `"/command"`, `pwm`, or `gpio`.
+- Modular renderers: `renderHardware`, `renderUsMonitor`, `renderCommandHistory`,
+  `renderLcd`, `renderIo`, `renderAlertCenter` — each reads only its own block.
+- New views are navigable via top tabs, sidebar, and deep links:
+  `/command-center#hardware`, `#commands`, `#io`, `#alerts`.
+
+## API (advanced)
+
+| Route                      | Method | Purpose                                                                             |
+| -------------------------- | ------ | ----------------------------------------------------------------------------------- |
+| `GET /dashboard/state`     | GET    | Now carries `hardware`, `commands`, `alerts`, `lcd`, `io`.                          |
+| `POST /alerts/acknowledge` | POST   | `{"alert_id": "..."}`. Flags an alert acknowledged. **Never resolves it.** 200/404. |
+
+`/alerts/acknowledge` is the only new write; it is a flag, not a command, and
+cannot move the robot or clear a physical fault.
+
+### `hardware`
+
+`{components:[{id,name,kind,status,source,value,unit,detail,last_update,age_s,
+classification,simulated}], controller_connected, backend_online, state}`.
+Component `status`: `CONNECTED`, `FAULTY`, `CONFIGURED`, `SIMULATED`,
+`UNAVAILABLE`, `UNKNOWN`. Overall `state`: `ONLINE`, `SIMULATION`, `DEGRADED`,
+`DISCONNECTED`. `value` is present only when measured; `None` is never a zero.
+
+### `commands`
+
+`{commands:[{command,params,state,command_id,created_at,acknowledged_at,
+completed_at,response,error,executed,environment,robot_mode_after,duration_ms}],
+counts, total}`. `state`: `CREATED`, `VALIDATED`, `ACCEPTED`, `SUCCEEDED`,
+`REJECTED`, `FAILED`, `TIMED_OUT`, `UNKNOWN`. `executed` is `true` only when the
+robot's own state confirms motion began; `null` (unknown) otherwise — never
+assumed from an HTTP 200.
+
+### `alerts`
+
+`{active:[{alert_id,source,severity,description,first_seen,last_updated,status,
+acknowledged,clearable_by_user,suggestion}], resolved, active_count,
+critical_count, warning_count, unacknowledged_count}`. `severity`: `INFO`,
+`WARNING`, `ERROR`, `CRITICAL`.
+
+### `lcd`
+
+`{rows[2],columns:16,rows_count:2,connected,content_confirmed:false,address,
+note}`. `content_confirmed` is always `false` (the LCD is write-only, no
+read-back); the preview is labelled intended, not the physical screen.
+
+### `io`
+
+`{outputs,sensors,comms,motors,note,simulated}`. Configuration + logical state
+only — the Pi does not own these pins, so nothing is probed or toggled. Motor
+values are _requested_, not measured.
+
+## Component inventory (real state, not hardcoded)
+
+| Component              | Source of state                        | Verified on hardware?             |
+| ---------------------- | -------------------------------------- | --------------------------------- |
+| Raspberry Pi (backend) | always, when serving                   | n/a (the server)                  |
+| Arduino UNO            | `telemetry.connected`                  | Yes — `PONG`/`VERSION`/`STATUS`   |
+| Motors (L298N)         | `is_moving`, `left/right_speed`        | **No** — never commanded          |
+| Ultrasonic ×4          | `sensors.front_cm`…`rear_cm`           | Yes — live cm                     |
+| DHT11                  | `sensors.temperature_c`/`humidity_pct` | **No** — not reading              |
+| MQ gas                 | `sensors.gas_raw`                      | **No** — no pin, unmeasured       |
+| I2C LCD                | config `lcd_i2c_address`               | **No** — write-only               |
+| Buzzer                 | config `buzzer_pin`                    | **No** — command-driven           |
+| Camera                 | `telemetry.camera`                     | Yes — live 1280×720               |
+| Battery                | `telemetry.battery`                    | **No** — no sensor, `UNAVAILABLE` |
+
+## Ultrasonic monitor
+
+Four HC-SR04, pins per the applied chart (verified): front `D2/D3`, left
+`D4/D5`, right `D6/D7`, rear `D8/D9`, in cm. Per face: live distance (or `n/a`
+when no echo — never 0), a **display-only** classification using the safety
+thresholds (`CLEAR`→`CAUTION`→`OBSTACLE`→`TOO_CLOSE`, plus `OUT_OF_RANGE`,
+`NO_ECHO`, `STALE`), and a bounded 60-sample sparkline. The classification does
+**not** drive the robot — stop logic stays in the firmware Layer-1 and the Pi
+`SafetyManager`.
+
+## Command lifecycle
+
+`dispatch()` records every command in a bounded `CommandLog` (200 entries):
+`CREATED → VALIDATED → (ACCEPTED → SUCCEEDED | REJECTED | FAILED | TIMED_OUT)`.
+A 200/ACK is `SUCCEEDED` (accepted). For motion, `executed` comes from the robot
+state after the command, not the HTTP result. The console shows the history but
+submits nothing.
+
+## Alert rules
+
+`AlertEngine` derives the alert set from the snapshot each tick and reconciles
+it: firing rules create/refresh, stopped rules resolve (kept in history),
+acknowledge is a flag not a cure, and a physical safety alert
+(`clearable_by_user: false`) only resolves when its condition clears. Rules:
+controller/backend disconnected, telemetry stale, per-face sensor invalid,
+camera error, hazard active/critical, task failed, nav failed, DHT11 absent
+(INFO), gas unassigned (INFO). Duplicate conditions yield one alert, not many.
+
+## Mapping / spatial hash
+
+The project models the warehouse as named waypoints + a bounded path history.
+There is **no occupancy grid and no spatial hash** in this repository, so no
+fake grid/hash diagnostic was added (per the brief). If a real occupancy grid is
+added later, that diagnostic belongs here.
+
+## Simulation mode
+
+`--mock` runs the whole robot in-process. The dashboard runs fully offline:
+simulated values carry `SIM` tags, the header shows `SIMULATION` with a banner,
+the command log records `environment: SIMULATION`, and a mock command can never
+reach a physical actuator (the mock transport has no real device, and the
+console submits nothing).
+
+## Testing
+
+```bash
+cd raspberry_pi && python -m pytest
+python -m pytest tests/test_advanced_command_center.py   # new projection tests
+python -m pytest tests/test_command_center.py            # structure + safety invariants
+```
+
+New tests cover hardware inventory (states, absent≠0, classification, sim
+labels), the command log (acceptance≠execution, rejection, bounding), the alert
+engine (recovery, ack-is-not-cure, safety not user-clearable, dedup, stale), and
+LCD state (row fitting, never-confirmed, safety-over-command, virtual label).
+
+## Remaining hardware verification
+
+Software is complete and tested; these are honest gaps to verify when the robot
+is powered on:
+
+- **Motors have never been commanded** — direction, polarity, PWM speed, real
+  stop distances. Test first, wheels off the ground.
+- **DHT11** — confirm it reads (likely needs the 10 kΩ pull-up).
+- **MQ gas** — free an analog pin before it can report.
+- **LCD** — confirm the physical display matches the panel.
+- **Buzzer** — confirm it tones on `BUZZ` and stops on `BUZZ 0`.
+- **Safety thresholds** — still `NOT_VERIFIED`; measure before trusting speed.
+- **Robot geometry** — `wheel_track_m` / `wheel_diameter_m` still `null`.

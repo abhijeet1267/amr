@@ -41,6 +41,33 @@
         <button
           type="button"
           role="tab"
+          data-view="hardware"
+          aria-selected="false"
+        >
+          Hardware
+        </button>
+        <button
+          type="button"
+          role="tab"
+          data-view="commands"
+          aria-selected="false"
+        >
+          Commands
+        </button>
+        <button type="button" role="tab" data-view="io" aria-selected="false">
+          I/O
+        </button>
+        <button
+          type="button"
+          role="tab"
+          data-view="alerts"
+          aria-selected="false"
+        >
+          Alerts
+        </button>
+        <button
+          type="button"
+          role="tab"
           data-view="camera"
           aria-selected="false"
         >
@@ -112,6 +139,18 @@
       <span class="chip" id="safety-badge"
         ><span class="lbl">SAFETY</span
         ><span id="safety-text">&mdash;</span></span
+      >
+      <!-- Operational state: distinguishes a connected-but-idle robot from a
+           disconnected one, and never reports green when hardware is missing
+           or telemetry is stale. Distinct from the ONLINE chip (backend reach). -->
+      <span class="chip" id="op-badge"
+        ><span class="lbl">ROBOT</span
+        ><span id="hw-opstate" class="hw-opstate">&mdash;</span></span
+      >
+      <!-- Age of the last successful telemetry, so a dropped link is visible
+           at a glance rather than the panel silently freezing. -->
+      <span class="chip mono" id="age-badge"
+        ><span class="lbl">AGE</span><span id="age-text">&mdash;</span></span
       >
       <span class="chip mono"><span id="clock-text">--:--:--</span></span>
     </header>
@@ -242,6 +281,33 @@
             aria-selected="false"
           >
             <b>Diagnostics</b><small>health + performance</small>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-view="hardware"
+            aria-selected="false"
+          >
+            <b>Hardware</b><small>components + sensors</small>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-view="commands"
+            aria-selected="false"
+          >
+            <b>Commands</b><small>execution + LCD</small>
+          </button>
+          <button type="button" role="tab" data-view="io" aria-selected="false">
+            <b>I/O</b><small>inputs + outputs</small>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-view="alerts"
+            aria-selected="false"
+          >
+            <b>Alerts</b><small>warnings + faults</small>
           </button>
         </nav>
         <div class="side-foot">
@@ -947,6 +1013,122 @@
           </div>
           <div class="ev-detail" id="ev-detail" hidden></div>
           <div id="log"></div>
+        </section>
+
+        <!-- ============ ADVANCED COMMAND CENTER =========================== -->
+        <!-- Every panel below reads a block already in the same /dashboard/state
+             payload (hardware / commands / alerts / lcd / io). One request, one
+             timer; no second data path. All read-only — submission stays on the
+             control panel, the sole actuator path. -->
+
+        <section
+          class="card span-8"
+          id="sec-hardware"
+          data-section="hardware"
+          aria-labelledby="h-hardware"
+        >
+          <h2 id="h-hardware">
+            Hardware Status
+            <span class="count" id="hw-count">&mdash;</span>
+          </h2>
+          <p class="sec-sub">
+            Every component the project knows about, with its real connection
+            state. A value is shown only when the runtime measured it &mdash;
+            &ldquo;n/a&rdquo; means not present or not measured, never a fake
+            zero.
+          </p>
+          <div class="hw-grid" id="hw-grid"></div>
+        </section>
+
+        <section
+          class="card span-8"
+          id="sec-usmon"
+          data-section="hardware"
+          aria-labelledby="h-usmon"
+        >
+          <h2 id="h-usmon">Ultrasonic Monitor</h2>
+          <p class="sec-sub">
+            Live per-face distances, classification, and a bounded
+            recent-history sparkline. Classifications use the safety-config
+            thresholds for display only; the real stop logic is in the control
+            layer.
+          </p>
+          <div class="us-mon" id="us-mon"></div>
+        </section>
+
+        <section
+          class="card span-6"
+          id="sec-commands"
+          data-section="commands"
+          aria-labelledby="h-commands"
+        >
+          <h2 id="h-commands">
+            Command Execution
+            <span class="count" id="cmd-counts"></span>
+          </h2>
+          <p class="sec-sub">
+            Execution records for every command sent through the dashboard:
+            state, duration, and whether the robot's own state confirms motion.
+            <a class="sub-link" href="/"
+              >Submit commands from the control panel</a
+            >
+            &mdash; it is the only path that can move the robot.
+          </p>
+          <ul class="cmd-list" id="cmd-history"></ul>
+        </section>
+
+        <section
+          class="card span-6"
+          id="sec-lcd"
+          data-section="commands"
+          aria-labelledby="h-lcd"
+        >
+          <h2 id="h-lcd">LCD Display</h2>
+          <p class="sec-sub">
+            What the 16&times;2 display is meant to show. The LCD is write-only
+            from the Pi, so this is the
+            <em>intended</em> content; there is no read-back, and it is labelled
+            as such rather than claimed as the physical screen.
+          </p>
+          <div class="lcd-frame">
+            <div class="lcd-screen" id="lcd-screen"></div>
+          </div>
+          <p class="lcd-meta" id="lcd-meta"></p>
+        </section>
+
+        <section
+          class="card span-8"
+          id="sec-io"
+          data-section="io"
+          aria-labelledby="h-io"
+        >
+          <h2 id="h-io">Inputs &amp; Outputs</h2>
+          <p class="sec-sub">
+            Configuration and logical state of the Arduino I/O. The Pi does not
+            own these pins, so this is a read-only view &mdash; nothing is
+            probed or toggled here.
+          </p>
+          <div class="io-panel" id="io-panel"></div>
+        </section>
+
+        <section
+          class="card span-8"
+          id="sec-alerts2"
+          data-section="alerts2"
+          aria-labelledby="h-alerts2"
+        >
+          <h2 id="h-alerts2">
+            Warning &amp; Fault Center
+            <span class="count" id="ac-crit" data-count>0</span>
+            <span class="count warn" id="ac-warn" data-count>0</span>
+            <span class="count muted" id="ac-unacked" data-count>0</span>
+          </h2>
+          <p class="sec-sub">
+            Derived from live telemetry each tick. Acknowledge is a flag, not a
+            cure: a condition that is still present re-raises on the next tick,
+            and a physical safety fault can only clear itself.
+          </p>
+          <ul class="alerts-list" id="alerts-list"></ul>
         </section>
       </main>
     </div>

@@ -44,6 +44,18 @@ var CC = {
     ok: false,
     drag: null,
   },
+  // Advanced Command Center: bounded ultrasonic distance history, one bounded
+  // buffer per face. Kept here (client-side) and capped so a long session never
+  // grows without limit; the server already owns its own history, and this is a
+  // separate, display-only ring for the sensor charts.
+  usHist: { front: [], left: [], right: [], rear: [] },
+  usHistMax: 60,
+  // The last hardware payload, so the I/O + hardware panels render even if a
+  // poll drops (a dropped poll must never blank the panel into an implied "off").
+  lastHardware: null,
+  lastCommands: null,
+  lastAlerts: null,
+  lastLcd: null,
 };
 
 /* -- tiny DOM helpers ----------------------------------------------------- */
@@ -138,6 +150,15 @@ function renderAll(s) {
   renderHeatmap(s);
   // C5e: the operations panels, from the `ops` block in this same payload.
   renderOps(s);
+  // Advanced Command Center panels. Each reads its own block from this same
+  // payload (hardware / commands / alerts / lcd / io) — no extra request, no
+  // extra timer; they ride the one existing poll exactly like the C5e ops block.
+  renderHardware(s);
+  renderCommandHistory(s);
+  renderLcd(s);
+  renderIo(s);
+  renderAdvancedAlerts(s);
+  renderUsMonitor(s);
   applyEventFilter();
   // Connectivity is a separate read-only endpoint rather than part of the
   // console payload: it inspects the *host*, not the robot, and folding it in
@@ -266,6 +287,20 @@ function renderHeader(s) {
     estop ? "crit" : act === "PROCEED" ? "ok" : "warn",
   );
   txt("clock-text", clock(s.timestamp));
+
+  // Telemetry age: how old the last successful reading is. If the client and
+  // server clocks disagree the value can be negative — clamp to 0 and call it
+  // "live" rather than showing a negative age. A dropped poll is caught by the
+  // catch() in poll(), which flips the conn chip to DISCONNECTED.
+  var ageEl = $("age-text");
+  if (ageEl) {
+    var age =
+      Date.now() / 1000 -
+      (isNum(s.timestamp) ? s.timestamp : Date.now() / 1000);
+    ageEl.textContent = age <= 0 ? "live" : age.toFixed(1) + "s";
+    var chip = $("age-badge");
+    if (chip) chip.className = "chip mono" + (age > 10 ? " crit" : "");
+  }
 
   var banner = $("sim-banner");
   if (banner) {
@@ -2769,6 +2804,476 @@ function renderAlerts(list) {
   }
 }
 
+/* ============================================================================
+   Advanced Command Center — hardware grid, command history, LCD mirror, I/O.
+
+   Read-only views over the blocks the backend already adds to the same
+   /dashboard/state payload (hardware / commands / alerts / lcd / io). No extra
+   request, no extra timer — they ride the one existing poll. The command panel
+   shows execution *records* (lifecycle, status, duration) from the backend log;
+   submission stays on the control panel, which is the sole actuator path and a
+   tested read-only invariant of this file.
+   ========================================================================== */
+
+function _us_class_cls(c) {
+  // Map a backend classification to a CSS state class.
+  if (!c) return "info";
+  switch (c) {
+    case "TOO_CLOSE":
+      return "crit";
+    case "OBSTACLE":
+      return "warn";
+    case "CAUTION":
+      return "warn";
+    case "OUT_OF_RANGE":
+      return "warn";
+    case "STALE":
+      return "warn";
+    case "SENSOR ERROR":
+      return "crit";
+    case "CLEAR":
+      return "ok";
+    case "NO_ECHO":
+      return "info";
+    default:
+      return "info";
+  }
+}
+
+function _push_us_hist(face, value) {
+  var h = CC.usHist;
+  if (!h || !h[face]) return;
+  if (isNum(value)) {
+    h[face].push(value);
+    if (h[face].length > CC.usHistMax) h[face].shift();
+  } else {
+    // A missing reading is a gap, not a zero: drop the buffer so the chart
+    // does not imply a flat line of zeros where the sensor was silent.
+    h[face].length = 0;
+  }
+}
+
+function _us_svg_hist(points, max) {
+  // A tiny bounded sparkline as inline SVG — no chart library, no canvas
+  // rebuild cost beyond string build.
+  if (!points || points.length < 2) return "";
+  var w = 100,
+    hh = 30;
+  var lo = Math.min.apply(null, points),
+    hi = Math.max.apply(null, points);
+  var range = hi - lo || 1;
+  var step = w / (points.length - 1);
+  var path = points
+    .map(function (v, i) {
+      var x = i * step;
+      var y = hh - ((v - lo) / range) * (hh - 2) - 1;
+      return (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1);
+    })
+    .join(" ");
+  var unit = max ? "" : "";
+  return (
+    '<svg class="us-spark" viewBox="0 0 ' +
+    w +
+    " " +
+    hh +
+    '" preserveAspectRatio="none" aria-hidden="true">' +
+    '<path d="' +
+    path +
+    '" fill="none" stroke="currentColor" stroke-width="1.2"/>' +
+    "</svg>"
+  );
+}
+
+function renderUsMonitor(s) {
+  var hw = s && s.hardware;
+  var mon = $("us-mon");
+  if (!mon) return;
+  var comps = (hw && hw.components) || [];
+  var faces = ["front", "left", "right", "rear"];
+  mon.innerHTML = faces
+    .map(function (face) {
+      var c = comps.filter(function (x) {
+        return x.id === "us_" + face;
+      })[0];
+      var value = c ? c.value : null;
+      _push_us_hist(face, value);
+      var points = CC.usHist[face] || [];
+      var klass = c ? _us_class_cls(c.classification) : "info";
+      var shown = isNum(value) ? value + " cm" : "n/a";
+      var cls = c ? c.classification : "UNKNOWN";
+      return (
+        '<div class="us-cell ' +
+        klass +
+        '">' +
+        '<div class="us-name">' +
+        esc(face) +
+        "</div>" +
+        '<div class="us-val">' +
+        esc(shown) +
+        "</div>" +
+        '<div class="us-cls">' +
+        esc(cls) +
+        "</div>" +
+        _us_svg_hist(points) +
+        "</div>"
+      );
+    })
+    .join("");
+}
+
+function renderHardware(s) {
+  var hw = s && s.hardware;
+  if (!hw) return;
+  CC.lastHardware = hw;
+  // Global operational state for the header (distinct from backend ONLINE).
+  var stateEl = $("hw-opstate");
+  if (stateEl) {
+    var st = hw.state || "UNKNOWN";
+    var cls =
+      st === "ONLINE"
+        ? "ok"
+        : st === "SIMULATION"
+          ? "warn"
+          : st === "DEGRADED"
+            ? "warn"
+            : st === "DISCONNECTED" || st === "OFFLINE"
+              ? "crit"
+              : "info";
+    stateEl.textContent = st;
+    stateEl.className = "hw-opstate " + cls;
+  }
+  var grid = $("hw-grid");
+  if (!grid) return;
+  var comps = hw.components || [];
+  grid.innerHTML = comps
+    .map(function (c) {
+      var val =
+        c.value === null || c.value === undefined
+          ? "n/a"
+          : Array.isArray(c.value)
+            ? c.value
+                .map(function (v) {
+                  return v === null ? "n/a" : v;
+                })
+                .join(" / ")
+            : String(c.value);
+      var klass = c.classification ? _us_class_cls(c.classification) : null;
+      var sim = c.simulated ? '<span class="tag sim">SIM</span>' : "";
+      var cls =
+        "hw-card st-" + c.status.toLowerCase() + (klass ? " " + klass : "");
+      var age = isNum(c.age_s) ? Math.round(c.age_s) + "s ago" : "";
+      var clsLine = c.classification
+        ? '<span class="hw-class">' + esc(c.classification) + "</span>"
+        : "";
+      return (
+        '<div class="' +
+        cls +
+        '" data-id="' +
+        esc(c.id) +
+        '">' +
+        '<div class="hw-top"><span class="hw-name">' +
+        esc(c.name) +
+        "</span>" +
+        '<span class="hw-status">' +
+        esc(c.status) +
+        "</span>" +
+        sim +
+        "</div>" +
+        '<div class="hw-value">' +
+        esc(val) +
+        (c.unit ? '<span class="hw-unit">' + esc(c.unit) + "</span>" : "") +
+        "</div>" +
+        '<div class="hw-meta">' +
+        clsLine +
+        '<span class="hw-kind">' +
+        esc(c.kind) +
+        "</span>" +
+        (age ? '<span class="hw-age">' + esc(age) + "</span>" : "") +
+        "</div>" +
+        (c.detail
+          ? '<div class="hw-detail" title="' +
+            esc(c.detail) +
+            '">' +
+            esc(c.detail) +
+            "</div>"
+          : "") +
+        "</div>"
+      );
+    })
+    .join("");
+}
+
+function renderCommandHistory(s) {
+  var cmds = s && s.commands;
+  if (!cmds) return;
+  CC.lastCommands = cmds;
+  var list = $("cmd-history");
+  if (!list) return;
+  var rows = cmds.commands || [];
+  list.innerHTML = rows.length
+    ? rows
+        .map(function (c) {
+          var params = Object.keys(c.params || {})
+            .map(function (k) {
+              return esc(k) + "=" + esc(c.params[k]);
+            })
+            .join(", ");
+          var exec =
+            c.executed === true
+              ? '<span class="cmd-exec yes">motion confirmed</span>'
+              : c.executed === false
+                ? '<span class="cmd-exec no">no motion</span>'
+                : "";
+          return (
+            '<li class="cmd-row cmd-' +
+            esc(c.state.toLowerCase()) +
+            '">' +
+            '<div class="cmd-head"><span class="cmd-name">' +
+            esc(c.command) +
+            '</span><span class="cmd-state">' +
+            esc(c.state) +
+            '</span><span class="cmd-dur">' +
+            (isNum(c.duration_ms) ? c.duration_ms + "ms" : "") +
+            "</span></div>" +
+            (params ? '<div class="cmd-params">' + params + "</div>" : "") +
+            (c.error ? '<div class="cmd-err">' + esc(c.error) + "</div>" : "") +
+            exec +
+            '<div class="cmd-env">' +
+            esc(c.environment) +
+            (c.robot_mode_after ? " → " + esc(c.robot_mode_after) : "") +
+            "</div>" +
+            "</li>"
+          );
+        })
+        .join("")
+    : '<li class="cmd-empty">No commands submitted through the dashboard yet.</li>';
+  var counts = $("cmd-counts");
+  if (counts && cmds.counts) {
+    var n = cmds.counts;
+    counts.textContent =
+      (n.SUCCEEDED || 0) +
+      " ok · " +
+      (n.REJECTED || 0) +
+      " rejected · " +
+      (n.FAILED || 0) +
+      " failed";
+  }
+}
+
+function renderLcd(s) {
+  var lcd = s && s.lcd;
+  if (!lcd) return;
+  CC.lastLcd = lcd;
+  var box = $("lcd-screen");
+  if (!box) return;
+  var rows = lcd.rows || [];
+  box.innerHTML = rows
+    .map(function (r) {
+      // Preserve the monospaced look of a character cell; spaces matter.
+      return '<div class="lcd-line">' + esc(r) + "</div>";
+    })
+    .join("");
+  var meta = $("lcd-meta");
+  if (meta) {
+    var connected = lcd.connected
+      ? "physical LCD connected"
+      : "no physical LCD read-back";
+    var confirmed = lcd.content_confirmed
+      ? "content confirmed"
+      : "intended content (not confirmed)";
+    meta.textContent =
+      connected + " · " + confirmed + (lcd.address ? " · " + lcd.address : "");
+    if (!lcd.connected) meta.classList.add("virtual");
+    else meta.classList.remove("virtual");
+  }
+}
+
+function renderIo(s) {
+  var io = s && s.io;
+  if (!io) return;
+  var wrap = $("io-panel");
+  if (!wrap) return;
+  var outHtml = (io.outputs || [])
+    .map(function (o) {
+      return (
+        '<tr class="io-' +
+        (o.direction || "out").replace(/[^a-z]/g, "") +
+        '">' +
+        "<td>" +
+        esc(o.name) +
+        "</td><td class='io-pin'>" +
+        esc(o.configured) +
+        "</td>" +
+        "<td>" +
+        esc(o.direction) +
+        "</td>" +
+        "<td>" +
+        (o.state === null || o.state === undefined ? "n/a" : esc(o.state)) +
+        "</td>" +
+        "</tr>"
+      );
+    })
+    .join("");
+  var senHtml = (io.sensors || [])
+    .map(function (o) {
+      var v =
+        o.value === null || o.value === undefined ? "n/a" : String(o.value);
+      return (
+        "<tr>" +
+        "<td>" +
+        esc(o.name) +
+        "</td><td class='io-pin'>" +
+        esc(o.pins) +
+        "</td><td>" +
+        v +
+        (o.unit ? " " + esc(o.unit) : "") +
+        "</td></tr>"
+      );
+    })
+    .join("");
+  var comHtml = (io.comms || [])
+    .map(function (c) {
+      var st = c.connected ? "ok" : "off";
+      return (
+        "<tr>" +
+        "<td>" +
+        esc(c.name) +
+        "</td>" +
+        "<td class='io-pin'>" +
+        esc(c.port || c.address || "") +
+        "</td>" +
+        '<td><span class="io-link ' +
+        st +
+        '">' +
+        (c.connected ? "up" : "down") +
+        "</span></td></tr>"
+      );
+    })
+    .join("");
+  var m = io.motors || {};
+  var mLeft = isNum(m.requested_left) ? m.requested_left : "n/a";
+  var mRight = isNum(m.requested_right) ? m.requested_right : "n/a";
+  wrap.innerHTML =
+    '<div class="io-group"><h4>Motor state</h4>' +
+    '<div class="io-motors">' +
+    "<span>Left (requested): <b>" +
+    esc(mLeft) +
+    "</b></span>" +
+    "<span>Right (requested): <b>" +
+    esc(mRight) +
+    "</b></span>" +
+    "<span>Moving: <b>" +
+    (m.is_moving ? "yes" : "no") +
+    "</b></span>" +
+    '</div><div class="io-note">' +
+    esc(m.note || "") +
+    "</div></div>" +
+    '<div class="io-group"><h4>Digital / enable outputs</h4><table class="io-table">' +
+    outHtml +
+    "</table></div>" +
+    '<div class="io-group"><h4>Sensor inputs</h4><table class="io-table">' +
+    senHtml +
+    "</table></div>" +
+    '<div class="io-group"><h4>Communication</h4><table class="io-table">' +
+    comHtml +
+    "</table></div>" +
+    '<div class="io-note">' +
+    esc(io.note || "") +
+    "</div>";
+}
+
+function initAlertAck() {
+  // Wire the Acknowledge buttons in the new alerts panel. This is a flag on the
+  // server (POST /alerts/acknowledge); it never removes the alert or the
+  // condition. A physical safety alert cannot be cleared from here at all.
+  var list = $("alerts-list");
+  if (!list) return;
+  list.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest("[data-ack]") : null;
+    if (!btn) return;
+    var id = btn.getAttribute("data-ack");
+    if (!id) return;
+    btn.disabled = true;
+    fetch("/alerts/acknowledge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ alert_id: id }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (r) {
+        if (r && r.ok) {
+          // Refresh from the current state; the alert stays (just flagged).
+          if (CC.lastAlerts) renderAlertCenter(CC.lastAlerts);
+        }
+        btn.disabled = false;
+      })
+      .catch(function () {
+        btn.disabled = false;
+      });
+  });
+}
+
+function renderAlertCenter(a) {
+  if (!a) return;
+  CC.lastAlerts = a;
+  var list = $("alerts-list");
+  if (!list) return;
+  var active = a.active || [];
+  list.innerHTML = active.length
+    ? active
+        .map(function (al) {
+          var ackBtn = al.clearable_by_user
+            ? '<button type="button" class="ack-btn" data-ack="' +
+              esc(al.alert_id) +
+              '"' +
+              (al.acknowledged ? " disabled" : "") +
+              ">" +
+              (al.acknowledged ? "acknowledged" : "acknowledge") +
+              "</button>"
+            : '<span class="ack-lock" title="This fault clears only when the underlying condition resolves">lock</span>';
+          return (
+            '<li class="alert-row sev-' +
+            esc(al.severity.toLowerCase()) +
+            (al.acknowledged ? " acked" : "") +
+            '">' +
+            '<span class="al-sev">' +
+            esc(al.severity) +
+            "</span>" +
+            '<span class="al-src">' +
+            esc(al.source) +
+            "</span>" +
+            '<span class="al-msg">' +
+            esc(al.description) +
+            "</span>" +
+            (al.suggestion
+              ? '<span class="al-sug">' + esc(al.suggestion) + "</span>"
+              : "") +
+            ackBtn +
+            "</li>"
+          );
+        })
+        .join("")
+    : '<li class="alert-empty">No active alerts.</li>';
+  var counts = {
+    critical: $("ac-crit"),
+    warning: $("ac-warn"),
+    unacked: $("ac-unacked"),
+  };
+  if (counts.critical)
+    counts.critical.textContent = String(a.critical_count || 0);
+  if (counts.warning) counts.warning.textContent = String(a.warning_count || 0);
+  if (counts.unacked)
+    counts.unacked.textContent = String(a.unacknowledged_count || 0);
+}
+
+function renderAdvancedAlerts(s) {
+  // The advanced alerts panel (dedicated view) reads the same alerts block the
+  // header bell already reflects.
+  renderAlertCenter(s && s.alerts);
+}
+
 /* Client-side only. The brief allows either separate routes or client-side
    views; this chooses the latter so there is still exactly one page, one poll
    and no duplicated backend logic. The same panels are shown either way. */
@@ -2790,6 +3295,13 @@ var VIEW_SECTIONS = {
   replay: ["replay"],
   events: ["events"],
   diagnostics: ["health", "system", "perf", "alerts"],
+  // Advanced Command Center. Each maps to the data-section attributes in the
+  // HTML. Appended after `diagnostics` in VIEW_SECTIONS and to the END of
+  // VIEW_KEYS so the 1-8 keyboard shortcuts are never remapped.
+  hardware: ["hardware"],
+  commands: ["commands"],
+  io: ["io"],
+  alerts: ["alerts2"],
 };
 var VIEW_KEYS = [
   "overview",
@@ -2809,6 +3321,12 @@ var VIEW_KEYS = [
   // shortcuts index straight into this array, so inserting in the middle would
   // silently remap every shortcut after the insertion point.
   "heatmap",
+  // Advanced Command Center views, appended at the very end for the same
+  // reason: never remap the 1-8 shortcuts.
+  "hardware",
+  "commands",
+  "io",
+  "alerts",
 ];
 
 function setView(name) {
@@ -2876,6 +3394,7 @@ initTheme(); // C5e: dark by default, preference only
 initEventSearch(); // C5e: filters the existing log, no second stream
 initShortcuts(); // C5e: view keys + theme + fullscreen, never a command
 initAlertCenter(); // C5e
+initAlertAck(); // Advanced: the alert-center acknowledge buttons
 renderTwinLegend();
 loadRecordings();
 poll();

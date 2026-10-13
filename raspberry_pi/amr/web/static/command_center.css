@@ -1618,3 +1618,566 @@ body.light {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--dim);
 }
+
+/* ============================================================================
+   Advanced Command Center — hardware grid, ultrasonic monitor, command
+   history, LCD mirror, I/O panel, warning center.
+   Same token system as the rest of the console; colour is always paired with a
+   text label so states stay readable without colour.
+   ========================================================================== */
+.sec-sub {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 14px;
+  max-width: 92ch;
+}
+.sec-sub .sub-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --- header: operational state + telemetry age ---------------------------- */
+#op-badge .hw-opstate,
+#age-badge {
+  font-variant-numeric: tabular-nums;
+}
+.hw-opstate {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.hw-opstate.ok {
+  color: var(--ok);
+}
+.hw-opstate.warn {
+  color: var(--warn);
+}
+.hw-opstate.crit {
+  color: var(--crit);
+}
+.hw-opstate.info {
+  color: var(--info);
+}
+#age-badge.crit #age-text {
+  color: var(--crit);
+  font-weight: 700;
+}
+
+/* --- hardware status grid ------------------------------------------------- */
+.hw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.hw-card {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hw-card.st-connected {
+  border-left-color: var(--ok);
+}
+.hw-card.st-faulty,
+.hw-card.st-crit {
+  border-left-color: var(--crit);
+}
+.hw-card.st-configured {
+  border-left-color: var(--info);
+}
+.hw-card.st-unavailable {
+  border-left-color: var(--dim);
+}
+.hw-card.st-unknown {
+  border-left-color: var(--dim);
+  border-style: dashed;
+}
+.hw-card.sim {
+  border-top: 2px solid var(--plum);
+}
+.hw-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hw-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.hw-status {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.hw-card.st-connected .hw-status {
+  color: var(--ok);
+}
+.hw-card.st-faulty .hw-status,
+.hw-card.st-crit .hw-status {
+  color: var(--crit);
+}
+.hw-card.st-configured .hw-status {
+  color: var(--info);
+}
+.hw-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1.1;
+}
+.hw-card.ok .hw-value {
+  color: var(--ok);
+}
+.hw-card.warn .hw-value {
+  color: var(--warn);
+}
+.hw-card.crit .hw-value {
+  color: var(--crit);
+}
+.hw-unit {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: 4px;
+}
+.hw-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.hw-class {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-2);
+  color: var(--muted);
+}
+.hw-card.ok .hw-class {
+  color: var(--ok);
+}
+.hw-card.warn .hw-class {
+  color: var(--warn);
+}
+.hw-card.crit .hw-class {
+  color: var(--crit);
+}
+.hw-kind {
+  font-size: 10px;
+  color: var(--dim);
+}
+.hw-age {
+  font-size: 10px;
+  color: var(--dim);
+  margin-left: auto;
+}
+.hw-detail {
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tag.sim {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--plum);
+  border: 1px solid var(--plum-line);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+/* --- ultrasonic monitor --------------------------------------------------- */
+.us-mon {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.us-cell {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.us-cell.ok {
+  border-left: 3px solid var(--ok);
+}
+.us-cell.warn {
+  border-left: 3px solid var(--warn);
+}
+.us-cell.crit {
+  border-left: 3px solid var(--crit);
+}
+.us-cell.info {
+  border-left: 3px solid var(--info);
+}
+.us-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.us-val {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.us-cell.ok .us-val {
+  color: var(--ok);
+}
+.us-cell.warn .us-val {
+  color: var(--warn);
+}
+.us-cell.crit .us-val {
+  color: var(--crit);
+}
+.us-cls {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.us-spark {
+  width: 100%;
+  height: 30px;
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+/* --- command execution history ------------------------------------------- */
+.cmd-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.cmd-row {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cmd-row.cmd-succeeded {
+  border-left-color: var(--ok);
+}
+.cmd-row.cmd-rejected {
+  border-left-color: var(--warn);
+}
+.cmd-row.cmd-failed,
+.cmd-row.cmd-timed_out {
+  border-left-color: var(--crit);
+}
+.cmd-row.cmd-unknown {
+  border-left-color: var(--dim);
+  border-left-style: dashed;
+}
+.cmd-row.cmd-created,
+.cmd-row.cmd-validated,
+.cmd-row.cmd-accepted {
+  border-left-color: var(--info);
+}
+.cmd-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cmd-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.cmd-state {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--bg-2);
+}
+.cmd-row.cmd-succeeded .cmd-state {
+  color: var(--ok);
+}
+.cmd-row.cmd-rejected .cmd-state {
+  color: var(--warn);
+}
+.cmd-row.cmd-failed .cmd-state,
+.cmd-row.cmd-timed_out .cmd-state {
+  color: var(--crit);
+}
+.cmd-dur {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cmd-params {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+.cmd-err {
+  font-size: 11px;
+  color: var(--crit);
+}
+.cmd-exec {
+  font-size: 11px;
+  font-weight: 600;
+}
+.cmd-exec.yes {
+  color: var(--ok);
+}
+.cmd-exec.no {
+  color: var(--muted);
+}
+.cmd-env {
+  font-size: 10.5px;
+  color: var(--dim);
+}
+.cmd-empty {
+  color: var(--dim);
+  font-size: 12px;
+}
+#cmd-counts {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* --- LCD mirror ----------------------------------------------------------- */
+/* A real 16x2 character LCD is always green-on-dark, so the screen uses the
+   theme's ok-green and a dark surface token; nothing is hardcoded, so the
+   panel still follows light/dark mode. */
+.lcd-frame {
+  background: var(--bg-2);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 8px;
+  box-shadow: inset 0 0 24px var(--bg);
+}
+.lcd-screen {
+  font-family: "Courier New", ui-monospace, monospace;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ok);
+  text-shadow: 0 0 6px var(--ok);
+  letter-spacing: 0.06em;
+}
+.lcd-line {
+  white-space: pre;
+  overflow: hidden;
+}
+.lcd-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.lcd-meta.virtual {
+  color: var(--warn);
+}
+
+/* --- I/O panel ------------------------------------------------------------ */
+.io-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.io-group h4 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.io-motors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text);
+}
+.io-motors b {
+  font-variant-numeric: tabular-nums;
+}
+.io-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.io-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+}
+.io-table td.io-pin {
+  font-family: ui-monospace, monospace;
+  color: var(--muted);
+  font-size: 11px;
+}
+.io-link {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+.io-link.ok {
+  color: var(--ok);
+  background: var(--bg-2);
+}
+.io-link.off {
+  color: var(--crit);
+  background: var(--bg-2);
+}
+.io-note {
+  font-size: 11px;
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+/* --- warning / fault center ---------------------------------------------- */
+.alerts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.alert-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 8px 12px;
+  flex-wrap: wrap;
+}
+.alert-row.acked {
+  opacity: 0.65;
+}
+.alert-row.sev-critical {
+  border-left-color: var(--crit);
+}
+.alert-row.sev-error {
+  border-left-color: var(--crit);
+}
+.alert-row.sev-warning {
+  border-left-color: var(--warn);
+}
+.alert-row.sev-info {
+  border-left-color: var(--info);
+}
+.al-sev {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  min-width: 64px;
+}
+.alert-row.sev-critical .al-sev,
+.alert-row.sev-error .al-sev {
+  color: var(--crit);
+}
+.alert-row.sev-warning .al-sev {
+  color: var(--warn);
+}
+.alert-row.sev-info .al-sev {
+  color: var(--info);
+}
+.al-src {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+.al-msg {
+  font-size: 13px;
+  color: var(--text);
+  flex: 1 1 200px;
+}
+.al-sug {
+  font-size: 11px;
+  color: var(--dim);
+  width: 100%;
+}
+.ack-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.ack-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ack-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ack-lock {
+  font-size: 10px;
+  color: var(--dim);
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+.alert-empty {
+  color: var(--dim);
+  font-size: 12px;
+}
+#ac-crit {
+  color: var(--crit);
+}
+#ac-warn {
+  color: var(--warn);
+}
+#ac-unacked {
+  color: var(--muted);
+}
+
+/* Focused advanced views: promote the relevant cards to full width. */
+main.view-hardware .card,
+main.view-commands .card,
+main.view-io .card,
+main.view-alerts .card {
+  grid-column: span 12 !important;
+}
+main.view-hardware #sec-hardware,
+main.view-hardware #sec-usmon,
+main.view-commands #sec-commands,
+main.view-commands #sec-lcd,
+main.view-io #sec-io,
+main.view-alerts #sec-alerts2 {
+  opacity: 1;
+  order: -1;
+}

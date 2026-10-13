@@ -5,6 +5,56 @@
 
 ---
 
+## Session: Advanced Command Center — hardware, commands, LCD, I/O, alerts
+
+**Date:** 2026-10-13 · **Branch:** `main` · **Tests: 1675 passed, 1 skipped,
+0 failed** (1642 baseline + 34 new)
+
+Transformed the existing `/command-center` into a professional AMR Command
+Center. Four new read-only projections were added to the **same**
+`/dashboard/state` payload (no new request, no new timer — the page still uses
+exactly two `setInterval`s, a tested invariant):
+
+- `amr/telemetry/hardware.py` — `build_hardware_inventory`: a component
+  inventory with real connection state (CONNECTED / FAULTY / CONFIGURED /
+  SIMULATED / UNAVAILABLE / UNKNOWN). A value is present only when measured;
+  absent is never a zero.
+- `amr/telemetry/command_log.py` — `CommandLog`: bounded (200) per-command
+  lifecycle records. A 200/ACK is `SUCCEEDED` (accepted); `executed` is `true`
+  only when the robot's own state confirms motion began, never assumed.
+- `amr/telemetry/alerts.py` — `AlertEngine`: derived warning/fault center.
+  Acknowledge is a flag, not a cure; a physical safety fault
+  (`clearable_by_user: false`) only resolves when its condition clears.
+- `amr/telemetry/lcd_state.py` — `build_lcd_state`: the intended 16×2 content.
+  `content_confirmed` is always `false` (the LCD is write-only, no read-back).
+
+Frontend: new panels + views (`hardware`, `commands`, `io`, `alerts`) in
+`command_center.{html,js,css}`, wired into the existing `renderAll` and
+`VIEW_SECTIONS`/`VIEW_KEYS` (appended, so the 1-8 keyboard shortcuts are never
+remapped). Header gained an operational-state chip (ONLINE/SIMULATION/DEGRADED/
+DISCONNECTED) and a telemetry-age chip. The console stays read-only for motion —
+submission remains on the control panel; the only new write is
+`POST /alerts/acknowledge` (a flag).
+
+**What did NOT happen / honest gaps:**
+
+- The console was not turned into an actuator; it submits nothing.
+- No occupancy grid or spatial-hash diagnostic was fabricated — the project has
+  neither.
+- The DHT11, gas sensor, LCD, buzzer, and motors are **not** hardware-verified
+  by this change; their cards show CONFIGURED/UNAVAILABLE until physically
+  confirmed. Motor drive remains untested (wheels have never been commanded).
+
+Surfaces synced to the measured run: README + showcase badges (1675),
+`AI_CONTEXT/CURRENT_STATUS.md` (counts + per-file table, 41 files),
+`AI_CONTEXT/ARCHITECTURE.md` (web API + dashboard blocks),
+`docs/command_center.md` (advanced upgrade section appended).
+
+**Next from the board:** physically verify motor direction/PWM/stop distances
+(wheels off the ground first), then the DHT11 pull-up, the gas pin, and the LCD.
+
+---
+
 ## Session: C16 real manipulator — the gripper _driver_, no gripper
 
 **Date:** 2026-10-01 · **Branch:** `main` · **Tests: 1538 passed, 2 skipped,

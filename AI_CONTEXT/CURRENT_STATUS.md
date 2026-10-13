@@ -1,7 +1,7 @@
 # CURRENT_STATUS — verified state of the repository
 
 **Last verified:** 2026-10-09, C19 spatial heat map merged — full suite
-**1641 passed, 2 skipped, 0 failed**.
+**1675 passed, 2 skipped, 0 failed**.
 Re-verify with the commands below before trusting these numbers.
 
 ---
@@ -10,8 +10,8 @@ Re-verify with the commands below before trusting these numbers.
 
 | Check                                                       | Result                                                                                                                                                                                                                                                                                                                                 |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cd raspberry_pi && python -m pytest`                       | **1641 passed, 2 skipped, 0 failed**                                                                                                                                                                                                                                                                                                   |
-| Test files                                                  | 40 (`tests/test_*.py`)                                                                                                                                                                                                                                                                                                                 |
+| `cd raspberry_pi && python -m pytest`                       | **1675 passed, 2 skipped, 0 failed**                                                                                                                                                                                                                                                                                                   |
+| Test files                                                  | 41 (`tests/test_*.py`)                                                                                                                                                                                                                                                                                                                 |
 | `python -m compileall amr`                                  | clean                                                                                                                                                                                                                                                                                                                                  |
 | Orphan scan (every module imported by prod or tests)        | none — no dead modules                                                                                                                                                                                                                                                                                                                 |
 | CI                                                          | `.github/workflows/ci.yml` — pytest matrix on Python 3.10/3.11/3.12 + advisory `ruff`                                                                                                                                                                                                                                                  |
@@ -30,11 +30,12 @@ The 2 skips are the camera tests that need `opencv-python`/`numpy`; they run whe
 those are installed and skip gracefully otherwise. They are the only conditional
 tests.
 
-Per-file test counts (regenerated from `pytest --collect-only -q` — 40 files,
+Per-file test counts (regenerated from `pytest --collect-only -q` — 41 files,
 1643 tests: 1641 run + 2 skipped):
 
 ```
-test_app_registry.py           46    test_mode_controller.py        13
+test_advanced_command_center.py 34    test_mode_controller.py        13
+test_app_registry.py           46
 test_applications_hub.py       27    test_motor_controller.py       21
 test_auto_record.py            27    test_navigation.py             50
 test_avoidance.py              76    test_ops_projection.py         52

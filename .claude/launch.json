@@ -12,6 +12,13 @@
         "/Users/abhijeetmiskin/AppData/Projects/IDP/amr_controller/build/web"
       ],
       "port": 8195
+    },
+    {
+      "name": "AMR Command Center (mock)",
+      "runtimeExecutable": "/Users/abhijeetmiskin/AppData/Projects/IDP copy/raspberry_pi/.venv/bin/python",
+      "runtimeArgs": ["-m", "amr.main", "--mock", "--web", "--port", "8099"],
+      "port": 8099,
+      "cwd": "/Users/abhijeetmiskin/AppData/Projects/IDP copy/raspberry_pi"
     }
   ]
 }
