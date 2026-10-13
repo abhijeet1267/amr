@@ -192,12 +192,21 @@ void loop() {
   //    timeout) re-arms the watchdog every cycle, so an alert tone there would
   //    buzz continuously on real hardware instead of warning once. The buzzer
   //    is command-driven only (`BUZZ`), which keeps it predictable.
+  //
+  //    ENFORCE, DON'T JUST TRIGGER: the stop must hold for as long as the Pi is
+  //    silent, not only on first detection. Previously it fired once and latched,
+  //    so a live-but-idle controller (motion stopped, but not crashed) could leave
+  //    the motors at their last speed. Now, while the condition holds, any
+  //    residual motion is driven back to zero every loop. A valid command (above)
+  //    re-arms and clears `watchdogTripped`, so legitimate motion is unaffected.
   if (Safety::shouldStop(now)) {
     if (!watchdogTripped) {
-      MotorControl::stop();
       watchdogTripped = true;
       Serial.println(F("WATCHDOG TRIGGERED"));
       refreshLcd();
+    }
+    if (MotorControl::anyMoving()) {
+      MotorControl::stop();
     }
   }
 
