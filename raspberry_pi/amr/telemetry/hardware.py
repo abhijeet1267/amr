@@ -394,12 +394,24 @@ def build_hardware_inventory(
     # ------------------------------------------------------------------ #
     cam_status = camera.get("status")
     cam_src = camera.get("source") or camera.get("source_name")
+    # Dimensions, when actually reported. The snapshot's width/height are None
+    # until a frame has been captured into the cache, so never build a
+    # "NonexNone" string — fall back to the resolution field, else no value.
+    _w = camera.get("width")
+    _h = camera.get("height")
+    cam_value = None
+    if _w is not None and _h is not None:
+        cam_value = f"{_w}x{_h}"
+    elif camera.get("resolution"):
+        cam_value = str(camera.get("resolution"))
     if cam_status == "LIVE":
         cam = ComponentStatus.SIMULATED if camera.get("source") == "SIMULATION" \
             else ComponentStatus.CONNECTED
-        cam_value = f"{camera.get('width')}x{camera.get('height')}"
-        cam_detail = f"backend {camera.get('metadata', {}).get('backend', '?')}" \
-            if isinstance(camera.get("metadata"), dict) else None
+        _meta = camera.get("metadata")
+        cam_detail = (
+            f"backend {_meta.get('backend', '?')}"
+            if isinstance(_meta, dict) else cam_src
+        )
     elif cam_status == "ERROR":
         cam = ComponentStatus.FAULTY
         cam_value = None
