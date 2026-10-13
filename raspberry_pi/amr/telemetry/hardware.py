@@ -207,7 +207,12 @@ def build_hardware_inventory(
     camera = t.get("camera") if isinstance(t.get("camera"), dict) else {}
     battery = t.get("battery") if isinstance(t.get("battery"), dict) else {}
     safety = t.get("safety") if isinstance(t.get("safety"), dict) else {}
-    connected = bool(t.get("connected"))
+    system = t.get("system") if isinstance(t.get("system"), dict) else {}
+    # `connected` lives in the system section of the TelemetrySnapshot (the
+    # collector puts it there, not at the top level). A top-level `connected` is
+    # also honoured as a fallback, because the robot's own snapshot() and some
+    # test fixtures carry it there.
+    connected = bool(system.get("connected", t.get("connected")))
     sim = _sim(t)
 
     if now is None:

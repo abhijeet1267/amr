@@ -158,6 +158,10 @@ class AlertEngine:
         safety = t.get("safety") if isinstance(t.get("safety"), dict) else {}
         nav = t.get("navigation") if isinstance(t.get("navigation"), dict) else {}
         mission = t.get("mission") if isinstance(t.get("mission"), dict) else {}
+        system = t.get("system") if isinstance(t.get("system"), dict) else {}
+        # `connected` lives in the system section of the real TelemetrySnapshot;
+        # a top-level `connected` is honoured as a fallback (some fixtures).
+        connected = bool(system.get("connected", t.get("connected")))
         ts = t.get("timestamp") or now
         firing: Dict[str, str] = {}
 
@@ -165,7 +169,7 @@ class AlertEngine:
         if (now - ts) > self._stale_after_s:
             firing["backend_disconnected"] = Severity.CRITICAL.value
 
-        if not t.get("connected"):
+        if not connected:
             firing["controller_disconnected"] = Severity.ERROR.value
 
         if safety.get("emergency_stop"):
@@ -197,7 +201,7 @@ class AlertEngine:
         if nav.get("state") == "FAILED":
             firing["nav_failed"] = Severity.ERROR.value
 
-        if t.get("connected") and sensors.get("temperature_c") is None \
+        if connected and sensors.get("temperature_c") is None \
                 and sensors.get("humidity_pct") is None:
             firing["dht11_absent"] = Severity.INFO.value
         if sensors.get("gas_raw") is None:

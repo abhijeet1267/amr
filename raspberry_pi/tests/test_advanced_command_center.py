@@ -27,16 +27,23 @@ from amr.telemetry.lcd_state import LCD_COLUMNS, build_lcd_state
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
-def _tele(**over):
-    """A minimal but realistic telemetry snapshot dict."""
+def _tele(connected=True, **over):
+    """A minimal but realistic telemetry snapshot dict.
+
+    Matches the real ``TelemetrySnapshot.to_dict()`` shape: the connection flag
+    lives in the ``system`` section (the collector puts it there, not top-level).
+    This is the shape that exposed a real bug where the hardware/alerts blocks
+    read ``telemetry["connected"]`` (absent) and always reported disconnected.
+    """
     base = {
-        "connected": True,
         "simulated": False,
         "timestamp": 1000.0,
         "is_moving": False,
         "left_speed": 0,
         "right_speed": 0,
         "mode": "MANUAL",
+        "system": {"connected": True, "mode": "MANUAL", "source": "LIVE",
+                   "simulated": False, "last_error": None},
         "sensors": {
             "front_cm": 195, "left_cm": 155, "right_cm": 52, "rear_cm": 57,
             "temperature_c": None, "humidity_pct": None, "gas_raw": None,
@@ -51,6 +58,13 @@ def _tele(**over):
         "hazards": {"active": 0, "critical": 0, "kinds": []},
     }
     base.update(over)
+    # `connected` is a first-class param that lands in the system section,
+    # matching where TelemetryCollector puts it. (A stray top-level one is also
+    # honoured for fixtures that predate the system section.)
+    if connected is not True:
+        base["system"]["connected"] = connected
+        if "connected" in base:
+            base["connected"] = connected
     return base
 
 
