@@ -31,7 +31,7 @@ those are installed and skip gracefully otherwise. They are the only conditional
 tests.
 
 Per-file test counts (regenerated from `pytest --collect-only -q` — 41 files,
-1678 tests: 1676 run + 2 skipped):
+1682 tests: 1680 run + 2 skipped):
 
 ```
 test_advanced_command_center.py 35    test_mode_controller.py        13
@@ -39,7 +39,7 @@ test_app_registry.py           46
 test_applications_hub.py       27    test_motor_controller.py       21
 test_auto_record.py            27    test_navigation.py             50
 test_avoidance.py              76    test_ops_projection.py         52
-test_camera_backend.py         50    test_protocol.py               37
+test_camera_backend.py         50    test_protocol.py               41
 test_camera_frame.py           60    test_replay.py                 59
 test_camera_manager.py          9    test_replay_control.py         68
 test_camera_overlay.py         40    test_rfid.py                   63
