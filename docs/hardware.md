@@ -38,22 +38,22 @@ The most important rule, and it is not negotiable:
 
 ## 1. Bill of materials
 
-| #   | Part                          | Notes that bite you if ignored                            |
-| --- | ----------------------------- | --------------------------------------------------------- |
-| 1   | Raspberry Pi 5 (or 4)         | Any Pi with a 40-pin header and a CSI port.               |
-| 2   | microSD card (≥ 16 GB, A2)    | Raspberry Pi OS **64-bit Bookworm** recommended.          |
-| 3   | Pi power supply               | Official PSU. Undervoltage causes random serial dropouts. |
-| 4   | Arduino UNO (+ USB cable)     | The cable must be a **data** cable, not charge-only.      |
-| 5   | L298N dual H-bridge module    | With **ENA/ENB jumper caps** (you will remove them).      |
-| 6   | 2× DC gear motor + wheels     | Differential drive, one per side.                         |
-| 7   | Separate motor battery pack   | e.g. 4–6× AA, or 2S Li-ion. Powers the L298N only.        |
-| 8   | 4× HC-SR04 ultrasonic         | 5 V logic. Front/Left/Right/Rear.                         |
-| 9   | Raspberry Pi Camera Module    | + the **correct ribbon** for your Pi's CSI connector.     |
-| 10  | DHT11 temperature/humidity    | 3-pin module. `DATA` -> `A1`. **Pin order varies — read the silkscreen.**  |
-| 11  | MQ-series gas sensor (e.g. MQ-2) | Analog output. **No pin is free for it yet** — see §5.                 |
-| 12  | 16x2 I2C LCD (PCF8574)        | `SDA`->`A4`, `SCL`->`A5`. Address usually `0x27`, sometimes `0x3F`.    |
-| 13  | 2-wire buzzer                 | + -> `A0`. Passive makes a tone; active only clicks.                     |
-| 14  | Jumper wires, chassis, caster | Plus a multimeter.                                                        |
+| #   | Part                             | Notes that bite you if ignored                                            |
+| --- | -------------------------------- | ------------------------------------------------------------------------- |
+| 1   | Raspberry Pi 5 (or 4)            | Any Pi with a 40-pin header and a CSI port.                               |
+| 2   | microSD card (≥ 16 GB, A2)       | Raspberry Pi OS **64-bit Bookworm** recommended.                          |
+| 3   | Pi power supply                  | Official PSU. Undervoltage causes random serial dropouts.                 |
+| 4   | Arduino UNO (+ USB cable)        | The cable must be a **data** cable, not charge-only.                      |
+| 5   | L298N dual H-bridge module       | With **ENA/ENB jumper caps** (you will remove them).                      |
+| 6   | 2× DC gear motor + wheels        | Differential drive, one per side.                                         |
+| 7   | Separate motor battery pack      | e.g. 4–6× AA, or 2S Li-ion. Powers the L298N only.                        |
+| 8   | 4× HC-SR04 ultrasonic            | 5 V logic. Front/Left/Right/Rear.                                         |
+| 9   | Raspberry Pi Camera Module       | + the **correct ribbon** for your Pi's CSI connector.                     |
+| 10  | DHT11 temperature/humidity       | 3-pin module. `DATA` -> `A1`. **Pin order varies — read the silkscreen.** |
+| 11  | MQ-series gas sensor (e.g. MQ-2) | Analog output. **No pin is free for it yet** — see §5.                    |
+| 12  | 16x2 I2C LCD (PCF8574)           | `SDA`->`A4`, `SCL`->`A5`. Address usually `0x27`, sometimes `0x3F`.       |
+| 13  | 2-wire buzzer                    | + -> `A0`. Passive makes a tone; active only clicks.                      |
+| 14  | Jumper wires, chassis, caster    | Plus a multimeter.                                                        |
 
 > A Pi 5 uses a narrower **mini** CSI ribbon than a Pi 4. The wrong ribbon is  
 > the single most common "the camera doesn't work" cause.
@@ -179,20 +179,20 @@ The final AMR pin chart is implemented: both conflicts below are resolved in the
 firmware headers and mirrored in `config/robot.yaml`. **Nothing has been run on
 real hardware** — this is the map the code now expects, not a verified build.
 
-| Function        | Pin           | Status                              |
-| --------------- | ------------- | ----------------------------------- |
-| `IN1` / `IN2`   | `D12` / `D13` | left motor (D13 also drives the LED) |
-| `ENA`           | `D10`         | **PWM ✅**                          |
-| `IN3` / `IN4`   | `A3` / `A2`   | right motor (analog pins as digital) |
-| `ENB`           | `D11`         | **PWM ✅** — the former D8 fault     |
-| Front trig/echo | `D2` / `D3`   |                                     |
-| Left trig/echo  | `D4` / `D5`   |                                     |
-| Right trig/echo | `D6` / `D7`   |                                     |
-| Rear trig/echo  | `D8` / `D9`   | moved off the motor's D4/D5        |
-| DHT11 `DATA`    | `A1`          | bit-banged, no library             |
+| Function        | Pin           | Status                                  |
+| --------------- | ------------- | --------------------------------------- |
+| `IN1` / `IN2`   | `D12` / `D13` | left motor (D13 also drives the LED)    |
+| `ENA`           | `D10`         | **PWM ✅**                              |
+| `IN3` / `IN4`   | `A3` / `A2`   | right motor (analog pins as digital)    |
+| `ENB`           | `D11`         | **PWM ✅** — the former D8 fault        |
+| Front trig/echo | `D2` / `D3`   |                                         |
+| Left trig/echo  | `D4` / `D5`   |                                         |
+| Right trig/echo | `D6` / `D7`   |                                         |
+| Rear trig/echo  | `D8` / `D9`   | moved off the motor's D4/D5             |
+| DHT11 `DATA`    | `A1`          | bit-banged, no library                  |
 | Buzzer          | `A0`          | `digitalWrite` toggle — **no `tone()`** |
-| LCD `SDA`/`SCL` | `A4` / `A5`   | PCF8574 backpack, `0x27`           |
-| MQ gas `AO`     | **none**      | 🔴 no analog pin is free (see below) |
+| LCD `SDA`/`SCL` | `A4` / `A5`   | PCF8574 backpack, `0x27`                |
+| MQ gas `AO`     | **none**      | 🔴 no analog pin is free (see below)    |
 
 ### The resolved conflicts (kept for the record)
 

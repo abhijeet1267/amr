@@ -336,6 +336,16 @@ _MOTION = {
     "turn_right": 80,
 }
 
+#: Dead-man motion lease (seconds). A movement command is honoured only while the
+#: operator keeps renewing it; if renewals stop (button released, tab closed,
+#: network loss) the control loop drives the robot to STOP after this window.
+#: This is a *server-side* dead-man, independent of the Arduino watchdog (which
+#: covers a dead Pi / dropped link). 1.5 s is conservative: comfortably longer
+#: than a 500 ms hold-to-move renewal, short enough that a lost control does not
+#: drive the robot for long. The robot only ever *moves* while a fresh lease is
+#: present; it never auto-renews — only a validated operator motion command does.
+MOTION_LEASE_S = 1.5
+
 #: Ranking for the derived top-level ``severity`` of GET /hazard. The web layer
 #: only ever reports NONE/WARNING/CRITICAL — a superset-free projection of the
 #: real ``HazardSeverity`` vocabulary onto "is there an active hazard?".
@@ -621,6 +631,20 @@ class AMRWebApp:
         self._commands = CommandLog(maxlen=200)
         self._alerts = AlertEngine(maxlen=200, stale_after_s=10.0)
         self._alerts_state: Dict[str, Any] = self._alerts.to_dict()
+
+        # Motion lease (the server-side dead-man). A movement command is only
+        # honoured while the operator keeps renewing it; if renewals stop (button
+        # released, browser closed, network loss) the lease expires and the
+        # control loop drives the robot to STOP. This is independent of the
+        # Arduino watchdog: the watchdog covers a *dead Pi / dropped link*, the
+        # lease covers a *live Pi whose operator went away*. See _enforce_motion_
+        # lease. Conservative default: 1.5 s. Never auto-renews — only a real,
+        # validated motion command from an operator does.
+        self._motion_cmd: Optional[str] = None
+        self._motion_speed: int = 0
+        self._motion_renewed_at: Optional[float] = None
+        self._motion_lease_s: float = MOTION_LEASE_S
+
         # Display-only ultrasonic thresholds for the hardware grid. Taken from
         # the safety config (the same numbers the real stop logic uses) so the
         # dashboard's per-face classification is never a second, divergent set

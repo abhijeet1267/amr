@@ -32,6 +32,7 @@
 #include "gas_sensor.h"
 #include "lcd_i2c.h"
 #include "buzzer.h"
+#include "obstacle_warning.h"
 
 // Watchdog default (ms) — mirrors config/safety.yaml. Changeable at runtime
 // with the `WDT <ms>` command.
@@ -217,6 +218,8 @@ void loop() {
     if (Ultrasonic::safetyStopNeeded()) {
       MotorControl::stop();
     }
+    checkObstacleWarning(Ultrasonic::readFront(), Ultrasonic::readLeft(),
+                         Ultrasonic::readRight(), Ultrasonic::readRear());
   }
 
   // 4) Buzzer: advance the toggle schedule (no timer, no D11 conflict).

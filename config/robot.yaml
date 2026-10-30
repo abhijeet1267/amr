@@ -44,8 +44,8 @@ sensors:
   environment:
     dht11_data: "A1"
     gas_pin: null
-    lcd_i2c_address: 0x27   # PCF8574 backpack (0x27 or 0x3F)
-    buzzer_pin: "A0"        # digitalWrite toggle — NOT tone() (Timer2 = D11)
+    lcd_i2c_address: 0x27 # PCF8574 backpack (0x27 or 0x3F)
+    buzzer_pin: "A0" # digitalWrite toggle — NOT tone() (Timer2 = D11)
     poll_interval_ms: 1000
 
 camera:

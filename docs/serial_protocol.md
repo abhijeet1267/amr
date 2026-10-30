@@ -23,20 +23,20 @@ must stay in sync:
 
 ## 1. Command set (Pi → Arduino)
 
-| Command                     | Example            | Purpose                                   |
-| --------------------------- | ------------------ | ----------------------------------------- |
-| `PING`                      | `PING`             | Liveness check                            |
-| `STATUS`                    | `STATUS`           | Query motor + drive state                 |
-| `STOP`                      | `STOP`             | Immediately stop both motor sides         |
-| `VERSION`                   | `VERSION`          | Report firmware protocol version          |
-| `SENSOR`                    | `SENSOR`           | Request an immediate ultrasonic report    |
-| `WDT <ms>`                  | `WDT 1000`         | Set the communication watchdog timeout    |
-| `MOVE L=<int> R=<int>`      | `MOVE L=150 R=150` | Set left/right wheel-group speed          |
-| `ENV`                       | `ENV`              | DHT11 temperature + humidity reading      |
-| `GAS`                       | `GAS`              | MQ gas sensor raw ADC reading             |
-| `LCD <l0>\|<l1>`            | `LCD MODE RUNNING…`| Set the 16×2 I2C LCD (≤16 chars per line) |
-| `BUZZ <hz> [<ms>]`          | `BUZZ 1200 150`    | Buzzer tone; `0` stops, `<ms>` auto-stops |
-| `F` / `B` / `L` / `R` / `S` | `F`                | **Legacy** baseline commands (still work) |
+| Command                     | Example             | Purpose                                   |
+| --------------------------- | ------------------- | ----------------------------------------- |
+| `PING`                      | `PING`              | Liveness check                            |
+| `STATUS`                    | `STATUS`            | Query motor + drive state                 |
+| `STOP`                      | `STOP`              | Immediately stop both motor sides         |
+| `VERSION`                   | `VERSION`           | Report firmware protocol version          |
+| `SENSOR`                    | `SENSOR`            | Request an immediate ultrasonic report    |
+| `WDT <ms>`                  | `WDT 1000`          | Set the communication watchdog timeout    |
+| `MOVE L=<int> R=<int>`      | `MOVE L=150 R=150`  | Set left/right wheel-group speed          |
+| `ENV`                       | `ENV`               | DHT11 temperature + humidity reading      |
+| `GAS`                       | `GAS`               | MQ gas sensor raw ADC reading             |
+| `LCD <l0>\|<l1>`            | `LCD MODE RUNNING…` | Set the 16×2 I2C LCD (≤16 chars per line) |
+| `BUZZ <hz> [<ms>]`          | `BUZZ 1200 150`     | Buzzer tone; `0` stops, `<ms>` auto-stops |
+| `F` / `B` / `L` / `R` / `S` | `F`                 | **Legacy** baseline commands (still work) |
 
 ### Speed semantics (`MOVE`)
 
@@ -87,11 +87,11 @@ must stay in sync:
 
 ### Error codes (`ERR <code>`)
 
-| Code      | Cause                                   |
-| --------- | --------------------------------------- |
-| `PARSE`   | Malformed / missing fields              |
+| Code      | Cause                                                                 |
+| --------- | --------------------------------------------------------------------- |
+| `PARSE`   | Malformed / missing fields                                            |
 | `RANGE`   | A value is outside its allowed range (speed ±255, buzzer 20–20000 Hz) |
-| `UNKNOWN` | Unrecognised command                    |
+| `UNKNOWN` | Unrecognised command                                                  |
 
 ---
 
@@ -110,17 +110,17 @@ must stay in sync:
 
 ## 4. Environmental sensors (`ENV`, `GAS`)
 
-| Read | Values | Notes |
-| --- | --- | --- |
-| **DHT11** | `T` degC (int), `H` %RH (int) | `-1` = invalid/unmeasured. Sampling one-shot, on request. |
-| **MQ gas** | `RAW` ADC count (0..1023) | `-1` = *no pin assigned*, the shipped default. |
+| Read       | Values                        | Notes                                                     |
+| ---------- | ----------------------------- | --------------------------------------------------------- |
+| **DHT11**  | `T` degC (int), `H` %RH (int) | `-1` = invalid/unmeasured. Sampling one-shot, on request. |
+| **MQ gas** | `RAW` ADC count (0..1023)     | `-1` = _no pin assigned_, the shipped default.            |
 
 **Honesty contract:** `-1` means "not measured". The Pi parser maps `-1` to
 `None` and telemetry surfaces `UNAVAILABLE` — it never invents `0 ppm`.
 
 **Safety contract:** neither value reaches `SafetyManager`, `HazardManager`, or
 `RobotManager._gate()`. There is no path from a gas reading to the motors. The
-buzzer/LCD are similarly actuation-free of *motion*: `LCD`/`BUZZ` are accepted
+buzzer/LCD are similarly actuation-free of _motion_: `LCD`/`BUZZ` are accepted
 in any mode and never reach `dispatch()`.
 
 ### Buzzer (`BUZZ`)

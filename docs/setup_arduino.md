@@ -20,17 +20,17 @@ to prove it works before the Pi is involved. This is Stage 1 of
 | `motor_control.h` / `motor_control.cpp` | L298N PWM + direction HAL                                                           |
 | `safety.h` / `safety.cpp`               | Communication watchdog (default 1000 ms)                                            |
 | `ultrasonic.h` / `ultrasonic.cpp`       | 4× HC-SR04 polling, `SENSOR F= L= R= B=`                                            |
-| `dht11.h` / `dht11.cpp`                 | Bit-banged DHT11 on `A1`, `ENV T= H=` (no library)                                    |
-| `gas_sensor.h` / `gas_sensor.cpp`       | MQ gas raw ADC. **No pin assigned**, so `GAS RAW=-1`                                  |
-| `lcd_i2c.h` / `lcd_i2c.cpp`              | 16×2 HD44780 over PCF8574 using the core's `Wire` (no library)                      |
-| `buzzer.h` / `buzzer.cpp`               | Timer-free buzzer on `A0` (deliberately not `tone()`)                                 |
+| `dht11.h` / `dht11.cpp`                 | Bit-banged DHT11 on `A1`, `ENV T= H=` (no library)                                  |
+| `gas_sensor.h` / `gas_sensor.cpp`       | MQ gas raw ADC. **No pin assigned**, so `GAS RAW=-1`                                |
+| `lcd_i2c.h` / `lcd_i2c.cpp`             | 16×2 HD44780 over PCF8574 using the core's `Wire` (no library)                      |
+| `buzzer.h` / `buzzer.cpp`               | Timer-free buzzer on `A0` (deliberately not `tone()`)                               |
 
 Properties you can rely on:
 
 - **Boots stopped.** It only moves on an explicit `MOVE`/legacy command.
 - **Watchdog.** After `DEFAULT_WATCHDOG_MS` (1000 ms) of silence it stops, beeps,
   and emits `WATCHDOG TRIGGERED` once.
-- **Proximity stop.** A *valid* reading below its threshold stops the motors.
+- **Proximity stop.** A _valid_ reading below its threshold stops the motors.
 - **Sensors and PWM are enabled** (`ULTRASONIC_ENABLED 1`, `MOTOR_PWM_ENABLED 1`)
   because the applied pin map puts both ENA/ENB on real PWM pins (`D10`/`D11`).
   **Neither is verified on hardware.**
@@ -135,16 +135,16 @@ line ending set to **Newline**. Then type each command and check the reply.
 | `PING`           | `PONG`                                                  |
 | `VERSION`        | `VERSION 1.1`                                           |
 | `STATUS`         | `STATUS L=0 R=0 MODE=STOPPED`                           |
-| `SENSOR`         | `SENSOR F=-1 L=-1 R=-1 B=-1` until sensors are wired     |
+| `SENSOR`         | `SENSOR F=-1 L=-1 R=-1 B=-1` until sensors are wired    |
 | `MOVE L=1 R=1`   | `ACK MOVE L=1 R=1` (then `STATUS` shows `MODE=RUNNING`) |
 | `STOP`           | `ACK STOP`                                              |
 | `MOVE L=300 R=0` | `ERR RANGE invalid`                                     |
 | `XYZ`            | `ERR UNKNOWN invalid`                                   |
-| `ENV`            | `ENV T=-1 H=-1` (until the DHT11 reads cleanly)        |
+| `ENV`            | `ENV T=-1 H=-1` (until the DHT11 reads cleanly)         |
 | `GAS`            | `GAS RAW=-1` (**no pin assigned** — the shipped state)  |
-| `LCD MODE IDLE|ready` | `ACK LCD` (check the display, if connected)         |
-| `BUZZ 1200 150`  | `ACK BUZZ 1200`, then ~150 ms of tone                  |
-| `BUZZ 99`        | `ERR RANGE invalid` (minimum is 20 Hz)                 |
+| `LCD MODE IDLE   | ready`                                                  | `ACK LCD` (check the display, if connected) |
+| `BUZZ 1200 150`  | `ACK BUZZ 1200`, then ~150 ms of tone                   |
+| `BUZZ 99`        | `ERR RANGE invalid` (minimum is 20 Hz)                  |
 
 The very first line after opening the monitor is `AMR FW READY v1.1` (the boot
 banner). That is expected; the Pi's read loop tolerates it.

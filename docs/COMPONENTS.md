@@ -28,7 +28,7 @@ RFID reader, gas/fire sensors. Those subsystems are simulated only.
 ---
 
 > **Pin map applied (2026-10-12).** The final AMR pin chart is now implemented
-> in the firmware headers *and* `config/robot.yaml`. **Nothing has been run on
+> in the firmware headers _and_ `config/robot.yaml`. **Nothing has been run on
 > real hardware** — the map is wired into code, not verified on a bench.
 
 ```
@@ -86,28 +86,28 @@ RFID reader, gas/fire sensors. Those subsystems are simulated only.
 
 ## 3. Arduino pin allocation — every pin, and what's on it
 
-| Pin       | Assigned to               | Kind               | Source            |
-| --------- | ------------------------- | ------------------ | ----------------- |
-| `D0`      | USB RX                    | serial             | reserved          |
-| `D1`      | USB TX                    | serial             | reserved          |
-| `D2`      | FRONT ultrasonic `TRIG`   | output             | `ultrasonic.h`    |
-| `D3`      | FRONT ultrasonic `ECHO`   | input              | `ultrasonic.h`    |
-| `D4`      | LEFT ultrasonic `TRIG`    | output             | `ultrasonic.h`    |
-| `D5`      | LEFT ultrasonic `ECHO`    | input              | `ultrasonic.h`    |
-| `D6`      | RIGHT ultrasonic `TRIG`   | output             | `ultrasonic.h`    |
-| `D7`      | RIGHT ultrasonic `ECHO`   | input              | `ultrasonic.h`    |
-| `D8`      | REAR ultrasonic `TRIG`    | output             | `ultrasonic.h`    |
-| `D9`      | REAR ultrasonic `ECHO`    | input              | `ultrasonic.h`    |
-| `D10`     | `ENA` (left PWM)          | PWM output ✅      | `motor_control.h` |
-| `D11`     | `ENB` (right PWM)         | PWM output ✅      | `motor_control.h` |
-| `D12`     | `IN1` (left forward)      | output (+ LED)     | `motor_control.h` |
-| `D13`     | `IN2` (left reverse)      | output (+ LED)     | `motor_control.h` |
-| `A0`      | buzzer                    | digital output     | `buzzer.h`        |
-| `A1`      | DHT11 `DATA`              | digital I/O        | `dht11.h`         |
-| `A2`      | `IN4` (right reverse)     | output             | `motor_control.h` |
-| `A3`      | `IN3` (right forward)     | output             | `motor_control.h` |
-| `A4`      | LCD `SDA`                 | I2C data           | `lcd_i2c.h`       |
-| `A5`      | LCD `SCL`                 | I2C clock          | `lcd_i2c.h`       |
+| Pin   | Assigned to             | Kind           | Source            |
+| ----- | ----------------------- | -------------- | ----------------- |
+| `D0`  | USB RX                  | serial         | reserved          |
+| `D1`  | USB TX                  | serial         | reserved          |
+| `D2`  | FRONT ultrasonic `TRIG` | output         | `ultrasonic.h`    |
+| `D3`  | FRONT ultrasonic `ECHO` | input          | `ultrasonic.h`    |
+| `D4`  | LEFT ultrasonic `TRIG`  | output         | `ultrasonic.h`    |
+| `D5`  | LEFT ultrasonic `ECHO`  | input          | `ultrasonic.h`    |
+| `D6`  | RIGHT ultrasonic `TRIG` | output         | `ultrasonic.h`    |
+| `D7`  | RIGHT ultrasonic `ECHO` | input          | `ultrasonic.h`    |
+| `D8`  | REAR ultrasonic `TRIG`  | output         | `ultrasonic.h`    |
+| `D9`  | REAR ultrasonic `ECHO`  | input          | `ultrasonic.h`    |
+| `D10` | `ENA` (left PWM)        | PWM output ✅  | `motor_control.h` |
+| `D11` | `ENB` (right PWM)       | PWM output ✅  | `motor_control.h` |
+| `D12` | `IN1` (left forward)    | output (+ LED) | `motor_control.h` |
+| `D13` | `IN2` (left reverse)    | output (+ LED) | `motor_control.h` |
+| `A0`  | buzzer                  | digital output | `buzzer.h`        |
+| `A1`  | DHT11 `DATA`            | digital I/O    | `dht11.h`         |
+| `A2`  | `IN4` (right reverse)   | output         | `motor_control.h` |
+| `A3`  | `IN3` (right forward)   | output         | `motor_control.h` |
+| `A4`  | LCD `SDA`               | I2C data       | `lcd_i2c.h`       |
+| `A5`  | LCD `SCL`               | I2C clock      | `lcd_i2c.h`       |
 
 Every usable pin is allocated. **`A0`-`A5` are no longer spare** — which is
 exactly why the MQ gas sensor's analog output has no assignment (see F3).
@@ -133,13 +133,13 @@ serial; the firmware is the only code that knows about pins.
 
 ### ✅ RESOLVED by the applied pin map (2026-10-12)
 
-| Old fault | What it was | How the chart fixes it |
-| --------- | ----------- | ---------------------- |
-| **F1** | `D4`/`D5` were double-booked (left motor **and** rear ultrasonic) | Rear ultrasonic moved to `D8`/`D9`; motor moved to `D12`/`D13`. No pin is shared. |
-| **F2** | `ENB = D8` is **not** PWM-capable, so the right motor could not be speed-controlled | `ENB = D11`, which is PWM-capable. `ENA = D10` likewise. |
-| **F3** | Ultrasonic pins in `config/robot.yaml` were `TODO_VERIFY` | Now match the firmware: `D2`/`D3` front, `D4`/`D5` left, `D6`/`D7` right, `D8`/`D9` rear. |
-| **F4** | `ULTRASONIC_ENABLED = 0` compiled the sensors out | Now `1` — **unverified on hardware.** |
-| **F5** | `MOTOR_PWM_ENABLED = 0` meant every speed was full speed | Now `1`, because both enable pins are on real PWM pins. **Unverified on hardware.** |
+| Old fault | What it was                                                                         | How the chart fixes it                                                                    |
+| --------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **F1**    | `D4`/`D5` were double-booked (left motor **and** rear ultrasonic)                   | Rear ultrasonic moved to `D8`/`D9`; motor moved to `D12`/`D13`. No pin is shared.         |
+| **F2**    | `ENB = D8` is **not** PWM-capable, so the right motor could not be speed-controlled | `ENB = D11`, which is PWM-capable. `ENA = D10` likewise.                                  |
+| **F3**    | Ultrasonic pins in `config/robot.yaml` were `TODO_VERIFY`                           | Now match the firmware: `D2`/`D3` front, `D4`/`D5` left, `D6`/`D7` right, `D8`/`D9` rear. |
+| **F4**    | `ULTRASONIC_ENABLED = 0` compiled the sensors out                                   | Now `1` — **unverified on hardware.**                                                     |
+| **F5**    | `MOTOR_PWM_ENABLED = 0` meant every speed was full speed                            | Now `1`, because both enable pins are on real PWM pins. **Unverified on hardware.**       |
 
 ### 🔴 F3 (new). The MQ gas sensor has no pin
 
@@ -172,12 +172,12 @@ some modules are `0x3F`. **Not tested on hardware.**
 
 ### 🟡 Still open (unchanged)
 
-| Finding | Effect |
-| ------- | ------ |
-| Geometry `null` (`wheel_track_m`, `wheel_diameter_m`) | odometry / navigation cannot be trusted |
-| Safety thresholds `NOT_VERIFIED` | software defaults, not measurements |
-| `D13` is also the onboard LED | the LED flickers as the left motor reverses — harmless |
-| Everything on real hardware | **nothing has been flashed or run** |
+| Finding                                               | Effect                                                 |
+| ----------------------------------------------------- | ------------------------------------------------------ |
+| Geometry `null` (`wheel_track_m`, `wheel_diameter_m`) | odometry / navigation cannot be trusted                |
+| Safety thresholds `NOT_VERIFIED`                      | software defaults, not measurements                    |
+| `D13` is also the onboard LED                         | the LED flickers as the left motor reverses — harmless |
+| Everything on real hardware                           | **nothing has been flashed or run**                    |
 
 ---
 

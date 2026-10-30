@@ -1,7 +1,7 @@
 # AMR IDP — BREAKTHROUGH INVENTION LAB v2
 
-**Date**: 2026-10-14
-**Method**: 3 independent ideation clusters (physics/EM/information-theory · biology/neuroscience/experimental-science · economics/OR/security) → 40 raw concepts → 6 elimination rounds → 5 finalists.
+**Date**: 2026-10-14  
+**Method**: 3 independent ideation clusters (physics/EM/information-theory · biology/neuroscience/experimental-science · economics/OR/security) → 40 raw concepts → 6 elimination rounds → 5 finalists.  
 **Constraint respected**: none of the 19 previously-explored concepts is repeated, renamed, or trivially recombined.
 
 > **Not legal advice.** Prior-art risk ratings are preliminary engineering judgements, not freedom-to-operate opinions. Actual patentability requires professional prior-art and legal analysis.
@@ -13,6 +13,7 @@
 The three clusters were each required to first ask what the AMR industry *doesn't* ask. Their independent sets converged on a striking common core.
 
 **From the physics cluster:**
+
 1. What can a **moving** sensor measure that a fixed one structurally *cannot*? (→ spatial gradients, phase differences over a baseline, a synthetic aperture)
 2. Can the robot's **own motion be the probe** — is movement the measurement mechanism, not just transport to a sensing site?
 3. Can the robot **inject energy** (acoustic / EM / thermal / mechanical) and read the response — making the warehouse an interrogated sample rather than a passively-observed scene?
@@ -21,21 +22,21 @@ The three clusters were each required to first ask what the AMR industry *doesn'
 6. Can **ambient fields already present** (RF, thermal, acoustic, magnetic) serve as free illumination, with the robot as the moving receiver?
 7. Can **space be converted into time** — the robot's path as a delay line or giant aperture, to beat a sensor's intrinsic resolution?
 
-**From the biology/science cluster:**
-8. Can the robot **deliberately change the environment to learn something**, rather than merely observe it? (Intervention as measurement — `do()`-calculus made physical.)
-9. Can **physical interaction** be an information-generating act, where an object's hidden state is read out through the body?
-10. Can the fleet **discover relationships nobody specified**, rather than detect hazards someone predefined?
-11. Can **disagreement between robots** be a signal of hidden structure rather than an error to be averaged away?
-12. Can the robot's **own body** be its most informative sensor?
-13. Can the fleet hold a **memory no single robot possesses**, built without centralising raw data?
+**From the biology/science cluster:**  
+8\. Can the robot **deliberately change the environment to learn something**, rather than merely observe it? (Intervention as measurement — `do()`-calculus made physical.)  
+9\. Can **physical interaction** be an information-generating act, where an object's hidden state is read out through the body?  
+10\. Can the fleet **discover relationships nobody specified**, rather than detect hazards someone predefined?  
+11\. Can **disagreement between robots** be a signal of hidden structure rather than an error to be averaged away?  
+12\. Can the robot's **own body** be its most informative sensor?  
+13\. Can the fleet hold a **memory no single robot possesses**, built without centralising raw data?
 
-**From the economics/security cluster:**
-14. What does a robot's physical presence reveal that **no database records**? (The database stores *intended* state; the robot measures *actual* state. The gap is a measurable, priceable quantity nobody captures.)
-15. Can **physical occupancy be made a priced good** — what is the true marginal value of a cubic metre of space-time?
-16. Can the robot's **trajectory be a tamper-resistant witness** — physics-based proof of location rather than a trust claim?
-17. Can **truth about the physical world be sold as a service**?
-18. Can **physical space itself be a cryptographic primitive**?
-19. Can the robot's observation make **honesty incentive-compatible** for humans — a mechanism-design instrument rather than surveillance?
+**From the economics/security cluster:**  
+14\. What does a robot's physical presence reveal that **no database records**? (The database stores *intended* state; the robot measures *actual* state. The gap is a measurable, priceable quantity nobody captures.)  
+15\. Can **physical occupancy be made a priced good** — what is the true marginal value of a cubic metre of space-time?  
+16\. Can the robot's **trajectory be a tamper-resistant witness** — physics-based proof of location rather than a trust claim?  
+17\. Can **truth about the physical world be sold as a service**?  
+18\. Can **physical space itself be a cryptographic primitive**?  
+19\. Can the robot's observation make **honesty incentive-compatible** for humans — a mechanism-design instrument rather than surveillance?
 
 **The convergence:** every cluster independently arrived at the same reframe — *the robot is not a thing that moves through a warehouse; it is a thing that can **intervene** in a physical system and thereby learn what observation cannot reveal.* That is the through-line of the five finalists.
 
@@ -45,31 +46,31 @@ The three clusters were each required to first ask what the AMR industry *doesn'
 
 Eliminated against the brief's criteria. Reasons stated, because the reasoning matters more than the list.
 
-| Cut | Why |
-|---|---|
-| Acoustic-Emission Failure Listening | Predictive maintenance — an excluded category. Mobile trilateration is a twist, not a new mechanism |
-| Active Eddy-Current Sub-surface Mapping | Same: mature NDT tool, automated. Incremental |
-| Contact Thermal-Effusivity Spectroscopy | Handheld effusivity meters exist; automation is incremental |
-| Time-Domain Reflectometry Cartography | Mature NDT; multi-port injection is the only novelty and it is thin |
-| Mobile Reference Metrology | A service, not a new capability — it delivers a known standard to known sensors |
-| Immune Fleet | Too close to the excluded *self-healing task graph* and *fleet memory* |
-| Physarum Fleet | Stigmergic routing overlaps the excluded *aisle-access auction*; the cost-topology output is the only residue |
-| Warehouse Field Lab | A business-model reframe, not a mechanism |
-| Body-Truth | Human-factors analytics; ethically fraught, and measurement of people is not the robot's novel capability |
-| The Depreciation Meter | Accounting attribution — abstract, and weakly mobility-dependent |
-| Live Premium | Insurance pricing; sits inside the excluded "warehouse analytics" |
-| Congestion Shadow-Price Meter | Too close to the excluded *aisle-access auction* despite the author's distinction |
-| Ontogenetic AMR | Self-supervised robot learning is a mainstream research programme, not a new capability |
-| Airflow Tomography | Real mechanism, but releasing tracers into a working warehouse is an operational non-starter |
-| Vibration-Energy Microscope | Clever, but the information yield is a vibration map — narrow |
-| Dielectric Material Cartography | Wheels-as-spectrometer is neat but the output duplicates floor-condition mapping |
-| The Living Laboratory | Overlaps Causal Cartography; the experiment *economy* is the stronger framing |
-| Federated World-Model | Overlaps Distributed Retina; the surprise-as-discovery idea is preserved in that lineage |
-| GeoSeal (plain) | Superseded by its escalated topological form |
-| Quorum Sensing | Overlaps Physarum; both stigmergic, one slot only |
-| The Physical Oracle | Strong, but it is an application of Proof-of-Presence rather than a distinct mechanism |
-| Price of a Cubic Meter | Strong economics, but it is the *previous* strategic direction ("make invisible costs measurable") which the brief asks us to go beyond |
-| Truth-Serum Mechanism | Genuinely novel (proper scoring rules + mobile ground truth) — cut only because its verification primitive is already carried by Proof-of-Presence |
+| Cut                                     | Why                                                                                                                                                |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Acoustic-Emission Failure Listening     | Predictive maintenance — an excluded category. Mobile trilateration is a twist, not a new mechanism                                                |
+| Active Eddy-Current Sub-surface Mapping | Same: mature NDT tool, automated. Incremental                                                                                                      |
+| Contact Thermal-Effusivity Spectroscopy | Handheld effusivity meters exist; automation is incremental                                                                                        |
+| Time-Domain Reflectometry Cartography   | Mature NDT; multi-port injection is the only novelty and it is thin                                                                                |
+| Mobile Reference Metrology              | A service, not a new capability — it delivers a known standard to known sensors                                                                    |
+| Immune Fleet                            | Too close to the excluded *self-healing task graph* and *fleet memory*                                                                             |
+| Physarum Fleet                          | Stigmergic routing overlaps the excluded *aisle-access auction*; the cost-topology output is the only residue                                      |
+| Warehouse Field Lab                     | A business-model reframe, not a mechanism                                                                                                          |
+| Body-Truth                              | Human-factors analytics; ethically fraught, and measurement of people is not the robot's novel capability                                          |
+| The Depreciation Meter                  | Accounting attribution — abstract, and weakly mobility-dependent                                                                                   |
+| Live Premium                            | Insurance pricing; sits inside the excluded "warehouse analytics"                                                                                  |
+| Congestion Shadow-Price Meter           | Too close to the excluded *aisle-access auction* despite the author's distinction                                                                  |
+| Ontogenetic AMR                         | Self-supervised robot learning is a mainstream research programme, not a new capability                                                            |
+| Airflow Tomography                      | Real mechanism, but releasing tracers into a working warehouse is an operational non-starter                                                       |
+| Vibration-Energy Microscope             | Clever, but the information yield is a vibration map — narrow                                                                                      |
+| Dielectric Material Cartography         | Wheels-as-spectrometer is neat but the output duplicates floor-condition mapping                                                                   |
+| The Living Laboratory                   | Overlaps Causal Cartography; the experiment *economy* is the stronger framing                                                                      |
+| Federated World-Model                   | Overlaps Distributed Retina; the surprise-as-discovery idea is preserved in that lineage                                                           |
+| GeoSeal (plain)                         | Superseded by its escalated topological form                                                                                                       |
+| Quorum Sensing                          | Overlaps Physarum; both stigmergic, one slot only                                                                                                  |
+| The Physical Oracle                     | Strong, but it is an application of Proof-of-Presence rather than a distinct mechanism                                                             |
+| Price of a Cubic Meter                  | Strong economics, but it is the *previous* strategic direction ("make invisible costs measurable") which the brief asks us to go beyond            |
+| Truth-Serum Mechanism                   | Genuinely novel (proper scoring rules + mobile ground truth) — cut only because its verification primitive is already carried by Proof-of-Presence |
 
 **The surviving 15:** Synthetic-Aperture Warehouse Radar · Mobile Interferometric Baseline Sensing · Space-to-Time Stroboscopic Sampling · Mobile RF Illumination of a Passive Sensor Skin · Active Structural Seismic Tomography · Causal Cartography / The Tracer · Tolerance Atlas · Slow-Variable Hunter · Synthetic Experience Foundry · Epistemic Foraging · Proprioceptive Load Spectroscopy · Distributed Retina · Proof-of-Presence · Geo-Locked Cryptography · Truth-Serum Mechanism.
 
@@ -79,23 +80,23 @@ Eliminated against the brief's criteria. Reasons stated, because the reasoning m
 
 Each survivor was deliberately collided with an unrelated field. **The combination had to create a new mechanism, not a new label.**
 
-| From | × Collided with | → Becomes | The new mechanism |
-|---|---|---|---|
-| Synthetic-Aperture Radar | information theory | **Distributed Coherent Aperture** | Several robots form *one* coherent aperture; resolution scales with fleet size, and information-theoretic bounds set what can be resolved |
-| Mobile Interferometric Baseline | telecommunications | **Multi-Band Passive Metrology** | The building's own WiFi/cellular/FM/LED-flicker becomes a multi-band illumination source; the robot is the moving phase-coherent receiver |
-| Active Seismic Tomography | information theory | **Locomotion as a Seismic Source** | No hammer — the robot's *own gait* is the seismic source, modulated to generate a designed wavefield |
-| Mobile RF Illumination | materials science | **Writable Environment** | Bidirectional backscatter: the robot both powers/reads *and* writes durable state into the building |
-| Causal Cartography | game theory | **Continuous Causal Economy** | Interventions are *priced*; the robot runs the experiment with the highest economic value of information, continuously |
-| Tolerance Atlas | biology | **Evolutionary Fragility Discovery** | Directed evolution of perturbations — mutate and select for maximum fragility found |
-| Synthetic Experience Foundry | game theory | **Permanent Physical Red-Team** | The robot *competes* against the perception model, manufacturing the physical events that defeat it |
-| Epistemic Foraging | economics | **Information Futures Market** | Idle mobility is sold as an information market; parties bid for the robot to go measure what they need |
-| Proprioceptive Load Spectroscopy | materials science | **Dynamic Material Assay** | Extend from load signature to *material state* — phase change, degradation, contamination in carried goods |
-| Distributed Retina | neuroscience | **Attentional Fleet** | The fleet allocates sensing bandwidth like a saliency map, focusing on anomalous regions |
-| Proof-of-Presence | information theory | **Attestation Channel Capacity** | The proof's strength becomes a quantifiable channel: how many bits of "where/when" per metre of travel |
-| Geo-Locked Cryptography | topology | **Homotopic Credential** | The secret is reconstructed by traversing a *homotopy class*, not a point sequence — robust to exact route |
-| Truth-Serum | experimental science | **Mechanism Calibration** | The scoring rule itself is the experiment; the robot tests whether reporting improves under varied incentives |
-| Slow-Variable Hunter | causal inference | **Causal Drift Attribution** | Not merely detect slow drift, but causally attribute it to a source |
-| Space-to-Time Stroboscopic Sampling | topology | **Phase-Space Reconstruction Sampling** | Reconstruct a machine's dynamical attractor from spatially phase-shifted samples |
+| From                                | × Collided with      | → Becomes                               | The new mechanism                                                                                                                         |
+| ----------------------------------- | -------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Synthetic-Aperture Radar            | information theory   | **Distributed Coherent Aperture**       | Several robots form *one* coherent aperture; resolution scales with fleet size, and information-theoretic bounds set what can be resolved |
+| Mobile Interferometric Baseline     | telecommunications   | **Multi-Band Passive Metrology**        | The building's own WiFi/cellular/FM/LED-flicker becomes a multi-band illumination source; the robot is the moving phase-coherent receiver |
+| Active Seismic Tomography           | information theory   | **Locomotion as a Seismic Source**      | No hammer — the robot's *own gait* is the seismic source, modulated to generate a designed wavefield                                      |
+| Mobile RF Illumination              | materials science    | **Writable Environment**                | Bidirectional backscatter: the robot both powers/reads *and* writes durable state into the building                                       |
+| Causal Cartography                  | game theory          | **Continuous Causal Economy**           | Interventions are *priced*; the robot runs the experiment with the highest economic value of information, continuously                    |
+| Tolerance Atlas                     | biology              | **Evolutionary Fragility Discovery**    | Directed evolution of perturbations — mutate and select for maximum fragility found                                                       |
+| Synthetic Experience Foundry        | game theory          | **Permanent Physical Red-Team**         | The robot *competes* against the perception model, manufacturing the physical events that defeat it                                       |
+| Epistemic Foraging                  | economics            | **Information Futures Market**          | Idle mobility is sold as an information market; parties bid for the robot to go measure what they need                                    |
+| Proprioceptive Load Spectroscopy    | materials science    | **Dynamic Material Assay**              | Extend from load signature to *material state* — phase change, degradation, contamination in carried goods                                |
+| Distributed Retina                  | neuroscience         | **Attentional Fleet**                   | The fleet allocates sensing bandwidth like a saliency map, focusing on anomalous regions                                                  |
+| Proof-of-Presence                   | information theory   | **Attestation Channel Capacity**        | The proof's strength becomes a quantifiable channel: how many bits of "where/when" per metre of travel                                    |
+| Geo-Locked Cryptography             | topology             | **Homotopic Credential**                | The secret is reconstructed by traversing a *homotopy class*, not a point sequence — robust to exact route                                |
+| Truth-Serum                         | experimental science | **Mechanism Calibration**               | The scoring rule itself is the experiment; the robot tests whether reporting improves under varied incentives                             |
+| Slow-Variable Hunter                | causal inference     | **Causal Drift Attribution**            | Not merely detect slow drift, but causally attribute it to a source                                                                       |
+| Space-to-Time Stroboscopic Sampling | topology             | **Phase-Space Reconstruction Sampling** | Reconstruct a machine's dynamical attractor from spatially phase-shifted samples                                                          |
 
 **Selected 10:** Distributed Coherent Aperture · Multi-Band Passive Metrology · Locomotion as a Seismic Source · Writable Environment · Continuous Causal Economy · Evolutionary Fragility Discovery · Permanent Physical Red-Team · Homotopic Credential · Attestation Channel Capacity · Attentional Fleet.
 
@@ -104,6 +105,7 @@ Each survivor was deliberately collided with an unrelated field. **The combinati
 ## Part 4 — Round 4: Invention escalation (10 → 7)
 
 For each survivor: what is the more extreme version; what makes it 10× more valuable; what makes it hard to copy; what capability must exist; can that capability itself be an invention?
+
 
 | Concept | Extreme version | The 10× move | Hard to copy because | The capability that must exist — and can itself be invented |
 |---|---|---|---|---|
@@ -177,6 +179,7 @@ Scoring: novel mechanism 25 · "haven't seen this" 20 · technical depth 15 · r
 **Potential patent core:** A method of autonomous, safety-bounded physical generation of rare-event scenarios by a mobile robot, with synchronised multimodal ground-truth capture and adversarial scenario selection driven by the target model's failure surface.
 
 **Potential startup:** Rare-event data-as-a-service for robotics safety; evidence generation for safety cases and regulators.
+
 
 **Who pays:** Robotics manufacturers (safer perception), safety teams, insurers, regulators (evidence-based safety cases), AV/AMR certification bodies.
 
@@ -271,6 +274,7 @@ Scoring: novel mechanism 25 · "haven't seen this" 20 · technical depth 15 · r
 **Why mobility is essential:** A normal AMR *avoids* disturbance; fixed cameras and the WMS can only observe. Only a mobile agent can introduce a controlled, reversible perturbation at a chosen point and measure the system's response. **Observation alone cannot break confounding.**
 
 **What existing systems do:** Static layout rules, WMS heuristics, engineers' intuition; bottlenecks found by months of trial and error, or by simulation with guessed parameters.
+
 
 **What is fundamentally different:** It replaces guessed simulation coefficients with *measured causal ones* — and it prices which experiment to run next.
 

@@ -108,6 +108,27 @@ class RobotManager:
         return self._last_decision
 
     # ------------------------------------------------------------------ #
+    # Motion lease primitives (server-side dead-man)
+    # ------------------------------------------------------------------ #
+    def drive_motion(self, cmd: str, speed: int) -> None:
+        """Drive a named motion at ``speed`` through the gate, or stop.
+
+        ``cmd`` must be a motion verb the web layer knows (forward/backward/
+        rotate_*/turn_*); ``"stop"``, an empty name, or a zero speed stops. This
+        is what the server-side motion lease uses on every renewal and on
+        expiry, so the dead-man path goes through the same gated :meth:`_apply`
+        as every other motion command — it can never bypass the mode or safety
+        checks. Raises :class:`RobotCommandError` on a rejected motion.
+        """
+        if cmd == "stop" or cmd in (None, "") or speed in (0, None):
+            self.stop()
+            return
+        method = _MOTION_HANDLERS.get(cmd)
+        if method is None:
+            raise RobotCommandError(f"unknown motion command: {cmd!r}")
+        method(self, int(speed))
+
+    # ------------------------------------------------------------------ #
     # Factory: full mock stack (no hardware, no pyserial)
     # ------------------------------------------------------------------ #
     @classmethod
